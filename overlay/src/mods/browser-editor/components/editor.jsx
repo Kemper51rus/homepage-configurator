@@ -388,6 +388,7 @@ function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGro
 
 function groupLayoutToForm(layout) {
   return {
+    alignRowHeights: layout?.alignRowHeights === false ? "false" : "true",
     columns: layout?.columns !== undefined ? String(layout.columns) : "",
     header: layout?.header !== undefined ? String(layout.header) : "",
     icon: layout?.icon ?? "",
@@ -402,6 +403,7 @@ function formToGroupLayout(form) {
 
   if (form.style) layout.style = form.style;
   if (form.columns.trim()) layout.columns = Number(form.columns);
+  if (form.alignRowHeights === "false") layout.alignRowHeights = false;
   if (form.header.trim()) layout.header = form.header === "true";
   if (form.icon.trim()) layout.icon = form.icon;
   if (form.initiallyCollapsed.trim()) layout.initiallyCollapsed = form.initiallyCollapsed === "true";
@@ -917,6 +919,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const title = modal.type === "services" ? "service group" : "bookmark group";
   const isVertical = form.style.trim() !== "row";
   const currentColumns = form.columns.trim();
+  const alignRowHeights = form.alignRowHeights !== "false";
   const headerHidden = form.header === "false";
 
   const quickLayoutButtonClass = (active = false) =>
@@ -1050,6 +1053,22 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 Toggle header
               </button>
             </div>
+            {modal.type === "services" && (
+              <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
+                <input
+                  type="checkbox"
+                  checked={alignRowHeights}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      alignRowHeights: event.target.checked ? "true" : "false",
+                    }))
+                  }
+                  className="h-4 w-4"
+                />
+                Align card heights with groups in the same row
+              </label>
+            )}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field
@@ -1172,6 +1191,111 @@ function isGroupDragOver(event, fallbackPayload = null) {
 
 function isExplicitGroupDropTarget(event) {
   return event.target instanceof Element && event.target.closest("[data-editor-group-drop-target='true']");
+}
+
+function useServiceRowHeightBalancer() {
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    let frame = null;
+
+    const groupElements = () =>
+      Array.from(document.querySelectorAll("[data-editor-service-group='true']"));
+
+    const directListForGroup = (group) => group.querySelector(":scope ul[data-editor-service-list]");
+
+    const directCardsForGroup = (group) => {
+      const list = directListForGroup(group);
+      return list ? Array.from(list.querySelectorAll(":scope > li.service > .service-card")) : [];
+    };
+
+    const clearHeights = () => {
+      groupElements().forEach((group) => {
+        directCardsForGroup(group).forEach((card) => {
+          card.style.height = "";
+        });
+      });
+    };
+
+    const applyEqualHeights = () => {
+      frame = null;
+      clearHeights();
+
+      const groupsByParent = new Map();
+      groupElements()
+        .filter((group) => group.dataset.editorAlignRowHeights !== "false")
+        .filter((group) => group.offsetParent !== null)
+        .forEach((group) => {
+          const parent = group.parentElement;
+          if (!parent) return;
+          groupsByParent.set(parent, [...(groupsByParent.get(parent) ?? []), group]);
+        });
+
+      groupsByParent.forEach((groups) => {
+        const rows = [];
+
+        groups
+          .map((group) => ({ group, rect: group.getBoundingClientRect() }))
+          .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 3 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left))
+          .forEach((entry) => {
+            const currentRow = rows[rows.length - 1];
+            if (!currentRow || Math.abs(currentRow.top - entry.rect.top) > 3) {
+              rows.push({ top: entry.rect.top, groups: [entry.group] });
+              return;
+            }
+
+            currentRow.groups.push(entry.group);
+          });
+
+        rows
+          .filter((row) => row.groups.length > 1)
+          .forEach((row) => {
+            const cardsByGroup = row.groups.map(directCardsForGroup);
+            const maxCards = Math.max(...cardsByGroup.map((cards) => cards.length), 0);
+
+            for (let index = 0; index < maxCards; index += 1) {
+              const cardsInPosition = cardsByGroup.map((cards) => cards[index]).filter(Boolean);
+              if (cardsInPosition.length < 2) continue;
+
+              const maxHeight = Math.ceil(
+                Math.max(...cardsInPosition.map((card) => card.getBoundingClientRect().height)),
+              );
+              cardsInPosition.forEach((card) => {
+                card.style.height = `${maxHeight}px`;
+              });
+            }
+          });
+      });
+    };
+
+    const scheduleApply = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(applyEqualHeights);
+    };
+
+    scheduleApply();
+    window.addEventListener("resize", scheduleApply);
+
+    const resizeObserver = new ResizeObserver(scheduleApply);
+    groupElements().forEach((group) => resizeObserver.observe(group));
+    const mutationObserver = new MutationObserver(scheduleApply);
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+      window.removeEventListener("resize", scheduleApply);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      clearHeights();
+    };
+  }, []);
 }
 
 export function EditorGroupToolbar({ type, groupName, layout, allowInside = false }) {
@@ -1420,6 +1544,7 @@ export function ConfigEditorProvider({ children }) {
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
   const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
+  useServiceRowHeightBalancer();
 
   const value = useMemo(
     () => ({
