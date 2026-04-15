@@ -1153,7 +1153,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
         }
       }}
       data-editor-group-drop-target="true"
-      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 dark:border-white/25 dark:bg-white/5 dark:text-theme-100"
+      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 dark:border-white/25 dark:bg-white/5 dark:text-theme-100"
     >
       <span className="truncate font-medium">{groupName}</span>
       <div className="flex shrink-0 gap-1">
