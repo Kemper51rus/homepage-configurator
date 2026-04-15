@@ -261,28 +261,82 @@ index c23e16a2..b511cad6 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..2084aca9 100644
+index 1acf94d6..86a7bf86 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
-@@ -1,13 +1,16 @@
+@@ -1,13 +1,70 @@
  import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
++import { useEffect, useRef } from "react";
  
  import { columnMap } from "../../utils/layout/columns";
  
  export default function List({ groupName, services, layout, useEqualHeights, header }) {
 +  const isRowLayout = layout?.style === "row";
++  const listRef = useRef(null);
++
++  useEffect(() => {
++    const listElement = listRef.current;
++    if (!listElement) {
++      return undefined;
++    }
++
++    const serviceCards = () =>
++      Array.from(listElement.querySelectorAll(":scope > li.service > .service-card"));
++
++    const clearCardHeights = () => {
++      serviceCards().forEach((card) => {
++        card.style.height = "";
++      });
++    };
++
++    if (!isRowLayout) {
++      clearCardHeights();
++      return undefined;
++    }
++
++    const applyEqualHeights = () => {
++      const cards = serviceCards();
++      if (!cards.length) {
++        return;
++      }
++
++      cards.forEach((card) => {
++        card.style.height = "auto";
++      });
++
++      const maxHeight = Math.max(...cards.map((card) => card.getBoundingClientRect().height));
++      cards.forEach((card) => {
++        card.style.height = `${Math.ceil(maxHeight)}px`;
++      });
++    };
++
++    applyEqualHeights();
++    window.addEventListener("resize", applyEqualHeights);
++
++    const resizeObserver = new ResizeObserver(() => {
++      applyEqualHeights();
++    });
++    serviceCards().forEach((card) => resizeObserver.observe(card));
++
++    return () => {
++      window.removeEventListener("resize", applyEqualHeights);
++      resizeObserver.disconnect();
++      clearCardHeights();
++    };
++  }, [isRowLayout, services, layout?.columns]);
 +
    return (
      <ul
++      ref={listRef}
        className={classNames(
 -        layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col",
 +        isRowLayout ? `grid auto-rows-fr ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col",
          header ? "mt-3" : "",
          "services-list",
        )}
-@@ -17,9 +20,17 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+@@ -17,9 +74,17 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
            key={[service.container, service.app, service.name].filter((s) => s).join("-")}
            service={service}
            groupName={groupName}
