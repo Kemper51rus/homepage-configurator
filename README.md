@@ -9,7 +9,12 @@
 - загрузка фонового изображения;
 - режим редактирования поверх текущего интерфейса, без отдельной длинной страницы настроек.
 
-Проект `gethomepage/homepage` считается целевым upstream-checkout. Этот репозиторий хранит сам мод, patch-файл, установщик и отдельную историю изменений.
+Проект `gethomepage/homepage` считается целевым upstream-checkout. Этот репозиторий хранит:
+
+- исходники мода в `overlay/`;
+- core-patch для точек встраивания;
+- установщик;
+- отдельную историю изменений.
 
 ## Установка В Homepage
 
@@ -21,6 +26,11 @@ npm run enable:target -- --target /opt/homepage
 ```
 
 Где `/opt/homepage` - путь к локальному checkout проекта `gethomepage/homepage`.
+
+Команда установки делает две вещи:
+
+1. копирует runtime-файлы мода из `overlay/` в target-проект;
+2. накладывает patch только на минимальные core-файлы, в которые мод должен встроиться.
 
 После установки перезапустите homepage обычным способом. Для dev-запуска с доступом по IP нужно указать точный host и port:
 
@@ -102,6 +112,23 @@ HOMEPAGE_BROWSER_EDITOR=false
 npm run status:target -- --target /opt/homepage
 ```
 
+## Структура Мода
+
+Исходники мода живут здесь:
+
+```text
+overlay/src/mods/browser-editor/*
+overlay/src/pages/api/config/*
+```
+
+Это основной рабочий каталог для дальнейшей разработки.
+
+Target-проект `/opt/homepage` больше не считается источником правды для кода мода. Он нужен только для:
+
+- установки;
+- сборки;
+- проверки в живом homepage.
+
 ## Patch
 
 Установщик применяет patch:
@@ -110,41 +137,45 @@ npm run status:target -- --target /opt/homepage
 patches/browser-editor.patch
 ```
 
-Patch добавляет в целевой homepage:
+Patch меняет в целевом homepage только минимальные core-файлы:
 
-- `src/mods/browser-editor/*` - основной код мода;
-- thin wrappers для Next API в `src/pages/api/config/*`;
-- небольшие точки подключения в карточках и списках сервисов/закладок;
-- поддержку `HOMEPAGE_BROWSER_EDITOR` в `next.config.js`;
-- вспомогательные npm-скрипты в `package.json` целевого проекта.
+- `src/pages/index.jsx`
+- `src/components/services/*`
+- `src/components/bookmarks/*`
+- `next.config.js`
 
 ## Принцип Поддержки
 
 Мод дальше ведется по правилу `mod-first`:
 
-- вся новая логика и UI редактора по возможности добавляются только в `src/mods/browser-editor/*`;
+- вся новая логика и UI редактора по возможности добавляются только в `overlay/src/mods/browser-editor/*`;
+- thin wrappers для API поддерживаются в `overlay/src/pages/api/config/*`;
 - core `homepage` меняется только в точках подключения, без которых мод физически не может встроиться;
 - если изменение можно реализовать внутри модуля, core не трогаем;
 - patch должен оставаться как можно меньше, чтобы его было проще переносить на новые версии upstream.
 
-На практике это значит, что основные рисковые места патча ограничены несколькими файлами:
+На практике это значит, что основные рисковые места patch ограничены несколькими файлами:
 
 - `src/pages/index.jsx`
 - `src/components/services/*`
 - `src/components/bookmarks/*`
-- `src/pages/api/config/*`
 - `next.config.js`
-- `package.json`
 
 ## Обновление Patch-Файла
 
-Patch генерируется из уже пропатченного checkout homepage. В целевом проекте есть команда:
+Patch генерируется из уже установленного target-проекта вручную или отдельным локальным workflow.
 
-```bash
-pnpm browser-editor:create-patch
-```
+Рабочая схема теперь такая:
 
-После этого скопируйте обновленный `patches/browser-editor.patch` обратно в этот репозиторий мода.
+1. меняем файлы в этом репозитории, в `overlay/`;
+2. запускаем установку в target:
+   ```bash
+   npm run install:target -- --target /opt/homepage
+   ```
+3. проверяем сборку и поведение в `/opt/homepage`;
+4. при необходимости обновляем `patches/browser-editor.patch`, если изменилась точка встраивания в core.
+
+Код мода больше не должен редактироваться напрямую в `/opt/homepage/src/mods/browser-editor`.
 
 ## Примечания
 

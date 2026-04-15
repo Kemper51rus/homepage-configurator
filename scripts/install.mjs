@@ -1,10 +1,11 @@
 import { execFileSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const patchPath = join(root, "patches", "browser-editor.patch");
+const overlayPath = join(root, "overlay");
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -82,9 +83,49 @@ function status(target) {
 
 function install(target) {
   ensureTarget(target);
-  runGit(target, ["apply", "--3way", patchPath]);
-  console.log(`Browser editor patch applied to ${target}`);
+  installOverlay(target);
+  applyPatch(target);
+  console.log(`Browser editor installed into ${target}`);
   console.log("Run with --enable to set HOMEPAGE_BROWSER_EDITOR=true.");
+}
+
+function walk(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return walk(fullPath);
+    }
+    return [fullPath];
+  });
+}
+
+function installOverlay(target) {
+  if (!existsSync(overlayPath) || !statSync(overlayPath).isDirectory()) {
+    throw new Error(`Overlay directory is missing: ${overlayPath}`);
+  }
+
+  for (const sourcePath of walk(overlayPath)) {
+    const relativePath = sourcePath.slice(`${overlayPath}/`.length);
+    const targetPath = join(target, relativePath);
+    mkdirSync(dirname(targetPath), { recursive: true });
+    cpSync(sourcePath, targetPath);
+  }
+}
+
+function applyPatch(target) {
+  try {
+    runGit(target, ["apply", "--3way", patchPath], "pipe");
+    console.log("Core patch applied");
+    return;
+  } catch (error) {
+    try {
+      runGit(target, ["apply", "--reverse", "--check", patchPath], "pipe");
+      console.log("Core patch already applied");
+      return;
+    } catch {
+      throw error;
+    }
+  }
 }
 
 const { command, target } = parseArgs();
