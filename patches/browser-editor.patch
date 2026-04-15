@@ -1220,12 +1220,21 @@ index 00000000..38a8b49c
 +export { default } from "mods/browser-editor/api/background";
 diff --git a/src/pages/api/config/editor.js b/src/pages/api/config/editor.js
 new file mode 100644
-index 00000000..31ff00a1
+index 00000000..6880f1ab
 --- /dev/null
 +++ b/src/pages/api/config/editor.js
-@@ -0,0 +1,2 @@
-+export { config } from "mods/browser-editor/api/editor";
-+export { default } from "mods/browser-editor/api/editor";
+@@ -0,0 +1,11 @@
++import handler from "mods/browser-editor/api/editor";
++
++export const config = {
++  api: {
++    bodyParser: {
++      sizeLimit: "20mb",
++    },
++  },
++};
++
++export default handler;
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
 index c243c3ff..44087a9d 100644
 --- a/src/pages/index.jsx
