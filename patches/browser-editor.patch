@@ -210,7 +210,7 @@ index 403f6063..980427c2 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..5abbeb39 100644
+index c23e16a2..b511cad6 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,4 +1,5 @@
@@ -219,15 +219,32 @@ index c23e16a2..5abbeb39 100644
  import ResolvedIcon from "components/resolvedicon";
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
-@@ -15,6 +16,7 @@ import Widget from "./widget";
+@@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
+ import Status from "./status";
+ import Widget from "./widget";
  
- export default function Item({ service, groupName, useEqualHeights }) {
+-export default function Item({ service, groupName, useEqualHeights }) {
++export default function Item({ service, groupName, useEqualHeights, rowLayout = false }) {
    const hasLink = service.href && service.href !== "#";
 +  const { editMode, itemProps } = useEditableItem("services", groupName, service.name, service);
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -33,11 +35,12 @@ export default function Item({ service, groupName, useEqualHeights }) {
+   };
+ 
+   return (
+-    <li key={service.name} id={service.id} className="service" data-name={service.name || ""}>
++    <li key={service.name} id={service.id} className={classNames("service", rowLayout && "h-full")} data-name={service.name || ""}>
+       <div
+         className={classNames(
+           settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+           useEqualHeights && "h-[calc(100%-0.5rem)]",
++          rowLayout && "h-full",
+           "transition-all mb-2 p-1 rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10 relative overflow-clip service-card",
+         )}
+       >
+@@ -188,6 +191,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -244,17 +261,32 @@ index c23e16a2..5abbeb39 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..e39ee4fc 100644
+index 1acf94d6..2084aca9 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
-@@ -1,5 +1,6 @@
+@@ -1,13 +1,16 @@
  import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
  
  import { columnMap } from "../../utils/layout/columns";
  
-@@ -20,6 +21,13 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+ export default function List({ groupName, services, layout, useEqualHeights, header }) {
++  const isRowLayout = layout?.style === "row";
++
+   return (
+     <ul
+       className={classNames(
+-        layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col",
++        isRowLayout ? `grid auto-rows-fr ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col",
+         header ? "mt-3" : "",
+         "services-list",
+       )}
+@@ -17,9 +20,17 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+           key={[service.container, service.app, service.name].filter((s) => s).join("-")}
+           service={service}
+           groupName={groupName}
++          rowLayout={isRowLayout}
            useEqualHeights={layout?.useEqualHeights ?? useEqualHeights}
          />
        ))}
