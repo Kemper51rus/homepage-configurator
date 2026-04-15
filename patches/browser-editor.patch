@@ -41,10 +41,10 @@ index 5d5bdf60..e36d204a 100644
      "@headlessui/react": "^2.2.9",
 diff --git a/scripts/browser-editor-mod.mjs b/scripts/browser-editor-mod.mjs
 new file mode 100644
-index 00000000..cb690a96
+index 00000000..cb454200
 --- /dev/null
 +++ b/scripts/browser-editor-mod.mjs
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,92 @@
 +import { execFileSync } from "child_process";
 +import { existsSync, readFileSync, writeFileSync } from "fs";
 +import { join } from "path";
@@ -61,6 +61,7 @@ index 00000000..cb690a96
 +  "src/pages/index.jsx",
 +  "src/pages/api/config/editor.js",
 +  "src/pages/api/config/background.js",
++  "src/components/services/group.jsx",
 +  "src/components/services/item.jsx",
 +  "src/components/services/list.jsx",
 +  "src/components/bookmarks/group.jsx",
@@ -345,6 +346,90 @@ index f24794db..c5b94df1 100644
      </ul>
    );
  }
+diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
+index 403f6063..4cea079a 100644
+--- a/src/components/services/group.jsx
++++ b/src/components/services/group.jsx
+@@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
+ import List from "components/services/list";
+ import { useEffect, useRef } from "react";
+ import { MdKeyboardArrowDown } from "react-icons/md";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ 
+ import { columnMap } from "../../utils/layout/columns";
+ 
+@@ -17,6 +18,7 @@ export default function ServicesGroup({
+   isSubgroup,
+ }) {
+   const panel = useRef();
++  const { editMode, moveGroup, openGroup } = useConfigEditor();
+ 
+   useEffect(() => {
+     if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
+@@ -39,6 +41,63 @@ export default function ServicesGroup({
+       <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
+         {({ open }) => (
+           <>
++            {editMode && (
++              <div
++                draggable
++                onDragStart={(event) => {
++                  event.dataTransfer.effectAllowed = "move";
++                  event.dataTransfer.setData(
++                    "application/json",
++                    JSON.stringify({ scope: "group", type: "services", groupName: group.name }),
++                  );
++                }}
++                onDragOver={(event) => {
++                  event.preventDefault();
++                  event.dataTransfer.dropEffect = "move";
++                }}
++                onDrop={(event) => {
++                  event.preventDefault();
++                  const draggedData = event.dataTransfer.getData("application/json");
++                  if (!draggedData) return;
++                  const dragged = JSON.parse(draggedData);
++                  if (dragged.scope === "group" && dragged.type === "services") {
++                    moveGroup("services", dragged.groupName, group.name, "before");
++                  }
++                }}
++                className="mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
++              >
++                <span className="truncate font-medium">{group.name}</span>
++                <div className="flex shrink-0 gap-1">
++                  <button
++                    type="button"
++                    onDragOver={(event) => {
++                      event.preventDefault();
++                      event.dataTransfer.dropEffect = "move";
++                    }}
++                    onDrop={(event) => {
++                      event.preventDefault();
++                      event.stopPropagation();
++                      const draggedData = event.dataTransfer.getData("application/json");
++                      if (!draggedData) return;
++                      const dragged = JSON.parse(draggedData);
++                      if (dragged.scope === "group" && dragged.type === "services") {
++                        moveGroup("services", dragged.groupName, group.name, "inside");
++                      }
++                    }}
++                    className="rounded-md border border-emerald-500/70 px-2 py-1 text-xs"
++                  >
++                    Drop inside
++                  </button>
++                  <button
++                    type="button"
++                    onClick={() => openGroup("services", group.name, layout)}
++                    className="rounded-md bg-emerald-700 px-2 py-1 text-xs text-white"
++                  >
++                    Layout
++                  </button>
++                </div>
++              </div>
++            )}
+             {layout?.header !== false && (
+               <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
+                 {layout?.icon && (
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
 index c23e16a2..fbe748f9 100644
 --- a/src/components/services/item.jsx
@@ -664,10 +749,10 @@ index 00000000..c1f3c546
 +}
 diff --git a/src/mods/browser-editor/components/editor.jsx b/src/mods/browser-editor/components/editor.jsx
 new file mode 100644
-index 00000000..1e8474d6
+index 00000000..c50bd58f
 --- /dev/null
 +++ b/src/mods/browser-editor/components/editor.jsx
-@@ -0,0 +1,1152 @@
+@@ -0,0 +1,1157 @@
 +import classNames from "classnames";
 +import { createContext, useContext, useMemo, useState } from "react";
 +import useSWR, { useSWRConfig } from "swr";
@@ -693,6 +778,12 @@ index 00000000..1e8474d6
 +  openNewGroup: () => {},
 +  openNewItem: () => {},
 +};
++
++const toolbarButtonClassName =
++  "rounded-md border border-theme-300/40 bg-theme-100/20 px-4 py-2 text-sm font-medium text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-theme-300/20 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:shadow-theme-900/20 dark:hover:bg-white/10";
++
++const toolbarPrimaryButtonClassName =
++  "rounded-md border border-emerald-500/50 bg-emerald-600/85 px-4 py-2 text-sm font-medium text-white shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-emerald-500 dark:border-emerald-400/40 dark:bg-emerald-600/90 dark:shadow-theme-900/20 dark:hover:bg-emerald-500";
 +
 +const serviceFields = [
 +  ["href", "URL"],
@@ -1771,8 +1862,7 @@ index 00000000..1e8474d6
 +          type="button"
 +          onClick={() => setEditMode((current) => !current)}
 +          className={classNames(
-+            "rounded-md px-4 py-2 text-sm font-medium shadow-md",
-+            editMode ? "bg-emerald-700 text-white" : "bg-theme-800 text-white dark:bg-theme-100 dark:text-theme-900",
++            editMode ? toolbarPrimaryButtonClassName : toolbarButtonClassName,
 +          )}
 +        >
 +          {editMode ? "Done" : "Edit"}
@@ -1781,7 +1871,7 @@ index 00000000..1e8474d6
 +          <button
 +            type="button"
 +            onClick={() => setModal({ type: "background" })}
-+            className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++            className={toolbarButtonClassName}
 +          >
 +            Background
 +          </button>
@@ -1791,14 +1881,14 @@ index 00000000..1e8474d6
 +            <button
 +              type="button"
 +              onClick={() => value.openNewGroup("services")}
-+              className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++              className={toolbarButtonClassName}
 +            >
 +              Service group
 +            </button>
 +            <button
 +              type="button"
 +              onClick={() => value.openNewGroup("bookmarks")}
-+              className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++              className={toolbarButtonClassName}
 +            >
 +              Bookmark group
 +            </button>
@@ -1806,7 +1896,7 @@ index 00000000..1e8474d6
 +        )}
 +      </div>
 +      {notice && (
-+        <div className="fixed bottom-20 left-5 z-50 rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-800 shadow-md dark:bg-emerald-950 dark:text-emerald-200">
++        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-emerald-500/30 bg-emerald-100/90 px-3 py-2 text-sm text-emerald-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:bg-emerald-950/90 dark:text-emerald-200 dark:shadow-theme-900/20">
 +          {notice}
 +        </div>
 +      )}
