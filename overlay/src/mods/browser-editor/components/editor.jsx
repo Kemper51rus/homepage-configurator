@@ -481,6 +481,27 @@ function moveRawBookmarkGroup(rawGroups, sourceName, targetName) {
   return { moved: true, nextGroups };
 }
 
+function findGroupPath(nodes, targetName, path = []) {
+  for (const node of nodes ?? []) {
+    const name = getEntryName(node);
+    const value = node[name];
+    const nextPath = [...path, name];
+
+    if (name === targetName) {
+      return nextPath;
+    }
+
+    if (Array.isArray(value)) {
+      const nestedPath = findGroupPath(value, targetName, nextPath);
+      if (nestedPath) {
+        return nestedPath;
+      }
+    }
+  }
+
+  return null;
+}
+
 function extractLayoutNode(layoutMap, sourceName) {
   let extracted = null;
   const nextLayout = {};
@@ -505,49 +526,49 @@ function extractLayoutNode(layoutMap, sourceName) {
   return { extracted, layout: nextLayout };
 }
 
-function insertLayoutNode(layoutMap, targetName, sourceName, sourceLayout, placement) {
-  let inserted = false;
-  const nextLayout = {};
+function cloneLayoutValue(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
 
-  Object.entries(layoutMap ?? {}).forEach(([name, value]) => {
-    if (placement === "before" && name === targetName) {
-      nextLayout[sourceName] = sourceLayout;
-      inserted = true;
-    }
-
-    if (placement === "inside" && name === targetName) {
-      nextLayout[name] = {
-        ...(value && typeof value === "object" && !Array.isArray(value) ? value : {}),
-        [sourceName]: sourceLayout,
-      };
-      inserted = true;
-      return;
-    }
-
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const childResult = insertLayoutNode(value, targetName, sourceName, sourceLayout, placement);
-      if (childResult.inserted) {
-        inserted = true;
-        nextLayout[name] = childResult.layout;
-      } else {
-        nextLayout[name] = value;
-      }
-    } else {
-      nextLayout[name] = value;
-    }
-  });
-
-  return { inserted, layout: nextLayout };
+  return Object.fromEntries(
+    Object.entries(value).map(([key, childValue]) => [
+      key,
+      childValue && typeof childValue === "object" && !Array.isArray(childValue) ? cloneLayoutValue(childValue) : childValue,
+    ]),
+  );
 }
 
-function moveSettingsLayoutGroup(settings, sourceName, targetName, placement) {
+function upsertLayoutAtPath(layoutMap, path, updater) {
+  if (!path.length) {
+    return updater(cloneLayoutValue(layoutMap));
+  }
+
+  const [head, ...tail] = path;
+  const nextLayout = cloneLayoutValue(layoutMap);
+  nextLayout[head] = upsertLayoutAtPath(nextLayout[head], tail, updater);
+  return nextLayout;
+}
+
+function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, placement) {
   const { extracted, layout } = extractLayoutNode(settings?.layout ?? {}, sourceName);
   const sourceLayout = extracted ?? {};
-  const { inserted, layout: nextLayout } = insertLayoutNode(layout, targetName, sourceName, sourceLayout, placement);
+  const targetPath = findGroupPath(rawGroups, targetName);
 
-  if (!inserted) {
+  if (!targetPath) {
     return { moved: false, settings };
   }
+
+  const nextLayout =
+    placement === "inside"
+      ? upsertLayoutAtPath(layout, targetPath, (targetLayout) => ({
+          ...targetLayout,
+          [sourceName]: sourceLayout,
+        }))
+      : upsertLayoutAtPath(layout, targetPath.slice(0, -1), (parentLayout) => ({
+          ...parentLayout,
+          [sourceName]: sourceLayout,
+        }));
 
   return {
     moved: true,
@@ -1155,7 +1176,7 @@ export function ConfigEditorProvider({ children }) {
 
         const layoutResult =
           type === "services"
-            ? moveSettingsLayoutGroup(data.settings, sourceName, targetName, placement)
+            ? moveSettingsLayoutGroup(data.settings, rawResult.nextGroups, sourceName, targetName, placement)
             : { moved: true, settings: data.settings };
 
         if (!rawResult.moved || !layoutResult.moved) {
