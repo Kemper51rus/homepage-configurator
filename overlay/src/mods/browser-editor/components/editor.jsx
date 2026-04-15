@@ -125,6 +125,23 @@ function formToConfig(form) {
   return config;
 }
 
+function validateItemConfig(type, config) {
+  if (type !== "bookmarks") {
+    return;
+  }
+
+  if (!config.href || typeof config.href !== "string") {
+    throw new Error("Bookmark URL is required");
+  }
+
+  try {
+    // Bookmark rendering expects an absolute URL when it derives the hostname.
+    new URL(config.href);
+  } catch {
+    throw new Error("Bookmark URL must be absolute, for example https://example.com");
+  }
+}
+
 function getEntryName(entry) {
   return Object.keys(entry)[0];
 }
@@ -133,17 +150,48 @@ function getEntryValue(entry) {
   return entry[getEntryName(entry)];
 }
 
-function findRawEntry(rawGroups, groupName, itemName) {
+function isItemEntry(entry, type) {
+  const value = getEntryValue(entry);
+  if (type === "services") {
+    return !Array.isArray(value);
+  }
+
+  return Array.isArray(value);
+}
+
+function rawEntryToConfig(entry, type) {
+  const value = getEntryValue(entry);
+
+  if (type === "bookmarks") {
+    if (Array.isArray(value)) {
+      return value[0] ?? {};
+    }
+
+    return value && typeof value === "object" ? value : {};
+  }
+
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function configToRawEntry(type, itemName, itemConfig) {
+  if (type === "bookmarks") {
+    return { [itemName]: [itemConfig] };
+  }
+
+  return { [itemName]: itemConfig };
+}
+
+function findRawEntry(rawGroups, type, groupName, itemName) {
   const findInEntries = (entries = [], currentGroup) => {
     for (const entry of entries) {
       const name = getEntryName(entry);
       const value = entry[name];
 
-      if (currentGroup === groupName && name === itemName && !Array.isArray(value)) {
-        return value;
+      if (currentGroup === groupName && name === itemName && isItemEntry(entry, type)) {
+        return rawEntryToConfig(entry, type);
       }
 
-      if (Array.isArray(value)) {
+      if (type === "services" && Array.isArray(value)) {
         const nested = findInEntries(value, name);
         if (nested) return nested;
       }
@@ -161,7 +209,7 @@ function findRawEntry(rawGroups, groupName, itemName) {
   return null;
 }
 
-function updateRawEntry(rawGroups, groupName, originalName, nextName, nextConfig) {
+function updateRawEntry(rawGroups, type, groupName, originalName, nextName, nextConfig) {
   let changed = false;
 
   const updateEntries = (entries = [], currentGroup) =>
@@ -169,12 +217,12 @@ function updateRawEntry(rawGroups, groupName, originalName, nextName, nextConfig
       const name = getEntryName(entry);
       const value = entry[name];
 
-      if (currentGroup === groupName && name === originalName && !Array.isArray(value)) {
+      if (currentGroup === groupName && name === originalName && isItemEntry(entry, type)) {
         changed = true;
-        return { [nextName]: nextConfig };
+        return configToRawEntry(type, nextName, nextConfig);
       }
 
-      if (Array.isArray(value)) {
+      if (type === "services" && Array.isArray(value)) {
         return { [name]: updateEntries(value, name) };
       }
 
@@ -189,25 +237,25 @@ function updateRawEntry(rawGroups, groupName, originalName, nextName, nextConfig
   });
 
   if (!changed) {
-    return addRawEntry(nextGroups, groupName, nextName, nextConfig);
+    return addRawEntry(nextGroups, type, groupName, nextName, nextConfig);
   }
 
   return nextGroups;
 }
 
-function addRawEntry(rawGroups, groupName, itemName, itemConfig) {
+function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
   let added = false;
 
   const addToEntries = (entries = [], currentGroup) => {
     if (currentGroup === groupName) {
       added = true;
-      return [...entries, { [itemName]: itemConfig }];
+      return [...entries, configToRawEntry(type, itemName, itemConfig)];
     }
 
     return entries.map((entry) => {
       const name = getEntryName(entry);
       const value = entry[name];
-      return Array.isArray(value) ? { [name]: addToEntries(value, name) } : entry;
+      return type === "services" && Array.isArray(value) ? { [name]: addToEntries(value, name) } : entry;
     });
   };
 
@@ -217,7 +265,7 @@ function addRawEntry(rawGroups, groupName, itemName, itemConfig) {
   });
 
   if (added) return nextGroups;
-  return [...nextGroups, { [groupName]: [{ [itemName]: itemConfig }] }];
+  return [...nextGroups, { [groupName]: [configToRawEntry(type, itemName, itemConfig)] }];
 }
 
 function addRawGroup(rawGroups, groupName, type) {
@@ -264,18 +312,17 @@ function deleteRawGroup(rawGroups, groupName) {
   return extractNamedNode(rawGroups, groupName).nodes;
 }
 
-function deleteRawEntry(rawGroups, groupName, itemName) {
+function deleteRawEntry(rawGroups, type, groupName, itemName) {
   const filterEntries = (entries = [], currentGroup) =>
     entries
       .filter((entry) => {
         const name = getEntryName(entry);
-        const value = entry[name];
-        return Array.isArray(value) || currentGroup !== groupName || name !== itemName;
+        return !isItemEntry(entry, type) || currentGroup !== groupName || name !== itemName;
       })
       .map((entry) => {
         const name = getEntryName(entry);
         const value = entry[name];
-        return Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
+        return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
       });
 
   return (rawGroups ?? []).map((group) => {
@@ -300,15 +347,6 @@ function resetServiceWeights(entries) {
       },
     };
   });
-}
-
-function isItemEntry(entry, type) {
-  const value = getEntryValue(entry);
-  if (type === "services") {
-    return !Array.isArray(value);
-  }
-
-  return Array.isArray(value);
 }
 
 function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
@@ -699,7 +737,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawConfig =
-    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.groupName, modal.itemName) ?? modal.item : {};
+    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.type, modal.groupName, modal.itemName) ?? modal.item : {};
   const [name, setName] = useState(modal.mode === "edit" ? modal.itemName : "");
   const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
@@ -731,10 +769,11 @@ function ItemModal({ modal, data, onClose, onSaved }) {
       }
 
       const config = formToConfig(form);
+      validateItemConfig(modal.type, config);
       const nextData =
         modal.mode === "edit"
-          ? updateRawEntry(data[modal.type], modal.groupName, modal.itemName, trimmedName, config)
-          : addRawEntry(data[modal.type], modal.groupName, trimmedName, config);
+          ? updateRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, trimmedName, config)
+          : addRawEntry(data[modal.type], modal.type, modal.groupName, trimmedName, config);
 
       await save(nextData);
       onSaved(`${trimmedName} saved`);
@@ -751,7 +790,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     setError("");
 
     try {
-      await save(deleteRawEntry(data[modal.type], modal.groupName, modal.itemName));
+      await save(deleteRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName));
       onSaved(`${modal.itemName} deleted`);
       onClose();
     } catch (deleteError) {

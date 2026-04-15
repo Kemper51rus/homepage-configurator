@@ -74,23 +74,36 @@ index 88d4d7e8..c44b9eae 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..3880fc20 100644
+index 7ea16bba..1a9c3d4c 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,10 +1,12 @@
+@@ -1,10 +1,24 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
  import { useContext } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  
++function bookmarkDescription(bookmark) {
++  if (bookmark.description) {
++    return bookmark.description;
++  }
++
++  try {
++    return new URL(bookmark.href).hostname;
++  } catch {
++    return bookmark.href ?? "";
++  }
++}
++
  export default function Item({ bookmark, iconOnly = false }) {
-   const description = bookmark.description ?? new URL(bookmark.href).hostname;
+-  const description = bookmark.description ?? new URL(bookmark.href).hostname;
++  const description = bookmarkDescription(bookmark);
 +  const { editMode, itemProps } = useEditableItem("bookmarks", bookmark.groupName, bookmark.name, bookmark);
    const { settings } = useContext(SettingsContext);
  
    return (
-@@ -15,11 +17,14 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -15,11 +29,14 @@ export default function Item({ bookmark, iconOnly = false }) {
        data-name={bookmark.name}
      >
        <a
