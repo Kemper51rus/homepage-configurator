@@ -64,7 +64,7 @@ index 88d4d7e8..2956aab2 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..3880fc20 100644
+index 7ea16bba..3c08e1ea 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
 @@ -1,10 +1,12 @@
@@ -80,7 +80,7 @@ index 7ea16bba..3880fc20 100644
    const { settings } = useContext(SettingsContext);
  
    return (
-@@ -15,11 +17,14 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -15,13 +17,17 @@ export default function Item({ bookmark, iconOnly = false }) {
        data-name={bookmark.name}
      >
        <a
@@ -95,8 +95,12 @@ index 7ea16bba..3880fc20 100644
 +          "relative",
 +          editMode && "border-2 border-dashed border-theme-400/70 dark:border-white/25",
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-           "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
+-          "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
++          "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 dark:bg-white/5",
++          !editMode && "hover:bg-theme-300/20 dark:hover:bg-white/10 dark:hover:text-theme-300",
            iconOnly ? "h-[60px] w-[60px] grid" : "block w-full mb-3",
+         )}
+       >
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
 index f24794db..7e34298f 100644
 --- a/src/components/bookmarks/list.jsx
@@ -164,7 +168,7 @@ index 403f6063..c5493b3d 100644
                <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
                  {layout?.icon && (
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..8729a87d 100644
+index c23e16a2..fbfeaa9a 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,4 +1,5 @@
@@ -181,7 +185,17 @@ index c23e16a2..8729a87d 100644
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -38,7 +40,8 @@ export default function Item({ service, groupName, useEqualHeights }) {
+         className={classNames(
+           settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+           useEqualHeights && "h-[calc(100%-0.5rem)]",
+-          "transition-all mb-2 p-1 rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10 relative overflow-clip service-card",
++          "transition-all mb-2 p-1 rounded-md font-medium text-theme-700 dark:text-theme-200 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 dark:bg-white/5 relative overflow-clip service-card",
++          !editMode && "hover:bg-theme-300/20 dark:hover:bg-white/10 dark:hover:text-theme-300",
+         )}
+       >
+         <div className="flex select-none z-0 service-title">
+@@ -188,6 +191,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -190,7 +204,7 @@ index c23e16a2..8729a87d 100644
 +          <button
 +            type="button"
 +            {...itemProps}
-+            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/10 text-left dark:border-white/25 dark:bg-white/5"
++            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +            aria-label={`Edit ${service.name}`}
 +          />
 +        )}
