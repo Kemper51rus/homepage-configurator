@@ -1,0 +1,1107 @@
+diff --git a/next.config.js b/next.config.js
+index ea49bf54..87c163d3 100644
+--- a/next.config.js
++++ b/next.config.js
+@@ -1,9 +1,18 @@
+ const { i18n } = require("./next-i18next.config");
+ 
++const allowedDevOrigins = (process.env.HOMEPAGE_ALLOWED_DEV_ORIGINS ?? "")
++  .split(",")
++  .map((origin) => origin.trim())
++  .filter(Boolean);
++
+ /** @type {import('next').NextConfig} */
+ const nextConfig = {
+   reactStrictMode: true,
+   output: "standalone",
++  env: {
++    HOMEPAGE_BROWSER_EDITOR: process.env.HOMEPAGE_BROWSER_EDITOR ?? "",
++  },
++  ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
+   images: {
+     remotePatterns: [
+       {
+diff --git a/package.json b/package.json
+index 5d5bdf60..e36d204a 100644
+--- a/package.json
++++ b/package.json
+@@ -11,7 +11,12 @@
+     "test": "vitest run",
+     "test:coverage": "vitest run --coverage",
+     "test:watch": "vitest",
+-    "telemetry": "next telemetry disable"
++    "telemetry": "next telemetry disable",
++    "browser-editor:enable": "node scripts/browser-editor-mod.mjs enable",
++    "browser-editor:disable": "node scripts/browser-editor-mod.mjs disable",
++    "browser-editor:status": "node scripts/browser-editor-mod.mjs status",
++    "browser-editor:create-patch": "node scripts/browser-editor-mod.mjs create-patch",
++    "browser-editor:apply-patch": "node scripts/browser-editor-mod.mjs apply-patch"
+   },
+   "dependencies": {
+     "@headlessui/react": "^2.2.9",
+diff --git a/scripts/browser-editor-mod.mjs b/scripts/browser-editor-mod.mjs
+new file mode 100644
+index 00000000..cb690a96
+--- /dev/null
++++ b/scripts/browser-editor-mod.mjs
+@@ -0,0 +1,91 @@
++import { execFileSync } from "child_process";
++import { existsSync, readFileSync, writeFileSync } from "fs";
++import { join } from "path";
++
++const envPath = join(process.cwd(), ".env.local");
++const patchPath = join(process.cwd(), "patches", "browser-editor.patch");
++const key = "HOMEPAGE_BROWSER_EDITOR";
++const command = process.argv[2] ?? "status";
++const modPaths = [
++  "next.config.js",
++  "package.json",
++  "scripts/browser-editor-mod.mjs",
++  "src/mods/browser-editor",
++  "src/pages/index.jsx",
++  "src/pages/api/config/editor.js",
++  "src/pages/api/config/background.js",
++  "src/components/services/item.jsx",
++  "src/components/services/list.jsx",
++  "src/components/bookmarks/group.jsx",
++  "src/components/bookmarks/item.jsx",
++  "src/components/bookmarks/list.jsx",
++];
++
++function readEnv() {
++  if (!existsSync(envPath)) return [];
++  return readFileSync(envPath, "utf8").split(/\r?\n/);
++}
++
++function writeEnv(lines) {
++  writeFileSync(envPath, `${lines.filter((line, index, all) => line.length || index < all.length - 1).join("\n")}\n`);
++}
++
++function setValue(value) {
++  const lines = readEnv();
++  const nextLine = `${key}=${value}`;
++  const index = lines.findIndex((line) => line.startsWith(`${key}=`));
++
++  if (index >= 0) {
++    lines[index] = nextLine;
++  } else {
++    lines.push(nextLine);
++  }
++
++  writeEnv(lines);
++  console.log(`${key}=${value} written to ${envPath}`);
++}
++
++function status() {
++  const line = readEnv().find((candidate) => candidate.startsWith(`${key}=`));
++  console.log(line ?? `${key} is not set in ${envPath}`);
++}
++
++function git(args, options = {}) {
++  return execFileSync("git", ["-c", `safe.directory=${process.cwd()}`, ...args], {
++    cwd: process.cwd(),
++    encoding: "utf8",
++    stdio: options.stdio ?? "pipe",
++  });
++}
++
++function createPatch() {
++  git(["add", "-N", ...modPaths], { stdio: "ignore" });
++  const patch = git(["diff", "--binary", "--", ...modPaths]);
++  writeFileSync(patchPath, patch);
++  console.log(`Patch written to ${patchPath}`);
++}
++
++function applyPatch() {
++  git(["apply", "--3way", patchPath], { stdio: "inherit" });
++}
++
++switch (command) {
++  case "enable":
++    setValue("true");
++    break;
++  case "disable":
++    setValue("false");
++    break;
++  case "status":
++    status();
++    break;
++  case "create-patch":
++    createPatch();
++    break;
++  case "apply-patch":
++    applyPatch();
++    break;
++  default:
++    console.error("Usage: node scripts/browser-editor-mod.mjs <enable|disable|status|create-patch|apply-patch>");
++    process.exit(1);
++}
+diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
+index 88d4d7e8..916f4145 100644
+--- a/src/components/bookmarks/group.jsx
++++ b/src/components/bookmarks/group.jsx
+@@ -73,7 +73,12 @@ export default function BookmarksGroup({
+             >
+               <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
+                 <ErrorBoundary>
+-                  <List bookmarks={bookmarks.bookmarks} layout={layout} bookmarksStyle={bookmarksStyle} />
++                  <List
++                    groupName={bookmarks.name}
++                    bookmarks={bookmarks.bookmarks}
++                    layout={layout}
++                    bookmarksStyle={bookmarksStyle}
++                  />
+                 </ErrorBoundary>
+               </Disclosure.Panel>
+             </Transition>
+diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
+index 7ea16bba..afe6b514 100644
+--- a/src/components/bookmarks/item.jsx
++++ b/src/components/bookmarks/item.jsx
+@@ -2,9 +2,11 @@ import classNames from "classnames";
+ import ResolvedIcon from "components/resolvedicon";
+ import { useContext } from "react";
+ import { SettingsContext } from "utils/contexts/settings";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ 
+ export default function Item({ bookmark, iconOnly = false }) {
+   const description = bookmark.description ?? new URL(bookmark.href).hostname;
++  const { editMode, openItem } = useConfigEditor();
+   const { settings } = useContext(SettingsContext);
+ 
+   return (
+@@ -15,11 +17,19 @@ export default function Item({ bookmark, iconOnly = false }) {
+       data-name={bookmark.name}
+     >
+       <a
+-        href={bookmark.href}
++        href={editMode ? undefined : bookmark.href}
+         title={bookmark.name}
+         rel="noreferrer"
+-        target={bookmark.target ?? settings.target ?? "_blank"}
++        target={editMode ? undefined : bookmark.target ?? settings.target ?? "_blank"}
++        onClick={(event) => {
++          if (editMode) {
++            event.preventDefault();
++            openItem("bookmarks", bookmark.groupName, bookmark.name, bookmark);
++          }
++        }}
+         className={classNames(
++          "relative",
++          editMode && "border-2 border-dashed border-emerald-400/70",
+           settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+           "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
+           iconOnly ? "h-[60px] w-[60px] grid" : "block w-full mb-3",
+@@ -52,6 +62,11 @@ export default function Item({ bookmark, iconOnly = false }) {
+             </div>
+           </div>
+         )}
++        {editMode && !iconOnly && (
++          <span className="absolute right-2 bottom-2 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white shadow-md">
++            Edit
++          </span>
++        )}
+       </a>
+     </li>
+   );
+diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
+index f24794db..0278ee8c 100644
+--- a/src/components/bookmarks/list.jsx
++++ b/src/components/bookmarks/list.jsx
+@@ -1,9 +1,11 @@
+ import classNames from "classnames";
+ import Item from "components/bookmarks/item";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ 
+ import { columnMap } from "../../utils/layout/columns";
+ 
+-export default function List({ bookmarks, layout, bookmarksStyle }) {
++export default function List({ groupName, bookmarks, layout, bookmarksStyle }) {
++  const { editMode, openNewItem } = useConfigEditor();
+   let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
+   const style = {};
+   if (layout?.iconsOnly || bookmarksStyle === "icons") {
+@@ -15,10 +17,24 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
+       {bookmarks.map((bookmark) => (
+         <Item
+           key={`${bookmark.name}-${bookmark.href}`}
+-          bookmark={bookmark}
++          bookmark={{ ...bookmark, groupName }}
+           iconOnly={layout?.iconsOnly || bookmarksStyle === "icons"}
+         />
+       ))}
++      {editMode && (
++        <li className={classNames("bookmark", (layout?.iconsOnly || bookmarksStyle === "icons") && "grid")}>
++          <button
++            type="button"
++            onClick={() => openNewItem("bookmarks", groupName)}
++            className={classNames(
++              "flex items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/20 p-3 text-sm font-medium text-theme-700 shadow-md shadow-theme-900/10 hover:bg-theme-300/20 dark:border-white/20 dark:bg-white/5 dark:text-theme-200 dark:hover:bg-white/10",
++              layout?.iconsOnly || bookmarksStyle === "icons" ? "h-[60px] w-[60px]" : "mb-3 min-h-12 w-full",
++            )}
++          >
++            Add
++          </button>
++        </li>
++      )}
+     </ul>
+   );
+ }
+diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
+index c23e16a2..f4b31be4 100644
+--- a/src/components/services/item.jsx
++++ b/src/components/services/item.jsx
+@@ -2,6 +2,7 @@ import classNames from "classnames";
+ import ResolvedIcon from "components/resolvedicon";
+ import { useContext, useState } from "react";
+ import { SettingsContext } from "utils/contexts/settings";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ import Docker from "widgets/docker/component";
+ import Kubernetes from "widgets/kubernetes/component";
+ import ProxmoxVM from "widgets/proxmoxvm/component";
+@@ -15,6 +16,7 @@ import Widget from "./widget";
+ 
+ export default function Item({ service, groupName, useEqualHeights }) {
+   const hasLink = service.href && service.href !== "#";
++  const { editMode, openItem } = useConfigEditor();
+   const { settings } = useContext(SettingsContext);
+   const showStats = service.showStats === false ? false : settings.showStats;
+   const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
+@@ -188,6 +190,19 @@ export default function Item({ service, groupName, useEqualHeights }) {
+         {service.widgets.map((widget) => (
+           <Widget widget={widget} service={service} key={widget.index} />
+         ))}
++
++        {editMode && (
++          <button
++            type="button"
++            onClick={() => openItem("services", groupName, service.name, service)}
++            className="absolute inset-0 z-40 rounded-md border-2 border-dashed border-emerald-400/70 bg-emerald-500/5 text-left"
++            aria-label={`Edit ${service.name}`}
++          >
++            <span className="absolute right-2 bottom-2 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white shadow-md">
++              Edit
++            </span>
++          </button>
++        )}
+       </div>
+     </li>
+   );
+diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
+index 1acf94d6..0ae77c2e 100644
+--- a/src/components/services/list.jsx
++++ b/src/components/services/list.jsx
+@@ -1,9 +1,12 @@
+ import classNames from "classnames";
+ import Item from "components/services/item";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ 
+ import { columnMap } from "../../utils/layout/columns";
+ 
+ export default function List({ groupName, services, layout, useEqualHeights, header }) {
++  const { editMode, openNewItem } = useConfigEditor();
++
+   return (
+     <ul
+       className={classNames(
+@@ -20,6 +23,17 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+           useEqualHeights={layout?.useEqualHeights ?? useEqualHeights}
+         />
+       ))}
++      {editMode && (
++        <li className="service">
++          <button
++            type="button"
++            onClick={() => openNewItem("services", groupName)}
++            className="mb-2 flex min-h-16 w-full items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/20 p-3 text-sm font-medium text-theme-700 shadow-md shadow-theme-900/10 hover:bg-theme-300/20 dark:border-white/20 dark:bg-white/5 dark:text-theme-200 dark:hover:bg-white/10"
++          >
++            Add service
++          </button>
++        </li>
++      )}
+     </ul>
+   );
+ }
+diff --git a/src/mods/browser-editor/api/background.js b/src/mods/browser-editor/api/background.js
+new file mode 100644
+index 00000000..64686f1a
+--- /dev/null
++++ b/src/mods/browser-editor/api/background.js
+@@ -0,0 +1,45 @@
++import { promises as fs } from "fs";
++import path from "path";
++
++import { CONF_DIR } from "utils/config/config";
++import createLogger from "utils/logger";
++
++const logger = createLogger("backgroundConfigService");
++
++const contentTypes = {
++  ".gif": "image/gif",
++  ".jpg": "image/jpeg",
++  ".jpeg": "image/jpeg",
++  ".png": "image/png",
++  ".webp": "image/webp",
++};
++
++async function getBackgroundFile() {
++  const files = await fs.readdir(CONF_DIR);
++  return files.find((file) => file.startsWith("background-upload."));
++}
++
++export default async function handler(req, res) {
++  if (req.method !== "GET") {
++    res.setHeader("Allow", "GET");
++    return res.status(405).end("Method Not Allowed");
++  }
++
++  try {
++    const file = await getBackgroundFile();
++    if (!file) {
++      return res.status(404).end("Background not found");
++    }
++
++    const filePath = path.join(CONF_DIR, file);
++    const extension = path.extname(file).toLowerCase();
++    const image = await fs.readFile(filePath);
++
++    res.setHeader("Content-Type", contentTypes[extension] ?? "application/octet-stream");
++    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
++    return res.status(200).send(image);
++  } catch (error) {
++    if (error) logger.error(error);
++    return res.status(500).end("Internal Server Error");
++  }
++}
+diff --git a/src/mods/browser-editor/api/editor.js b/src/mods/browser-editor/api/editor.js
+new file mode 100644
+index 00000000..c1f3c546
+--- /dev/null
++++ b/src/mods/browser-editor/api/editor.js
+@@ -0,0 +1,151 @@
++import { promises as fs } from "fs";
++import path from "path";
++
++import yaml from "js-yaml";
++
++import checkAndCopyConfig, { CONF_DIR } from "utils/config/config";
++import createLogger from "utils/logger";
++
++const logger = createLogger("configEditorService");
++
++const editableFiles = {
++  bookmarks: "bookmarks.yaml",
++  services: "services.yaml",
++  settings: "settings.yaml",
++};
++
++const backgroundTypes = {
++  "image/gif": ".gif",
++  "image/jpeg": ".jpg",
++  "image/png": ".png",
++  "image/webp": ".webp",
++};
++
++export const config = {
++  api: {
++    bodyParser: {
++      sizeLimit: "20mb",
++    },
++  },
++};
++
++function getConfigPath(file) {
++  const configFile = editableFiles[file];
++  if (!configFile) {
++    return null;
++  }
++
++  checkAndCopyConfig(configFile);
++  return path.join(CONF_DIR, configFile);
++}
++
++async function readYamlFile(file, fallback) {
++  const filePath = getConfigPath(file);
++  const raw = await fs.readFile(filePath, "utf8");
++  return yaml.load(raw) ?? fallback;
++}
++
++async function writeYamlFile(file, data) {
++  const filePath = getConfigPath(file);
++  const dumped = yaml.dump(data, {
++    lineWidth: -1,
++    noRefs: true,
++    sortKeys: false,
++  });
++
++  await fs.writeFile(filePath, dumped, "utf8");
++}
++
++async function removeOldBackgrounds() {
++  const files = await fs.readdir(CONF_DIR);
++  await Promise.all(
++    files
++      .filter((file) => file.startsWith("background-upload."))
++      .map((file) => fs.unlink(path.join(CONF_DIR, file))),
++  );
++}
++
++function parseBackground(background) {
++  if (!background?.dataUrl || !background?.type) {
++    throw new Error("Missing background file");
++  }
++
++  const extension = backgroundTypes[background.type];
++  if (!extension) {
++    throw new Error("Unsupported background type");
++  }
++
++  const [, base64] = background.dataUrl.split(",");
++  if (!base64) {
++    throw new Error("Invalid background file");
++  }
++
++  return {
++    buffer: Buffer.from(base64, "base64"),
++    extension,
++  };
++}
++
++async function saveBackground(background) {
++  const { buffer, extension } = parseBackground(background);
++  const settings = await readYamlFile("settings", {});
++  const cacheKey = Date.now();
++  const fileName = `background-upload${extension}`;
++
++  await removeOldBackgrounds();
++  await fs.writeFile(path.join(CONF_DIR, fileName), buffer);
++
++  settings.background = `/api/config/background?v=${cacheKey}`;
++  await writeYamlFile("settings", settings);
++
++  return settings;
++}
++
++async function getEditorConfig() {
++  const [services, bookmarks, settings] = await Promise.all([
++    readYamlFile("services", []),
++    readYamlFile("bookmarks", []),
++    readYamlFile("settings", {}),
++  ]);
++
++  return { services, bookmarks, settings };
++}
++
++export default async function handler(req, res) {
++  try {
++    if (req.method === "GET") {
++      return res.status(200).json(await getEditorConfig());
++    }
++
++    if (req.method === "PUT") {
++      const { file, data } = req.body ?? {};
++
++      if (!editableFiles[file]) {
++        return res.status(422).end("Unsupported file");
++      }
++
++      if ((file === "services" || file === "bookmarks") && !Array.isArray(data)) {
++        return res.status(422).end("Config must be a list");
++      }
++
++      if (file === "settings" && (typeof data !== "object" || Array.isArray(data) || data === null)) {
++        return res.status(422).end("Settings must be an object");
++      }
++
++      await writeYamlFile(file, data);
++      return res.status(200).json(await getEditorConfig());
++    }
++
++    if (req.method === "POST") {
++      const { background } = req.body ?? {};
++      await saveBackground(background);
++      return res.status(200).json(await getEditorConfig());
++    }
++
++    res.setHeader("Allow", "GET, PUT, POST");
++    return res.status(405).end("Method Not Allowed");
++  } catch (error) {
++    if (error) logger.error(error);
++    return res.status(500).end(error.message || "Internal Server Error");
++  }
++}
+diff --git a/src/mods/browser-editor/components/editor.jsx b/src/mods/browser-editor/components/editor.jsx
+new file mode 100644
+index 00000000..b55db515
+--- /dev/null
++++ b/src/mods/browser-editor/components/editor.jsx
+@@ -0,0 +1,512 @@
++import classNames from "classnames";
++import { createContext, useContext, useMemo, useState } from "react";
++import useSWR, { useSWRConfig } from "swr";
++import yaml from "js-yaml";
++
++const ConfigEditorContext = createContext({
++  editMode: false,
++  openItem: () => {},
++  openNewItem: () => {},
++});
++
++const noopEditorContext = {
++  editMode: false,
++  openItem: () => {},
++  openNewItem: () => {},
++};
++
++const serviceFields = [
++  ["href", "URL"],
++  ["icon", "Icon"],
++  ["description", "Description"],
++  ["abbr", "Abbr"],
++  ["target", "Target"],
++  ["weight", "Weight"],
++  ["ping", "Ping"],
++  ["siteMonitor", "Site monitor"],
++  ["showStats", "Show stats"],
++  ["proxmoxNode", "Proxmox node"],
++  ["proxmoxVMID", "Proxmox VMID"],
++  ["proxmoxType", "Proxmox type"],
++];
++
++const bookmarkFields = [
++  ["href", "URL"],
++  ["icon", "Icon"],
++  ["description", "Description"],
++  ["abbr", "Abbr"],
++  ["target", "Target"],
++];
++
++const knownFields = {
++  bookmarks: bookmarkFields.map(([key]) => key),
++  services: serviceFields.map(([key]) => key),
++};
++
++function valueToInput(value) {
++  if (value === undefined || value === null) return "";
++  return String(value);
++}
++
++function parseInputValue(value) {
++  const trimmed = value.trim();
++  if (!trimmed) return undefined;
++  if (trimmed === "true") return true;
++  if (trimmed === "false") return false;
++  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
++  return value;
++}
++
++function splitConfig(config, type) {
++  const fields = {};
++  const extra = {};
++
++  knownFields[type].forEach((key) => {
++    fields[key] = "";
++  });
++
++  Object.entries(config ?? {}).forEach(([key, value]) => {
++    if (knownFields[type].includes(key)) {
++      fields[key] = valueToInput(value);
++    } else {
++      extra[key] = value;
++    }
++  });
++
++  return {
++    fields,
++    extraYaml: Object.keys(extra).length ? yaml.dump(extra, { lineWidth: -1, noRefs: true, sortKeys: false }) : "",
++  };
++}
++
++function formToConfig(form) {
++  const config = {};
++
++  Object.entries(form.fields).forEach(([key, value]) => {
++    const parsed = parseInputValue(value);
++    if (parsed !== undefined) {
++      config[key] = parsed;
++    }
++  });
++
++  if (form.extraYaml.trim()) {
++    const parsed = yaml.load(form.extraYaml);
++    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
++      throw new Error("Advanced YAML must be an object");
++    }
++    Object.assign(config, parsed);
++  }
++
++  return config;
++}
++
++function getEntryName(entry) {
++  return Object.keys(entry)[0];
++}
++
++function getEntryValue(entry) {
++  return entry[getEntryName(entry)];
++}
++
++function findRawEntry(rawGroups, groupName, itemName) {
++  const findInEntries = (entries = [], currentGroup) => {
++    for (const entry of entries) {
++      const name = getEntryName(entry);
++      const value = entry[name];
++
++      if (currentGroup === groupName && name === itemName && !Array.isArray(value)) {
++        return value;
++      }
++
++      if (Array.isArray(value)) {
++        const nested = findInEntries(value, name);
++        if (nested) return nested;
++      }
++    }
++
++    return null;
++  };
++
++  for (const group of rawGroups ?? []) {
++    const currentGroup = getEntryName(group);
++    const found = findInEntries(group[currentGroup], currentGroup);
++    if (found) return found;
++  }
++
++  return null;
++}
++
++function updateRawEntry(rawGroups, groupName, originalName, nextName, nextConfig) {
++  let changed = false;
++
++  const updateEntries = (entries = [], currentGroup) =>
++    entries.map((entry) => {
++      const name = getEntryName(entry);
++      const value = entry[name];
++
++      if (currentGroup === groupName && name === originalName && !Array.isArray(value)) {
++        changed = true;
++        return { [nextName]: nextConfig };
++      }
++
++      if (Array.isArray(value)) {
++        return { [name]: updateEntries(value, name) };
++      }
++
++      return entry;
++    });
++
++  const nextGroups = (rawGroups ?? []).map((group) => {
++    const name = getEntryName(group);
++    const entries = group[name] ?? [];
++
++    return { [name]: updateEntries(entries, name) };
++  });
++
++  if (!changed) {
++    return addRawEntry(nextGroups, groupName, nextName, nextConfig);
++  }
++
++  return nextGroups;
++}
++
++function addRawEntry(rawGroups, groupName, itemName, itemConfig) {
++  let added = false;
++
++  const addToEntries = (entries = [], currentGroup) => {
++    if (currentGroup === groupName) {
++      added = true;
++      return [...entries, { [itemName]: itemConfig }];
++    }
++
++    return entries.map((entry) => {
++      const name = getEntryName(entry);
++      const value = entry[name];
++      return Array.isArray(value) ? { [name]: addToEntries(value, name) } : entry;
++    });
++  };
++
++  const nextGroups = (rawGroups ?? []).map((group) => {
++    const name = getEntryName(group);
++    return { [name]: addToEntries(group[name], name) };
++  });
++
++  if (added) return nextGroups;
++  return [...nextGroups, { [groupName]: [{ [itemName]: itemConfig }] }];
++}
++
++function deleteRawEntry(rawGroups, groupName, itemName) {
++  const filterEntries = (entries = [], currentGroup) =>
++    entries
++      .filter((entry) => {
++        const name = getEntryName(entry);
++        const value = entry[name];
++        return Array.isArray(value) || currentGroup !== groupName || name !== itemName;
++      })
++      .map((entry) => {
++        const name = getEntryName(entry);
++        const value = entry[name];
++        return Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
++      });
++
++  return (rawGroups ?? []).map((group) => {
++    const name = getEntryName(group);
++    return { [name]: filterEntries(group[name], name) };
++  });
++}
++
++function Field({ label, value, onChange }) {
++  return (
++    <label className="block text-xs text-theme-600 dark:text-theme-300">
++      {label}
++      <input
++        type="text"
++        value={value}
++        onChange={(event) => onChange(event.target.value)}
++        className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
++      />
++    </label>
++  );
++}
++
++function ItemModal({ modal, data, onClose, onSaved }) {
++  const { mutate } = useSWRConfig();
++  const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
++  const rawConfig =
++    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.groupName, modal.itemName) ?? modal.item : {};
++  const [name, setName] = useState(modal.mode === "edit" ? modal.itemName : "");
++  const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState("");
++  const title = modal.type === "services" ? "service" : "bookmark";
++
++  async function save(nextData) {
++    const response = await fetch("/api/config/editor", {
++      method: "PUT",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ file: modal.type, data: nextData }),
++    });
++
++    if (!response.ok) {
++      throw new Error(await response.text());
++    }
++
++    await fetch("/api/revalidate");
++    await Promise.all([mutate("/api/config/editor"), mutate("/api/services"), mutate("/api/bookmarks"), mutate("/api/hash")]);
++  }
++
++  async function handleSave() {
++    setSaving(true);
++    setError("");
++
++    try {
++      const trimmedName = name.trim();
++      if (!trimmedName) {
++        throw new Error("Name is required");
++      }
++
++      const config = formToConfig(form);
++      const nextData =
++        modal.mode === "edit"
++          ? updateRawEntry(data[modal.type], modal.groupName, modal.itemName, trimmedName, config)
++          : addRawEntry(data[modal.type], modal.groupName, trimmedName, config);
++
++      await save(nextData);
++      onSaved(`${trimmedName} saved`);
++      onClose();
++    } catch (saveError) {
++      setError(saveError.message);
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  async function handleDelete() {
++    setSaving(true);
++    setError("");
++
++    try {
++      await save(deleteRawEntry(data[modal.type], modal.groupName, modal.itemName));
++      onSaved(`${modal.itemName} deleted`);
++      onClose();
++    } catch (deleteError) {
++      setError(deleteError.message);
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  return (
++    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
++      <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
++        <div className="mb-4 flex items-center justify-between gap-3">
++          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Edit ${title}` : `Add ${title}`}</h2>
++          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
++            Close
++          </button>
++        </div>
++
++        <div className="space-y-3">
++          <Field label="Name" value={name} onChange={setName} />
++          <div className="grid gap-3 md:grid-cols-2">
++            {typeFields.map(([key, label]) => (
++              <Field
++                key={key}
++                label={label}
++                value={form.fields[key] ?? ""}
++                onChange={(value) =>
++                  setForm((current) => ({
++                    ...current,
++                    fields: {
++                      ...current.fields,
++                      [key]: value,
++                    },
++                  }))
++                }
++              />
++            ))}
++          </div>
++          <label className="block text-xs text-theme-600 dark:text-theme-300">
++            Advanced YAML
++            <textarea
++              value={form.extraYaml}
++              onChange={(event) => setForm((current) => ({ ...current, extraYaml: event.target.value }))}
++              rows={modal.type === "services" ? 9 : 4}
++              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 font-mono text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
++              placeholder={modal.type === "services" ? "widget:\n  type: customapi\n  url: http://example.local" : ""}
++            />
++          </label>
++        </div>
++
++        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
++
++        <div className="mt-4 flex flex-wrap justify-between gap-2">
++          <div>
++            {modal.mode === "edit" && (
++              <button
++                type="button"
++                onClick={handleDelete}
++                disabled={saving}
++                className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
++              >
++                Delete
++              </button>
++            )}
++          </div>
++          <button
++            type="button"
++            onClick={handleSave}
++            disabled={saving}
++            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
++          >
++            {saving ? "Saving..." : "Save"}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++function BackgroundModal({ settings, onClose, onSaved }) {
++  const { mutate } = useSWRConfig();
++  const [file, setFile] = useState(null);
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState("");
++  const currentBackground = typeof settings?.background === "string" ? settings.background : settings?.background?.image;
++
++  async function save() {
++    if (!file) return;
++
++    setSaving(true);
++    setError("");
++
++    try {
++      const dataUrl = await new Promise((resolve, reject) => {
++        const reader = new FileReader();
++        reader.onload = () => resolve(reader.result);
++        reader.onerror = () => reject(reader.error);
++        reader.readAsDataURL(file);
++      });
++
++      const response = await fetch("/api/config/editor", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ background: { name: file.name, type: file.type, dataUrl } }),
++      });
++
++      if (!response.ok) {
++        throw new Error(await response.text());
++      }
++
++      await fetch("/api/revalidate");
++      await Promise.all([mutate("/api/config/editor"), mutate("/api/hash")]);
++      onSaved("Background saved");
++      window.location.reload();
++    } catch (saveError) {
++      setError(saveError.message);
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  return (
++    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
++      <div className="mx-auto max-w-xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
++        <div className="mb-4 flex items-center justify-between gap-3">
++          <h2 className="text-lg font-semibold">Background</h2>
++          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
++            Close
++          </button>
++        </div>
++        {currentBackground && (
++          <div className="mb-3 text-sm text-theme-700 dark:text-theme-200">
++            Current: <span className="font-mono">{currentBackground}</span>
++          </div>
++        )}
++        <input
++          type="file"
++          accept="image/png,image/jpeg,image/webp,image/gif"
++          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
++          className="block w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
++        />
++        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
++        <div className="mt-4 flex justify-end">
++          <button
++            type="button"
++            onClick={save}
++            disabled={!file || saving}
++            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
++          >
++            {saving ? "Uploading..." : "Upload"}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++export function useConfigEditor() {
++  return useContext(ConfigEditorContext);
++}
++
++export function ConfigEditorProvider({ children }) {
++  const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
++  const [editMode, setEditMode] = useState(false);
++  const [modal, setModal] = useState(null);
++  const [notice, setNotice] = useState("");
++  const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
++
++  const value = useMemo(
++    () => ({
++      editMode,
++      openItem: (type, groupName, itemName, item) => setModal({ type, groupName, itemName, item, mode: "edit" }),
++      openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
++    }),
++    [editMode],
++  );
++
++  function handleSaved(message) {
++    setNotice(message);
++    window.setTimeout(() => setNotice(""), 3000);
++  }
++
++  if (!enabled) {
++    return <ConfigEditorContext.Provider value={noopEditorContext}>{children}</ConfigEditorContext.Provider>;
++  }
++
++  return (
++    <ConfigEditorContext.Provider value={value}>
++      {children}
++      <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
++        <button
++          type="button"
++          onClick={() => setEditMode((current) => !current)}
++          className={classNames(
++            "rounded-md px-4 py-2 text-sm font-medium shadow-md",
++            editMode ? "bg-emerald-700 text-white" : "bg-theme-800 text-white dark:bg-theme-100 dark:text-theme-900",
++          )}
++        >
++          {editMode ? "Done" : "Edit"}
++        </button>
++        {editMode && (
++          <button
++            type="button"
++            onClick={() => setModal({ type: "background" })}
++            className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++          >
++            Background
++          </button>
++        )}
++      </div>
++      {notice && (
++        <div className="fixed bottom-20 left-5 z-50 rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-800 shadow-md dark:bg-emerald-950 dark:text-emerald-200">
++          {notice}
++        </div>
++      )}
++      {modal?.type === "background" && <BackgroundModal settings={data?.settings} onClose={() => setModal(null)} onSaved={handleSaved} />}
++      {modal?.type !== "background" && modal && data && (
++        <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
++      )}
++    </ConfigEditorContext.Provider>
++  );
++}
+diff --git a/src/pages/api/config/background.js b/src/pages/api/config/background.js
+new file mode 100644
+index 00000000..38a8b49c
+--- /dev/null
++++ b/src/pages/api/config/background.js
+@@ -0,0 +1 @@
++export { default } from "mods/browser-editor/api/background";
+diff --git a/src/pages/api/config/editor.js b/src/pages/api/config/editor.js
+new file mode 100644
+index 00000000..31ff00a1
+--- /dev/null
++++ b/src/pages/api/config/editor.js
+@@ -0,0 +1,2 @@
++export { config } from "mods/browser-editor/api/editor";
++export { default } from "mods/browser-editor/api/editor";
+diff --git a/src/pages/index.jsx b/src/pages/index.jsx
+index c243c3ff..44087a9d 100644
+--- a/src/pages/index.jsx
++++ b/src/pages/index.jsx
+@@ -7,6 +7,7 @@ import ServicesGroup from "components/services/group";
+ import Tab, { slugifyAndEncode } from "components/tab";
+ import Revalidate from "components/toggles/revalidate";
+ import Widget from "components/widgets/widget";
++import { ConfigEditorProvider } from "mods/browser-editor/components/editor";
+ import { useTranslation } from "next-i18next";
+ import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+ import dynamic from "next/dynamic";
+@@ -436,12 +437,13 @@ function Home({ initialSettings }) {
+ 
+       <Script src="/api/config/custom.js" />
+ 
+-      <div
+-        className={classNames(
+-          settings.fullWidth ? "" : "container",
+-          "relative m-auto flex flex-col justify-start z-10 h-full min-h-screen",
+-        )}
+-      >
++      <ConfigEditorProvider>
++        <div
++          className={classNames(
++            settings.fullWidth ? "" : "container",
++            "relative m-auto flex flex-col justify-start z-10 h-full min-h-screen",
++          )}
++        >
+         <QuickLaunch
+           servicesAndBookmarks={servicesAndBookmarks}
+           searchString={searchString}
+@@ -507,7 +509,8 @@ function Home({ initialSettings }) {
+             {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
+           </div>
+         </div>
+-      </div>
++        </div>
++      </ConfigEditorProvider>
+     </>
+   );
+ }

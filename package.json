@@ -1,0 +1,21 @@
+{
+  "name": "homepage-browser-editor-mod",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser editor mod for gethomepage/homepage.",
+  "author": "Kemper51rus <Kemper51rus@users.noreply.github.com>",
+  "type": "module",
+  "scripts": {
+    "install:target": "node scripts/install.mjs",
+    "enable:target": "node scripts/install.mjs --enable",
+    "disable:target": "node scripts/install.mjs --disable",
+    "status:target": "node scripts/install.mjs --status"
+  },
+  "keywords": [
+    "homepage",
+    "gethomepage",
+    "mod",
+    "browser-editor"
+  ],
+  "license": "MIT"
+}
