@@ -32,7 +32,7 @@ const toolbarButtonClassName =
   "rounded-md border border-theme-300/40 bg-theme-100/20 px-4 py-2 text-sm font-medium text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-theme-300/20 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:shadow-theme-900/20 dark:hover:bg-white/10";
 
 const toolbarPrimaryButtonClassName =
-  "rounded-md border border-emerald-500/50 bg-emerald-600/85 px-4 py-2 text-sm font-medium text-white shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-emerald-500 dark:border-emerald-400/40 dark:bg-emerald-600/90 dark:shadow-theme-900/20 dark:hover:bg-emerald-500";
+  "rounded-md border border-theme-400/60 bg-theme-200/60 px-4 py-2 text-sm font-medium text-theme-900 shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-theme-300/40 dark:border-white/20 dark:bg-white/10 dark:text-theme-100 dark:shadow-theme-900/20 dark:hover:bg-white/20";
 
 const JSON_DRAG_TYPE = "application/json";
 const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
@@ -1153,7 +1153,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
         }
       }}
       data-editor-group-drop-target="true"
-      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
+      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 dark:border-white/25 dark:bg-white/5 dark:text-theme-100"
     >
       <span className="truncate font-medium">{groupName}</span>
       <div className="flex shrink-0 gap-1">
@@ -1173,7 +1173,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
               }
             }}
             data-editor-group-drop-target="true"
-            className="rounded-md border border-emerald-500/70 px-2 py-1 text-xs"
+            className="rounded-md border border-theme-400/70 px-2 py-1 text-xs dark:border-white/25"
           >
             Drop inside
           </button>
@@ -1181,7 +1181,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
         <button
           type="button"
           onClick={() => openGroup(type, groupName, layout)}
-          className="rounded-md bg-emerald-700 px-2 py-1 text-xs text-white"
+          className="rounded-md border border-theme-400/70 bg-theme-200/60 px-2 py-1 text-xs text-theme-900 dark:border-white/25 dark:bg-white/10 dark:text-theme-100"
         >
           Layout
         </button>
@@ -1276,11 +1276,11 @@ export function RootGroupDropZone({ children }) {
               event.stopPropagation();
               dropGroupToRoot(event);
             }}
-            className="fixed left-4 right-4 top-4 z-[80] flex min-h-16 items-center justify-center rounded-md border border-dashed border-emerald-400/70 bg-theme-50/90 px-3 py-3 text-sm font-medium text-theme-800 shadow-lg backdrop-blur-sm dark:bg-theme-900/85 dark:text-theme-100"
+            className="fixed left-4 right-4 top-4 z-[80] flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-50/90 px-3 py-3 text-sm font-medium text-theme-800 shadow-lg backdrop-blur-sm dark:border-white/25 dark:bg-theme-900/85 dark:text-theme-100"
           >
             Drop here to move group to root
           </div>
-          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
+          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90">
             Drop into empty space to move the group to root
           </div>
         </>
@@ -1505,7 +1505,7 @@ export function ConfigEditorProvider({ children }) {
         )}
       </div>
       {notice && (
-        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-emerald-500/30 bg-emerald-100/90 px-3 py-2 text-sm text-emerald-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:bg-emerald-950/90 dark:text-emerald-200 dark:shadow-theme-900/20">
+        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20">
           {notice}
         </div>
       )}

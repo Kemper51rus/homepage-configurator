@@ -64,7 +64,7 @@ index 88d4d7e8..2956aab2 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..014e9afd 100644
+index 7ea16bba..79d7285c 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
 @@ -1,10 +1,12 @@
@@ -93,7 +93,7 @@ index 7ea16bba..014e9afd 100644
 +        {...itemProps}
          className={classNames(
 +          "relative",
-+          editMode && "border-2 border-dashed border-emerald-400/70",
++          editMode && "border-2 border-dashed border-theme-400/70 dark:border-white/25",
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
            iconOnly ? "h-[60px] w-[60px] grid" : "block w-full mb-3",
@@ -102,7 +102,7 @@ index 7ea16bba..014e9afd 100644
            </div>
          )}
 +        {editMode && !iconOnly && (
-+          <span className="absolute right-2 bottom-2 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white shadow-md">
++          <span className="absolute right-2 bottom-2 rounded-md border border-theme-400/60 bg-theme-200/70 px-2 py-1 text-xs text-theme-900 shadow-md dark:border-white/20 dark:bg-white/10 dark:text-theme-100">
 +            Edit
 +          </span>
 +        )}
@@ -176,7 +176,7 @@ index 403f6063..c5493b3d 100644
                <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
                  {layout?.icon && (
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..a6c755fe 100644
+index c23e16a2..57ddecaa 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,4 +1,5 @@
@@ -202,10 +202,10 @@ index c23e16a2..a6c755fe 100644
 +          <button
 +            type="button"
 +            {...itemProps}
-+            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-emerald-400/70 bg-emerald-500/5 text-left"
++            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/10 text-left dark:border-white/25 dark:bg-white/5"
 +            aria-label={`Edit ${service.name}`}
 +          >
-+            <span className="absolute right-2 bottom-2 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white shadow-md">
++            <span className="absolute right-2 bottom-2 rounded-md border border-theme-400/60 bg-theme-200/70 px-2 py-1 text-xs text-theme-900 shadow-md dark:border-white/20 dark:bg-white/10 dark:text-theme-100">
 +              Edit
 +            </span>
 +          </button>
