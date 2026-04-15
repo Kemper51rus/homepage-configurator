@@ -1133,10 +1133,10 @@ export function RootGroupDropZone({ children }) {
 
   return (
     <div className="relative">
-      {editMode && draggedGroup?.scope === "group" && (
+      {editMode && (
         <div
           onDragOver={(event) => {
-            const dragged = readDragPayload(event) ?? draggedGroup;
+            const dragged = readDragPayload(event);
             if (dragged?.scope !== "group") {
               return;
             }
@@ -1145,7 +1145,7 @@ export function RootGroupDropZone({ children }) {
             event.dataTransfer.dropEffect = "move";
           }}
           onDrop={(event) => {
-            const dragged = readDragPayload(event) ?? draggedGroup;
+            const dragged = readDragPayload(event);
             if (dragged?.scope !== "group") {
               return;
             }
@@ -1157,9 +1157,11 @@ export function RootGroupDropZone({ children }) {
           }}
           className="fixed inset-0 z-[50]"
         >
-          <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
-            Drop anywhere outside group targets to move to root
-          </div>
+          {draggedGroup?.scope === "group" && (
+            <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
+              Drop anywhere outside group targets to move to root
+            </div>
+          )}
         </div>
       )}
       {children}
