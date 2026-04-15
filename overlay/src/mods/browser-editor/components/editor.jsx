@@ -1136,13 +1136,23 @@ export function RootGroupDropZone({ children }) {
       {editMode && draggedGroup?.scope === "group" && (
         <div
           onDragOver={(event) => {
+            const dragged = readDragPayload(event) ?? draggedGroup;
+            if (dragged?.scope !== "group") {
+              return;
+            }
+
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
           }}
           onDrop={(event) => {
+            const dragged = readDragPayload(event) ?? draggedGroup;
+            if (dragged?.scope !== "group") {
+              return;
+            }
+
             event.preventDefault();
             event.stopPropagation();
-            moveGroup(draggedGroup.type, draggedGroup.groupName, null, "root");
+            moveGroup(dragged.type, dragged.groupName, null, "root");
             setDraggedGroup(null);
           }}
           className="fixed inset-0 z-[50]"
