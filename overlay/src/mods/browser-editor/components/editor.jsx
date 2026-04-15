@@ -915,6 +915,16 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const title = modal.type === "services" ? "service group" : "bookmark group";
+  const isVertical = form.style.trim() !== "row";
+  const currentColumns = form.columns.trim();
+  const headerHidden = form.header === "false";
+
+  const quickLayoutButtonClass = (active = false) =>
+    classNames(
+      "rounded-md border px-3 py-2 text-sm transition-colors",
+      "border-theme-400/60 hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10",
+      active && "bg-theme-200/70 text-theme-900 dark:bg-white/15 dark:text-theme-100",
+    );
 
   async function putConfig(file, nextData) {
     const response = await fetch("/api/config/editor", {
@@ -990,7 +1000,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                     style: "",
                   }))
                 }
-                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
+                aria-pressed={isVertical}
+                className={quickLayoutButtonClass(isVertical)}
               >
                 Vertical
               </button>
@@ -1003,7 +1014,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                     style: "row",
                   }))
                 }
-                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
+                aria-pressed={!isVertical}
+                className={quickLayoutButtonClass(!isVertical)}
               >
                 Horizontal
               </button>
@@ -1018,7 +1030,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                       style: "row",
                     }))
                   }
-                  className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
+                  aria-pressed={!isVertical && currentColumns === String(columns)}
+                  className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
                 >
                   {columns} columns
                 </button>
@@ -1031,7 +1044,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                     header: current.header === "false" ? "true" : "false",
                   }))
                 }
-                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
+                aria-pressed={headerHidden}
+                className={quickLayoutButtonClass(headerHidden)}
               >
                 Toggle header
               </button>
