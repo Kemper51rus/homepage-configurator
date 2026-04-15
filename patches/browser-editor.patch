@@ -137,10 +137,45 @@ index 00000000..cb690a96
 +    process.exit(1);
 +}
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..916f4145 100644
+index 88d4d7e8..fbde3332 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
-@@ -73,7 +73,12 @@ export default function BookmarksGroup({
+@@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
+ import ResolvedIcon from "components/resolvedicon";
+ import { useEffect, useRef } from "react";
+ import { MdKeyboardArrowDown } from "react-icons/md";
++import { useConfigEditor } from "mods/browser-editor/components/editor";
+ 
+ export default function BookmarksGroup({
+   bookmarks,
+@@ -15,6 +16,7 @@ export default function BookmarksGroup({
+   maxGroupColumns,
+ }) {
+   const panel = useRef();
++  const { editMode, openGroup } = useConfigEditor();
+ 
+   useEffect(() => {
+     if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
+@@ -35,6 +37,18 @@ export default function BookmarksGroup({
+       <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
+         {({ open }) => (
+           <>
++            {editMode && (
++              <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100">
++                <span className="truncate font-medium">{bookmarks.name}</span>
++                <button
++                  type="button"
++                  onClick={() => openGroup("bookmarks", bookmarks.name, layout)}
++                  className="rounded-md bg-emerald-700 px-2 py-1 text-xs text-white"
++                >
++                  Layout
++                </button>
++              </div>
++            )}
+             {layout?.header !== false && (
+               <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
+                 {layout?.icon && (
+@@ -73,7 +87,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -606,26 +641,31 @@ index 00000000..c1f3c546
 +}
 diff --git a/src/mods/browser-editor/components/editor.jsx b/src/mods/browser-editor/components/editor.jsx
 new file mode 100644
-index 00000000..7e84e5ce
+index 00000000..ae70307f
 --- /dev/null
 +++ b/src/mods/browser-editor/components/editor.jsx
-@@ -0,0 +1,612 @@
+@@ -0,0 +1,859 @@
 +import classNames from "classnames";
 +import { createContext, useContext, useMemo, useState } from "react";
 +import useSWR, { useSWRConfig } from "swr";
 +import yaml from "js-yaml";
++import { SettingsContext } from "utils/contexts/settings";
 +
 +const ConfigEditorContext = createContext({
 +  editMode: false,
 +  moveItem: () => {},
++  openGroup: () => {},
 +  openItem: () => {},
++  openNewGroup: () => {},
 +  openNewItem: () => {},
 +});
 +
 +const noopEditorContext = {
 +  editMode: false,
 +  moveItem: () => {},
++  openGroup: () => {},
 +  openItem: () => {},
++  openNewGroup: () => {},
 +  openNewItem: () => {},
 +};
 +
@@ -809,6 +849,42 @@ index 00000000..7e84e5ce
 +  return [...nextGroups, { [groupName]: [{ [itemName]: itemConfig }] }];
 +}
 +
++function addRawGroup(rawGroups, groupName, type) {
++  if ((rawGroups ?? []).some((group) => getEntryName(group) === groupName)) {
++    throw new Error("Group already exists");
++  }
++
++  if (type === "services") {
++    return [...(rawGroups ?? []), { [groupName]: [{ "New service": { href: "#", weight: 100 } }] }];
++  }
++
++  return [...(rawGroups ?? []), { [groupName]: [] }];
++}
++
++function renameRawGroup(rawGroups, originalName, nextName) {
++  let renamed = false;
++
++  const nextGroups = (rawGroups ?? []).map((group) => {
++    const name = getEntryName(group);
++    if (name !== originalName) {
++      return group;
++    }
++
++    renamed = true;
++    return { [nextName]: group[name] ?? [] };
++  });
++
++  if (!renamed) {
++    return addRawGroup(nextGroups, nextName);
++  }
++
++  return nextGroups;
++}
++
++function deleteRawGroup(rawGroups, groupName) {
++  return (rawGroups ?? []).filter((group) => getEntryName(group) !== groupName);
++}
++
 +function deleteRawEntry(rawGroups, groupName, itemName) {
 +  const filterEntries = (entries = [], currentGroup) =>
 +    entries
@@ -887,6 +963,56 @@ index 00000000..7e84e5ce
 +  });
 +
 +  return { moved, nextGroups };
++}
++
++function groupLayoutToForm(layout) {
++  return {
++    columns: layout?.columns !== undefined ? String(layout.columns) : "",
++    header: layout?.header !== undefined ? String(layout.header) : "",
++    icon: layout?.icon ?? "",
++    initiallyCollapsed: layout?.initiallyCollapsed !== undefined ? String(layout.initiallyCollapsed) : "",
++    style: layout?.style ?? "",
++    tab: layout?.tab ?? "",
++  };
++}
++
++function formToGroupLayout(form) {
++  const layout = {};
++
++  if (form.style) layout.style = form.style;
++  if (form.columns.trim()) layout.columns = Number(form.columns);
++  if (form.header.trim()) layout.header = form.header === "true";
++  if (form.icon.trim()) layout.icon = form.icon;
++  if (form.initiallyCollapsed.trim()) layout.initiallyCollapsed = form.initiallyCollapsed === "true";
++  if (form.tab.trim()) layout.tab = form.tab;
++
++  return layout;
++}
++
++function updateSettingsLayout(settings, originalName, nextName, nextLayout, mode) {
++  const currentLayout = settings?.layout ?? {};
++  const nextSettings = { ...(settings ?? {}) };
++  const nextLayoutMap = {};
++  let inserted = false;
++
++  Object.entries(currentLayout).forEach(([key, value]) => {
++    if (key === originalName) {
++      if (mode !== "delete") {
++        nextLayoutMap[nextName] = nextLayout;
++      }
++      inserted = true;
++      return;
++    }
++
++    nextLayoutMap[key] = value;
++  });
++
++  if (!inserted && mode !== "delete") {
++    nextLayoutMap[nextName] = nextLayout;
++  }
++
++  nextSettings.layout = nextLayoutMap;
++  return nextSettings;
 +}
 +
 +function Field({ label, value, onChange }) {
@@ -1131,6 +1257,139 @@ index 00000000..7e84e5ce
 +  );
 +}
 +
++function GroupModal({ modal, data, onClose, onSaved }) {
++  const { mutate } = useSWRConfig();
++  const { setSettings } = useContext(SettingsContext);
++  const [name, setName] = useState(modal.mode === "edit" ? modal.groupName : "");
++  const [form, setForm] = useState(() => groupLayoutToForm(modal.layout));
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState("");
++  const title = modal.type === "services" ? "service group" : "bookmark group";
++
++  async function putConfig(file, nextData) {
++    const response = await fetch("/api/config/editor", {
++      method: "PUT",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ file, data: nextData }),
++    });
++
++    if (!response.ok) {
++      throw new Error(await response.text());
++    }
++  }
++
++  async function saveGroup(mode = "save") {
++    setSaving(true);
++    setError("");
++
++    try {
++      const trimmedName = name.trim();
++      if (mode !== "delete" && !trimmedName) {
++        throw new Error("Group name is required");
++      }
++
++      let nextGroups;
++      const nextLayout = formToGroupLayout(form);
++      let nextSettings;
++
++      if (mode === "delete") {
++        nextGroups = deleteRawGroup(data[modal.type], modal.groupName);
++        nextSettings = updateSettingsLayout(data.settings, modal.groupName, modal.groupName, {}, "delete");
++      } else if (modal.mode === "new") {
++        nextGroups = addRawGroup(data[modal.type], trimmedName, modal.type);
++        nextSettings = updateSettingsLayout(data.settings, trimmedName, trimmedName, nextLayout, "save");
++      } else {
++        nextGroups = renameRawGroup(data[modal.type], modal.groupName, trimmedName);
++        nextSettings = updateSettingsLayout(data.settings, modal.groupName, trimmedName, nextLayout, "save");
++      }
++
++      await putConfig(modal.type, nextGroups);
++      await putConfig("settings", nextSettings);
++      setSettings(nextSettings);
++      await refreshConfigData(mutate);
++      onSaved(mode === "delete" ? "Group deleted" : "Group saved");
++      onClose();
++    } catch (saveError) {
++      setError(saveError.message);
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  return (
++    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
++      <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
++        <div className="mb-4 flex items-center justify-between gap-3">
++          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Edit ${title}` : `Add ${title}`}</h2>
++          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
++            Close
++          </button>
++        </div>
++
++        <div className="space-y-3">
++          <Field label="Group name" value={name} onChange={setName} />
++          <div className="grid gap-3 md:grid-cols-2">
++            <Field
++              label="Style"
++              value={form.style}
++              onChange={(value) => setForm((current) => ({ ...current, style: value }))}
++            />
++            <Field
++              label="Columns"
++              value={form.columns}
++              onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
++            />
++            <Field
++              label="Header"
++              value={form.header}
++              onChange={(value) => setForm((current) => ({ ...current, header: value }))}
++            />
++            <Field label="Tab" value={form.tab} onChange={(value) => setForm((current) => ({ ...current, tab: value }))} />
++            <Field
++              label="Icon"
++              value={form.icon}
++              onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
++            />
++            <Field
++              label="Initially collapsed"
++              value={form.initiallyCollapsed}
++              onChange={(value) => setForm((current) => ({ ...current, initiallyCollapsed: value }))}
++            />
++          </div>
++          <p className="text-xs text-theme-600 dark:text-theme-300">
++            Style: empty or row. Header and Initially collapsed: true or false.
++          </p>
++        </div>
++
++        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
++
++        <div className="mt-4 flex flex-wrap justify-between gap-2">
++          <div>
++            {modal.mode === "edit" && (
++              <button
++                type="button"
++                onClick={() => saveGroup("delete")}
++                disabled={saving}
++                className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
++              >
++                Delete group
++              </button>
++            )}
++          </div>
++          <button
++            type="button"
++            onClick={() => saveGroup()}
++            disabled={saving}
++            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
++          >
++            {saving ? "Saving..." : "Save"}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
++
 +export function useConfigEditor() {
 +  return useContext(ConfigEditorContext);
 +}
@@ -1171,7 +1430,9 @@ index 00000000..7e84e5ce
 +        await refreshConfigData(mutate);
 +        handleSaved("Order saved");
 +      },
++      openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
 +      openItem: (type, groupName, itemName, item) => setModal({ type, groupName, itemName, item, mode: "edit" }),
++      openNewGroup: (type) => setModal({ type, groupName: "", layout: {}, mode: "new", scope: "group" }),
 +      openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
 +    }),
 +    [data, editMode, mutate],
@@ -1209,6 +1470,24 @@ index 00000000..7e84e5ce
 +            Background
 +          </button>
 +        )}
++        {editMode && (
++          <>
++            <button
++              type="button"
++              onClick={() => value.openNewGroup("services")}
++              className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++            >
++              Service group
++            </button>
++            <button
++              type="button"
++              onClick={() => value.openNewGroup("bookmarks")}
++              className="rounded-md bg-theme-800 px-4 py-2 text-sm font-medium text-white shadow-md dark:bg-theme-100 dark:text-theme-900"
++            >
++              Bookmark group
++            </button>
++          </>
++        )}
 +      </div>
 +      {notice && (
 +        <div className="fixed bottom-20 left-5 z-50 rounded-md bg-emerald-100 px-3 py-2 text-sm text-emerald-800 shadow-md dark:bg-emerald-950 dark:text-emerald-200">
@@ -1216,7 +1495,10 @@ index 00000000..7e84e5ce
 +        </div>
 +      )}
 +      {modal?.type === "background" && <BackgroundModal settings={data?.settings} onClose={() => setModal(null)} onSaved={handleSaved} />}
-+      {modal?.type !== "background" && modal && data && (
++      {modal?.scope === "group" && modal && data && (
++        <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
++      )}
++      {modal?.type !== "background" && modal?.scope !== "group" && modal && data && (
 +        <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
 +      )}
 +    </ConfigEditorContext.Provider>
