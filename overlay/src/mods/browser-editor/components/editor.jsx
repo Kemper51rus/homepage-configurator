@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import yaml from "js-yaml";
 import { SettingsContext } from "utils/contexts/settings";
@@ -33,6 +33,12 @@ const toolbarButtonClassName =
 
 const toolbarPrimaryButtonClassName =
   "rounded-md border border-emerald-500/50 bg-emerald-600/85 px-4 py-2 text-sm font-medium text-white shadow-md shadow-theme-900/10 backdrop-blur-sm transition-colors hover:bg-emerald-500 dark:border-emerald-400/40 dark:bg-emerald-600/90 dark:shadow-theme-900/20 dark:hover:bg-emerald-500";
+
+const JSON_DRAG_TYPE = "application/json";
+const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
+const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
+
+let activeDragPayload = null;
 
 const serviceFields = [
   ["href", "URL"],
@@ -409,7 +415,11 @@ function extractNamedNode(nodes, sourceName) {
       }
 
       if (Array.isArray(value)) {
-        return { [name]: extractNamedNode(value, sourceName).nodes };
+        const childResult = extractNamedNode(value, sourceName);
+        if (childResult.extracted) {
+          extracted = childResult.extracted;
+        }
+        return { [name]: childResult.nodes };
       }
 
       return node;
@@ -1051,8 +1061,30 @@ export function useConfigEditor() {
   return useContext(ConfigEditorContext);
 }
 
-function readDragPayload(event) {
-  const raw = event.dataTransfer.getData("application/json");
+function dragTypes(event) {
+  return Array.from(event.dataTransfer?.types ?? []);
+}
+
+function hasDragType(event, type) {
+  return dragTypes(event).includes(type);
+}
+
+function writeDragPayload(event, payload, type = JSON_DRAG_TYPE) {
+  const serialized = JSON.stringify(payload);
+
+  activeDragPayload = payload;
+  event.dataTransfer.setData(JSON_DRAG_TYPE, serialized);
+  if (type !== JSON_DRAG_TYPE) {
+    event.dataTransfer.setData(type, serialized);
+  }
+}
+
+function clearDragPayload() {
+  activeDragPayload = null;
+}
+
+function readDragPayload(event, preferredType = JSON_DRAG_TYPE) {
+  const raw = event.dataTransfer.getData(preferredType) || event.dataTransfer.getData(JSON_DRAG_TYPE);
   if (!raw) return null;
 
   try {
@@ -1060,6 +1092,30 @@ function readDragPayload(event) {
   } catch {
     return null;
   }
+}
+
+function readGroupDragPayload(event, fallbackPayload = null) {
+  const typedPayload = readDragPayload(event, GROUP_DRAG_TYPE);
+  const genericPayload = typedPayload ?? readDragPayload(event);
+  const fallback = fallbackPayload ?? activeDragPayload;
+
+  if (genericPayload?.scope === "group") {
+    return genericPayload;
+  }
+
+  if (fallback?.scope === "group") {
+    return fallback;
+  }
+
+  return null;
+}
+
+function isGroupDragOver(event, fallbackPayload = null) {
+  return hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group";
+}
+
+function isExplicitGroupDropTarget(event) {
+  return event.target instanceof Element && event.target.closest("[data-editor-group-drop-target='true']");
 }
 
 export function EditorGroupToolbar({ type, groupName, layout, allowInside = false }) {
@@ -1074,11 +1130,15 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("application/json", JSON.stringify({ scope: "group", type, groupName }));
-        setDraggedGroup({ scope: "group", type, groupName });
+        const payload = { scope: "group", type, groupName };
+        writeDragPayload(event, payload, GROUP_DRAG_TYPE);
+        setDraggedGroup(payload);
       }}
       onDragEnd={() => {
-        setDraggedGroup(null);
+        window.setTimeout(() => {
+          clearDragPayload();
+          setDraggedGroup(null);
+        }, 0);
       }}
       onDragOver={(event) => {
         event.preventDefault();
@@ -1087,11 +1147,12 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
       onDrop={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        const dragged = readDragPayload(event);
+        const dragged = readGroupDragPayload(event);
         if (dragged?.scope === "group" && dragged.type === type) {
           moveGroup(type, dragged.groupName, groupName, "before");
         }
       }}
+      data-editor-group-drop-target="true"
       className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
     >
       <span className="truncate font-medium">{groupName}</span>
@@ -1106,11 +1167,12 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
             onDrop={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              const dragged = readDragPayload(event);
+              const dragged = readGroupDragPayload(event);
               if (dragged?.scope === "group" && dragged.type === type) {
                 moveGroup(type, dragged.groupName, groupName, "inside");
               }
             }}
+            data-editor-group-drop-target="true"
             className="rounded-md border border-emerald-500/70 px-2 py-1 text-xs"
           >
             Drop inside
@@ -1131,6 +1193,50 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
 export function RootGroupDropZone({ children }) {
   const { draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
 
+  const dropGroupToRoot = useCallback((event) => {
+    const dragged = readGroupDragPayload(event, draggedGroup);
+    if (!dragged) {
+      return false;
+    }
+
+    event.preventDefault();
+    moveGroup(dragged.type, dragged.groupName, null, "root");
+    clearDragPayload();
+    setDraggedGroup(null);
+    return true;
+  }, [draggedGroup, moveGroup, setDraggedGroup]);
+
+  useEffect(() => {
+    if (!editMode) {
+      return undefined;
+    }
+
+    const handleDragOver = (event) => {
+      if (!isGroupDragOver(event, draggedGroup)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    };
+
+    const handleDrop = (event) => {
+      if (isExplicitGroupDropTarget(event)) {
+        return;
+      }
+
+      dropGroupToRoot(event);
+    };
+
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+
+    return () => {
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+    };
+  }, [draggedGroup, dropGroupToRoot, editMode]);
+
   return (
     <div
       onDragOver={(event) => {
@@ -1138,8 +1244,7 @@ export function RootGroupDropZone({ children }) {
           return;
         }
 
-        const dragged = readDragPayload(event);
-        if (dragged?.scope !== "group") {
+        if (!isGroupDragOver(event, draggedGroup)) {
           return;
         }
 
@@ -1151,22 +1256,34 @@ export function RootGroupDropZone({ children }) {
           return;
         }
 
-        const dragged = readDragPayload(event);
-        if (dragged?.scope !== "group") {
+        if (isExplicitGroupDropTarget(event)) {
           return;
         }
 
-        event.preventDefault();
-        moveGroup(dragged.type, dragged.groupName, null, "root");
-        setDraggedGroup(null);
+        dropGroupToRoot(event);
       }}
       className="relative pb-12"
     >
       {children}
       {editMode && draggedGroup?.scope === "group" && (
-        <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
-          Drop into empty space to move the group to root
-        </div>
+        <>
+          <div
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(event) => {
+              event.stopPropagation();
+              dropGroupToRoot(event);
+            }}
+            className="fixed left-4 right-4 top-4 z-[80] flex min-h-16 items-center justify-center rounded-md border border-dashed border-emerald-400/70 bg-theme-50/90 px-3 py-3 text-sm font-medium text-theme-800 shadow-lg backdrop-blur-sm dark:bg-theme-900/85 dark:text-theme-100"
+          >
+            Drop here to move group to root
+          </div>
+          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
+            Drop into empty space to move the group to root
+          </div>
+        </>
       )}
     </div>
   );
@@ -1182,7 +1299,10 @@ export function useEditableItem(type, groupName, itemName, item) {
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("application/json", JSON.stringify({ type, groupName, itemName }));
+            writeDragPayload(event, { type, groupName, itemName }, ITEM_DRAG_TYPE);
+          },
+          onDragEnd: () => {
+            window.setTimeout(clearDragPayload, 0);
           },
           onDragOver: (event) => {
             event.preventDefault();
