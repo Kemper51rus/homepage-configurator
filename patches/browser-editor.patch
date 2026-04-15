@@ -155,7 +155,7 @@ index 88d4d7e8..916f4145 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..afe6b514 100644
+index 7ea16bba..8b3df315 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
 @@ -2,9 +2,11 @@ import classNames from "classnames";
@@ -166,11 +166,11 @@ index 7ea16bba..afe6b514 100644
  
  export default function Item({ bookmark, iconOnly = false }) {
    const description = bookmark.description ?? new URL(bookmark.href).hostname;
-+  const { editMode, openItem } = useConfigEditor();
++  const { editMode, moveItem, openItem } = useConfigEditor();
    const { settings } = useContext(SettingsContext);
  
    return (
-@@ -15,11 +17,19 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -15,11 +17,46 @@ export default function Item({ bookmark, iconOnly = false }) {
        data-name={bookmark.name}
      >
        <a
@@ -180,6 +180,33 @@ index 7ea16bba..afe6b514 100644
          rel="noreferrer"
 -        target={bookmark.target ?? settings.target ?? "_blank"}
 +        target={editMode ? undefined : bookmark.target ?? settings.target ?? "_blank"}
++        draggable={editMode}
++        onDragStart={(event) => {
++          if (editMode) {
++            event.dataTransfer.effectAllowed = "move";
++            event.dataTransfer.setData(
++              "application/json",
++              JSON.stringify({ type: "bookmarks", groupName: bookmark.groupName, itemName: bookmark.name }),
++            );
++          }
++        }}
++        onDragOver={(event) => {
++          if (editMode) {
++            event.preventDefault();
++            event.dataTransfer.dropEffect = "move";
++          }
++        }}
++        onDrop={(event) => {
++          if (editMode) {
++            event.preventDefault();
++            const draggedData = event.dataTransfer.getData("application/json");
++            if (!draggedData) return;
++            const dragged = JSON.parse(draggedData);
++            if (dragged.type === "bookmarks" && dragged.groupName === bookmark.groupName) {
++              moveItem("bookmarks", bookmark.groupName, dragged.itemName, bookmark.name);
++            }
++          }
++        }}
 +        onClick={(event) => {
 +          if (editMode) {
 +            event.preventDefault();
@@ -192,7 +219,7 @@ index 7ea16bba..afe6b514 100644
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
            iconOnly ? "h-[60px] w-[60px] grid" : "block w-full mb-3",
-@@ -52,6 +62,11 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -52,6 +89,11 @@ export default function Item({ bookmark, iconOnly = false }) {
              </div>
            </div>
          )}
@@ -205,7 +232,7 @@ index 7ea16bba..afe6b514 100644
      </li>
    );
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index f24794db..0278ee8c 100644
+index f24794db..c5b94df1 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
 @@ -1,9 +1,11 @@
@@ -217,11 +244,11 @@ index f24794db..0278ee8c 100644
  
 -export default function List({ bookmarks, layout, bookmarksStyle }) {
 +export default function List({ groupName, bookmarks, layout, bookmarksStyle }) {
-+  const { editMode, openNewItem } = useConfigEditor();
++  const { editMode, moveItem, openNewItem } = useConfigEditor();
    let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
    const style = {};
    if (layout?.iconsOnly || bookmarksStyle === "icons") {
-@@ -15,10 +17,24 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
+@@ -15,10 +17,37 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
        {bookmarks.map((bookmark) => (
          <Item
            key={`${bookmark.name}-${bookmark.href}`}
@@ -234,6 +261,19 @@ index f24794db..0278ee8c 100644
 +        <li className={classNames("bookmark", (layout?.iconsOnly || bookmarksStyle === "icons") && "grid")}>
 +          <button
 +            type="button"
++            onDragOver={(event) => {
++              event.preventDefault();
++              event.dataTransfer.dropEffect = "move";
++            }}
++            onDrop={(event) => {
++              event.preventDefault();
++              const draggedData = event.dataTransfer.getData("application/json");
++              if (!draggedData) return;
++              const dragged = JSON.parse(draggedData);
++              if (dragged.type === "bookmarks" && dragged.groupName === groupName) {
++                moveItem("bookmarks", groupName, dragged.itemName, null);
++              }
++            }}
 +            onClick={() => openNewItem("bookmarks", groupName)}
 +            className={classNames(
 +              "flex items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/20 p-3 text-sm font-medium text-theme-700 shadow-md shadow-theme-900/10 hover:bg-theme-300/20 dark:border-white/20 dark:bg-white/5 dark:text-theme-200 dark:hover:bg-white/10",
@@ -248,7 +288,7 @@ index f24794db..0278ee8c 100644
    );
  }
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..f4b31be4 100644
+index c23e16a2..fbe748f9 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -2,6 +2,7 @@ import classNames from "classnames";
@@ -263,11 +303,11 @@ index c23e16a2..f4b31be4 100644
  
  export default function Item({ service, groupName, useEqualHeights }) {
    const hasLink = service.href && service.href !== "#";
-+  const { editMode, openItem } = useConfigEditor();
++  const { editMode, moveItem, openItem } = useConfigEditor();
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,19 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -188,6 +190,40 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -275,8 +315,29 @@ index c23e16a2..f4b31be4 100644
 +        {editMode && (
 +          <button
 +            type="button"
++            draggable
++            onDragStart={(event) => {
++              event.dataTransfer.effectAllowed = "move";
++              event.dataTransfer.setData(
++                "application/json",
++                JSON.stringify({ type: "services", groupName, itemName: service.name }),
++              );
++            }}
++            onDragOver={(event) => {
++              event.preventDefault();
++              event.dataTransfer.dropEffect = "move";
++            }}
++            onDrop={(event) => {
++              event.preventDefault();
++              const draggedData = event.dataTransfer.getData("application/json");
++              if (!draggedData) return;
++              const dragged = JSON.parse(draggedData);
++              if (dragged.type === "services" && dragged.groupName === groupName) {
++                moveItem("services", groupName, dragged.itemName, service.name);
++              }
++            }}
 +            onClick={() => openItem("services", groupName, service.name, service)}
-+            className="absolute inset-0 z-40 rounded-md border-2 border-dashed border-emerald-400/70 bg-emerald-500/5 text-left"
++            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-emerald-400/70 bg-emerald-500/5 text-left"
 +            aria-label={`Edit ${service.name}`}
 +          >
 +            <span className="absolute right-2 bottom-2 rounded-md bg-emerald-700 px-2 py-1 text-xs text-white shadow-md">
@@ -288,7 +349,7 @@ index c23e16a2..f4b31be4 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..0ae77c2e 100644
+index 1acf94d6..b25332dd 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
 @@ -1,9 +1,12 @@
@@ -299,12 +360,12 @@ index 1acf94d6..0ae77c2e 100644
  import { columnMap } from "../../utils/layout/columns";
  
  export default function List({ groupName, services, layout, useEqualHeights, header }) {
-+  const { editMode, openNewItem } = useConfigEditor();
++  const { editMode, moveItem, openNewItem } = useConfigEditor();
 +
    return (
      <ul
        className={classNames(
-@@ -20,6 +23,17 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+@@ -20,6 +23,30 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
            useEqualHeights={layout?.useEqualHeights ?? useEqualHeights}
          />
        ))}
@@ -312,6 +373,19 @@ index 1acf94d6..0ae77c2e 100644
 +        <li className="service">
 +          <button
 +            type="button"
++            onDragOver={(event) => {
++              event.preventDefault();
++              event.dataTransfer.dropEffect = "move";
++            }}
++            onDrop={(event) => {
++              event.preventDefault();
++              const draggedData = event.dataTransfer.getData("application/json");
++              if (!draggedData) return;
++              const dragged = JSON.parse(draggedData);
++              if (dragged.type === "services" && dragged.groupName === groupName) {
++                moveItem("services", groupName, dragged.itemName, null);
++              }
++            }}
 +            onClick={() => openNewItem("services", groupName)}
 +            className="mb-2 flex min-h-16 w-full items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-100/20 p-3 text-sm font-medium text-theme-700 shadow-md shadow-theme-900/10 hover:bg-theme-300/20 dark:border-white/20 dark:bg-white/5 dark:text-theme-200 dark:hover:bg-white/10"
 +          >
@@ -532,10 +606,10 @@ index 00000000..c1f3c546
 +}
 diff --git a/src/mods/browser-editor/components/editor.jsx b/src/mods/browser-editor/components/editor.jsx
 new file mode 100644
-index 00000000..b55db515
+index 00000000..a8b7457f
 --- /dev/null
 +++ b/src/mods/browser-editor/components/editor.jsx
-@@ -0,0 +1,512 @@
+@@ -0,0 +1,601 @@
 +import classNames from "classnames";
 +import { createContext, useContext, useMemo, useState } from "react";
 +import useSWR, { useSWRConfig } from "swr";
@@ -543,12 +617,14 @@ index 00000000..b55db515
 +
 +const ConfigEditorContext = createContext({
 +  editMode: false,
++  moveItem: () => {},
 +  openItem: () => {},
 +  openNewItem: () => {},
 +});
 +
 +const noopEditorContext = {
 +  editMode: false,
++  moveItem: () => {},
 +  openItem: () => {},
 +  openNewItem: () => {},
 +};
@@ -751,6 +827,66 @@ index 00000000..b55db515
 +    const name = getEntryName(group);
 +    return { [name]: filterEntries(group[name], name) };
 +  });
++}
++
++function resetServiceWeights(entries) {
++  return entries.map((entry, index) => {
++    const name = getEntryName(entry);
++    const value = entry[name];
++
++    if (Array.isArray(value)) {
++      return entry;
++    }
++
++    return {
++      [name]: {
++        ...value,
++        weight: (index + 1) * 100,
++      },
++    };
++  });
++}
++
++function reorderRawEntry(rawGroups, type, groupName, sourceName, targetName) {
++  let moved = false;
++
++  const reorderEntries = (entries = [], currentGroup) => {
++    if (currentGroup !== groupName) {
++      return entries.map((entry) => {
++        const name = getEntryName(entry);
++        const value = entry[name];
++        return Array.isArray(value) ? { [name]: reorderEntries(value, name) } : entry;
++      });
++    }
++
++    const sourceIndex = entries.findIndex((entry) => getEntryName(entry) === sourceName && !Array.isArray(getEntryValue(entry)));
++    if (sourceIndex < 0) {
++      return entries;
++    }
++
++    const nextEntries = [...entries];
++    const [sourceEntry] = nextEntries.splice(sourceIndex, 1);
++    const targetIndex =
++      targetName === null
++        ? nextEntries.length
++        : nextEntries.findIndex((entry) => getEntryName(entry) === targetName && !Array.isArray(getEntryValue(entry)));
++
++    if (targetIndex < 0) {
++      return entries;
++    }
++
++    nextEntries.splice(targetIndex, 0, sourceEntry);
++    moved = true;
++
++    return type === "services" ? resetServiceWeights(nextEntries) : nextEntries;
++  };
++
++  const nextGroups = (rawGroups ?? []).map((group) => {
++    const name = getEntryName(group);
++    return { [name]: reorderEntries(group[name], name) };
++  });
++
++  return { moved, nextGroups };
 +}
 +
 +function Field({ label, value, onChange }) {
@@ -989,6 +1125,7 @@ index 00000000..b55db515
 +
 +export function ConfigEditorProvider({ children }) {
 +  const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
++  const { mutate } = useSWRConfig();
 +  const [editMode, setEditMode] = useState(false);
 +  const [modal, setModal] = useState(null);
 +  const [notice, setNotice] = useState("");
@@ -997,10 +1134,36 @@ index 00000000..b55db515
 +  const value = useMemo(
 +    () => ({
 +      editMode,
++      moveItem: async (type, groupName, sourceName, targetName = null) => {
++        if (!data || sourceName === targetName) {
++          return;
++        }
++
++        const { moved, nextGroups } = reorderRawEntry(data[type], type, groupName, sourceName, targetName);
++        if (!moved) {
++          handleSaved("Only configured YAML items can be reordered");
++          return;
++        }
++
++        const response = await fetch("/api/config/editor", {
++          method: "PUT",
++          headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({ file: type, data: nextGroups }),
++        });
++
++        if (!response.ok) {
++          handleSaved(await response.text());
++          return;
++        }
++
++        await fetch("/api/revalidate");
++        await Promise.all([mutate("/api/config/editor"), mutate("/api/services"), mutate("/api/bookmarks"), mutate("/api/hash")]);
++        handleSaved("Order saved");
++      },
 +      openItem: (type, groupName, itemName, item) => setModal({ type, groupName, itemName, item, mode: "edit" }),
 +      openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
 +    }),
-+    [editMode],
++    [data, editMode, mutate],
 +  );
 +
 +  function handleSaved(message) {
