@@ -1,19 +1,26 @@
 # Homepage Browser Editor Mod
 
-Separate mod for `gethomepage/homepage` that adds browser-based editing for services, bookmarks, and background images.
+Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
-The upstream project is treated as a target checkout. This repository owns the mod code, patch, installer script, and release history.
+- настройка, добавление и удаление сервисов;
+- настройка, добавление и удаление закладок;
+- загрузка фонового изображения;
+- режим редактирования поверх текущего интерфейса, без отдельной длинной страницы настроек.
 
-## Install Into A Homepage Checkout
+Проект `gethomepage/homepage` считается целевым upstream-checkout. Этот репозиторий хранит сам мод, patch-файл, установщик и отдельную историю изменений.
 
-From this mod repository:
+## Установка В Homepage
+
+Из директории этого репозитория:
 
 ```bash
 npm run install:target -- --target /opt/homepage
 npm run enable:target -- --target /opt/homepage
 ```
 
-Then restart homepage with the normal environment required by your deployment. For development from another host, include the exact host and port:
+Где `/opt/homepage` - путь к локальному checkout проекта `gethomepage/homepage`.
+
+После установки перезапустите homepage обычным способом. Для dev-запуска с доступом по IP нужно указать точный host и port:
 
 ```bash
 PORT=3001 \
@@ -23,15 +30,48 @@ HOMEPAGE_BROWSER_EDITOR=true \
 pnpm dev -p 3001
 ```
 
-## Disable
+Для production/deploy обычно достаточно добавить:
+
+```bash
+HOMEPAGE_BROWSER_EDITOR=true
+```
+
+и корректно настроить `HOMEPAGE_ALLOWED_HOSTS` под ваш домен или IP.
+
+## Использование
+
+После включения мода на странице homepage появится кнопка `Edit`.
+
+В режиме редактирования:
+
+- существующие карточки сервисов и закладок можно открыть кликом и изменить;
+- в конце каждой группы появляется карточка добавления;
+- кнопка `Background` открывает загрузку фонового изображения;
+- кнопка `Done` выключает режим редактирования.
+
+Изменения сохраняются в YAML-файлы целевого homepage:
+
+- `config/services.yaml`
+- `config/bookmarks.yaml`
+- `config/settings.yaml`
+
+Загруженный фон сохраняется в директорию `config` целевого проекта.
+
+## Отключение
 
 ```bash
 npm run disable:target -- --target /opt/homepage
 ```
 
-This only sets `HOMEPAGE_BROWSER_EDITOR=false` in the target `.env.local`. It does not remove patched files.
+Команда только выставляет:
 
-## Status
+```text
+HOMEPAGE_BROWSER_EDITOR=false
+```
+
+в `.env.local` целевого проекта. Пропатченные файлы она не удаляет.
+
+## Проверка Статуса
 
 ```bash
 npm run status:target -- --target /opt/homepage
@@ -39,20 +79,32 @@ npm run status:target -- --target /opt/homepage
 
 ## Patch
 
-The install script applies:
+Установщик применяет patch:
 
 ```text
 patches/browser-editor.patch
 ```
 
-The patch adds:
+Patch добавляет в целевой homepage:
 
-- `src/mods/browser-editor/*`
-- thin Next API wrappers under `src/pages/api/config/*`
-- small hook points in service/bookmark cards and lists
-- `HOMEPAGE_BROWSER_EDITOR` support in `next.config.js`
-- target-side helper scripts in `package.json`
+- `src/mods/browser-editor/*` - основной код мода;
+- thin wrappers для Next API в `src/pages/api/config/*`;
+- небольшие точки подключения в карточках и списках сервисов/закладок;
+- поддержку `HOMEPAGE_BROWSER_EDITOR` в `next.config.js`;
+- вспомогательные npm-скрипты в `package.json` целевого проекта.
 
-## Author
+## Обновление Patch-Файла
 
-Set the author in `package.json` before publishing this as a real repository.
+Patch генерируется из уже пропатченного checkout homepage. В целевом проекте есть команда:
+
+```bash
+pnpm browser-editor:create-patch
+```
+
+После этого скопируйте обновленный `patches/browser-editor.patch` обратно в этот репозиторий мода.
+
+## Примечания
+
+- Мод переписывает YAML через `js-yaml`, поэтому комментарии внутри сохраненного YAML-файла могут быть потеряны.
+- API редактирования не добавляет отдельную авторизацию. Используйте мод только за доверенным reverse proxy, VPN или другим контролем доступа.
+- Если upstream сильно изменит компоненты карточек или структуру API, patch может потребовать ручного обновления.
