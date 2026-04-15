@@ -22,26 +22,36 @@ index ea49bf54..87c163d3 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..2956aab2 100644
+index 88d4d7e8..c44b9eae 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
  import ResolvedIcon from "components/resolvedicon";
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
-+import { EditorGroupToolbar } from "mods/browser-editor/components/editor";
++import { EditorGroupToolbar, useConfigEditor } from "mods/browser-editor/components/editor";
  
  export default function BookmarksGroup({
    bookmarks,
-@@ -15,7 +16,6 @@ export default function BookmarksGroup({
+@@ -14,12 +15,16 @@ export default function BookmarksGroup({
+   bookmarksStyle,
    maxGroupColumns,
  }) {
++  const { editMode } = useConfigEditor();
    const panel = useRef();
 -
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
-@@ -35,6 +35,7 @@ export default function BookmarksGroup({
+ 
++  if (!editMode && (bookmarks.bookmarks?.length ?? 0) === 0) {
++    return null;
++  }
++
+   return (
+     <div
+       key={bookmarks.name}
+@@ -35,6 +40,7 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -49,7 +59,7 @@ index 88d4d7e8..2956aab2 100644
              {layout?.header !== false && (
                <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
                  {layout?.icon && (
-@@ -73,7 +74,12 @@ export default function BookmarksGroup({
+@@ -73,7 +79,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -136,26 +146,46 @@ index f24794db..7e34298f 100644
    );
  }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 403f6063..c5493b3d 100644
+index 403f6063..980427c2 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
 @@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
  import List from "components/services/list";
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
-+import { EditorGroupToolbar } from "mods/browser-editor/components/editor";
++import { EditorGroupToolbar, useConfigEditor } from "mods/browser-editor/components/editor";
  
  import { columnMap } from "../../utils/layout/columns";
  
-@@ -17,7 +18,6 @@ export default function ServicesGroup({
+@@ -16,12 +17,26 @@ export default function ServicesGroup({
+   groupsInitiallyCollapsed,
    isSubgroup,
  }) {
++  const { editMode } = useConfigEditor();
    const panel = useRef();
 -
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
-@@ -39,6 +39,7 @@ export default function ServicesGroup({
+ 
++  const subgroupsFromApi = group.groups ?? [];
++  const subgroupNamesFromApi = new Set(subgroupsFromApi.map((subgroup) => subgroup.name));
++  const layoutSubgroups = Object.entries(layout ?? {})
++    .filter(([key, value]) => !["style", "columns", "header", "tab", "icon", "initiallyCollapsed", "useEqualHeights"].includes(key))
++    .filter(([, value]) => value && typeof value === "object" && !Array.isArray(value))
++    .map(([key]) => ({ name: key, services: [], groups: [] }))
++    .filter((subgroup) => !subgroupNamesFromApi.has(subgroup.name));
++  const visibleSubgroups = [...subgroupsFromApi, ...(editMode ? layoutSubgroups : [])];
++  const isEmptyGroup = (group.services?.length ?? 0) === 0 && visibleSubgroups.length === 0;
++
++  if (!editMode && isEmptyGroup) {
++    return null;
++  }
++
+   let groupPadding = layout?.header === false ? "px-1" : "p-1 pb-0";
+   if (isSubgroup) groupPadding = "";
+ 
+@@ -39,6 +54,7 @@ export default function ServicesGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -163,6 +193,22 @@ index 403f6063..c5493b3d 100644
              {layout?.header !== false && (
                <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
                  {layout?.icon && (
+@@ -86,13 +102,13 @@ export default function ServicesGroup({
+                   useEqualHeights={useEqualHeights}
+                   header={layout?.header !== false}
+                 />
+-                {group.groups?.length > 0 && (
++                {visibleSubgroups.length > 0 && (
+                   <div
+                     className={`grid ${
+                       layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col"
+                     } gap-2`}
+                   >
+-                    {group.groups.map((subgroup) => (
++                    {visibleSubgroups.map((subgroup) => (
+                       <ServicesGroup
+                         key={subgroup.name}
+                         group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
 index c23e16a2..5abbeb39 100644
 --- a/src/components/services/item.jsx
@@ -223,7 +269,7 @@ index 1acf94d6..e39ee4fc 100644
    );
  }
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index c243c3ff..d7fb725f 100644
+index c243c3ff..689eec9c 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -7,6 +7,7 @@ import ServicesGroup from "components/services/group";
@@ -234,7 +280,53 @@ index c243c3ff..d7fb725f 100644
  import { useTranslation } from "next-i18next";
  import { serverSideTranslations } from "next-i18next/serverSideTranslations";
  import dynamic from "next/dynamic";
-@@ -436,12 +437,13 @@ function Home({ initialSettings }) {
+@@ -295,9 +296,26 @@ function Home({ initialSettings }) {
+   const servicesAndBookmarksGroups = useMemo(() => {
+     const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(settings.layout?.[g.name]?.tab));
+     const undefinedGroupFilter = (g) => settings.layout?.[g.name] === undefined;
++    const serviceMap = new Map((services ?? []).map((group) => [group.name, group]));
++    const bookmarkMap = new Map((bookmarks ?? []).map((group) => [group.name, group]));
++    const layoutEntries = Object.entries(settings.layout ?? {});
++
++    const layoutGroups = layoutEntries
++      .map(([groupName]) => {
++        if (groupName === "Bookmarks") {
++          return null;
++        }
++
++        if (serviceMap.has(groupName)) {
++          return serviceMap.get(groupName);
++        }
+ 
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
++        if (bookmarkMap.has(groupName)) {
++          return bookmarkMap.get(groupName);
++        }
++
++        return { name: groupName, services: [], groups: [] };
++      })
+       .filter(tabGroupFilter);
+ 
+     if (!settings.layout && JSON.stringify(settings.layout) !== JSON.stringify(initialSettings.layout)) {
+@@ -305,8 +323,14 @@ function Home({ initialSettings }) {
+       return <div />;
+     }
+ 
+-    const serviceGroups = services?.filter(tabGroupFilter).filter(undefinedGroupFilter);
+-    const bookmarkGroups = bookmarks.filter(tabGroupFilter).filter(undefinedGroupFilter);
++    const missingBookmarkGroups = Object.keys(settings.layout?.Bookmarks ?? {})
++      .filter((groupName) => !bookmarkMap.has(groupName))
++      .map((groupName) => ({ name: groupName, bookmarks: [] }));
++
++    const serviceGroups = [...(services?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? [])];
++    const bookmarkGroups = [...(bookmarks?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? []), ...missingBookmarkGroups]
++      .filter(tabGroupFilter)
++      .filter(undefinedGroupFilter);
+ 
+     return (
+       <>
+@@ -436,12 +460,13 @@ function Home({ initialSettings }) {
  
        <Script src="/api/config/custom.js" />
  
@@ -254,7 +346,7 @@ index c243c3ff..d7fb725f 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -494,7 +496,7 @@ function Home({ initialSettings }) {
+@@ -494,7 +519,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -263,7 +355,7 @@ index c243c3ff..d7fb725f 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -507,7 +509,8 @@ function Home({ initialSettings }) {
+@@ -507,7 +532,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

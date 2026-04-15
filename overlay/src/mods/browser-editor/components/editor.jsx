@@ -302,46 +302,88 @@ function resetServiceWeights(entries) {
   });
 }
 
-function reorderRawEntry(rawGroups, type, groupName, sourceName, targetName) {
-  let moved = false;
+function isItemEntry(entry, type) {
+  const value = getEntryValue(entry);
+  if (type === "services") {
+    return !Array.isArray(value);
+  }
 
-  const reorderEntries = (entries = [], currentGroup) => {
-    if (currentGroup !== groupName) {
+  return Array.isArray(value);
+}
+
+function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
+  let removedEntry = null;
+
+  const removeFromEntries = (entries = [], currentGroup) =>
+    entries
+      .map((entry) => {
+        const name = getEntryName(entry);
+        const value = entry[name];
+
+        if (isItemEntry(entry, type)) {
+          if (currentGroup === sourceGroupName && name === sourceName && removedEntry === null) {
+            removedEntry = entry;
+            return null;
+          }
+          return entry;
+        }
+
+        const nestedEntries = removeFromEntries(value, name);
+        return { [name]: type === "services" && name === sourceGroupName ? resetServiceWeights(nestedEntries) : nestedEntries };
+      })
+      .filter(Boolean);
+
+  const nextGroups = (rawGroups ?? []).map((group) => {
+    const name = getEntryName(group);
+    const nextEntries = removeFromEntries(group[name], name);
+    return { [name]: type === "services" && name === sourceGroupName ? resetServiceWeights(nextEntries) : nextEntries };
+  });
+
+  return { removedEntry, nextGroups };
+}
+
+function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, targetName = null) {
+  let inserted = false;
+
+  const insertToEntries = (entries = [], currentGroup) => {
+    if (currentGroup !== targetGroupName) {
       return entries.map((entry) => {
         const name = getEntryName(entry);
         const value = entry[name];
-        return Array.isArray(value) ? { [name]: reorderEntries(value, name) } : entry;
+        return isItemEntry(entry, type) ? entry : { [name]: insertToEntries(value, name) };
       });
     }
 
-    const sourceIndex = entries.findIndex((entry) => getEntryName(entry) === sourceName && !Array.isArray(getEntryValue(entry)));
-    if (sourceIndex < 0) {
-      return entries;
-    }
-
     const nextEntries = [...entries];
-    const [sourceEntry] = nextEntries.splice(sourceIndex, 1);
     const targetIndex =
-      targetName === null
-        ? nextEntries.length
-        : nextEntries.findIndex((entry) => getEntryName(entry) === targetName && !Array.isArray(getEntryValue(entry)));
+      targetName === null ? nextEntries.length : nextEntries.findIndex((entry) => isItemEntry(entry, type) && getEntryName(entry) === targetName);
 
     if (targetIndex < 0) {
       return entries;
     }
 
     nextEntries.splice(targetIndex, 0, sourceEntry);
-    moved = true;
-
+    inserted = true;
     return type === "services" ? resetServiceWeights(nextEntries) : nextEntries;
   };
 
   const nextGroups = (rawGroups ?? []).map((group) => {
     const name = getEntryName(group);
-    return { [name]: reorderEntries(group[name], name) };
+    const nextEntries = insertToEntries(group[name], name);
+    return { [name]: type === "services" && name === targetGroupName ? resetServiceWeights(nextEntries) : nextEntries };
   });
 
-  return { moved, nextGroups };
+  return { inserted, nextGroups };
+}
+
+function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGroupName, targetName = null) {
+  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName);
+  if (!removedEntry) {
+    return { moved: false, nextGroups: rawGroups };
+  }
+
+  const { inserted, nextGroups } = insertRawEntryForMove(groupsWithoutSource, type, targetGroupName, removedEntry, targetName);
+  return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
 }
 
 function groupLayoutToForm(layout) {
@@ -1311,8 +1353,8 @@ export function useEditableItem(type, groupName, itemName, item) {
           onDrop: (event) => {
             event.preventDefault();
             const dragged = readDragPayload(event);
-            if (dragged?.type === type && dragged.groupName === groupName) {
-              moveItem(type, groupName, dragged.itemName, itemName);
+            if (dragged?.type === type) {
+              moveItem(type, dragged.groupName, dragged.itemName, groupName, itemName);
             }
           },
           onClick: (event) => {
@@ -1342,8 +1384,8 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
         onDrop={(event) => {
           event.preventDefault();
           const dragged = readDragPayload(event);
-          if (dragged?.type === type && dragged.groupName === groupName) {
-            moveItem(type, groupName, dragged.itemName, null);
+          if (dragged?.type === type) {
+            moveItem(type, dragged.groupName, dragged.itemName, groupName, null);
           }
         }}
         onClick={() => openNewItem(type, groupName)}
@@ -1421,12 +1463,16 @@ export function ConfigEditorProvider({ children }) {
           placement === "inside" ? "Group nested" : placement === "root" ? "Group moved to root" : "Group order saved",
         );
       },
-      moveItem: async (type, groupName, sourceName, targetName = null) => {
-        if (!data || sourceName === targetName) {
+      moveItem: async (type, sourceGroupName, sourceName, targetGroupName, targetName = null) => {
+        if (!data || !sourceGroupName || !targetGroupName) {
           return;
         }
 
-        const { moved, nextGroups } = reorderRawEntry(data[type], type, groupName, sourceName, targetName);
+        if (sourceGroupName === targetGroupName && sourceName === targetName) {
+          return;
+        }
+
+        const { moved, nextGroups } = reorderRawEntry(data[type], type, sourceGroupName, sourceName, targetGroupName, targetName);
         if (!moved) {
           handleSaved("Only configured YAML items can be reordered");
           return;
