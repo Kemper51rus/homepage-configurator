@@ -137,7 +137,7 @@ index 00000000..cb690a96
 +    process.exit(1);
 +}
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..fbde3332 100644
+index 88d4d7e8..0ba76bcc 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
@@ -152,16 +152,39 @@ index 88d4d7e8..fbde3332 100644
    maxGroupColumns,
  }) {
    const panel = useRef();
-+  const { editMode, openGroup } = useConfigEditor();
++  const { editMode, moveGroup, openGroup } = useConfigEditor();
  
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
-@@ -35,6 +37,18 @@ export default function BookmarksGroup({
+@@ -35,6 +37,41 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
 +            {editMode && (
-+              <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100">
++              <div
++                draggable
++                onDragStart={(event) => {
++                  event.dataTransfer.effectAllowed = "move";
++                  event.dataTransfer.setData(
++                    "application/json",
++                    JSON.stringify({ scope: "group", type: "bookmarks", groupName: bookmarks.name }),
++                  );
++                }}
++                onDragOver={(event) => {
++                  event.preventDefault();
++                  event.dataTransfer.dropEffect = "move";
++                }}
++                onDrop={(event) => {
++                  event.preventDefault();
++                  const draggedData = event.dataTransfer.getData("application/json");
++                  if (!draggedData) return;
++                  const dragged = JSON.parse(draggedData);
++                  if (dragged.scope === "group" && dragged.type === "bookmarks") {
++                    moveGroup("bookmarks", dragged.groupName, bookmarks.name, "before");
++                  }
++                }}
++                className="mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
++              >
 +                <span className="truncate font-medium">{bookmarks.name}</span>
 +                <button
 +                  type="button"
@@ -175,7 +198,7 @@ index 88d4d7e8..fbde3332 100644
              {layout?.header !== false && (
                <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
                  {layout?.icon && (
-@@ -73,7 +87,12 @@ export default function BookmarksGroup({
+@@ -73,7 +110,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -641,10 +664,10 @@ index 00000000..c1f3c546
 +}
 diff --git a/src/mods/browser-editor/components/editor.jsx b/src/mods/browser-editor/components/editor.jsx
 new file mode 100644
-index 00000000..ae70307f
+index 00000000..1e8474d6
 --- /dev/null
 +++ b/src/mods/browser-editor/components/editor.jsx
-@@ -0,0 +1,859 @@
+@@ -0,0 +1,1152 @@
 +import classNames from "classnames";
 +import { createContext, useContext, useMemo, useState } from "react";
 +import useSWR, { useSWRConfig } from "swr";
@@ -653,6 +676,7 @@ index 00000000..ae70307f
 +
 +const ConfigEditorContext = createContext({
 +  editMode: false,
++  moveGroup: () => {},
 +  moveItem: () => {},
 +  openGroup: () => {},
 +  openItem: () => {},
@@ -662,6 +686,7 @@ index 00000000..ae70307f
 +
 +const noopEditorContext = {
 +  editMode: false,
++  moveGroup: () => {},
 +  moveItem: () => {},
 +  openGroup: () => {},
 +  openItem: () => {},
@@ -864,15 +889,23 @@ index 00000000..ae70307f
 +function renameRawGroup(rawGroups, originalName, nextName) {
 +  let renamed = false;
 +
-+  const nextGroups = (rawGroups ?? []).map((group) => {
++  const renameGroups = (groups = []) => groups.map((group) => {
 +    const name = getEntryName(group);
-+    if (name !== originalName) {
-+      return group;
++    const value = group[name];
++
++    if (name === originalName) {
++      renamed = true;
++      return { [nextName]: value ?? [] };
 +    }
 +
-+    renamed = true;
-+    return { [nextName]: group[name] ?? [] };
++    if (Array.isArray(value)) {
++      return { [name]: renameGroups(value) };
++    }
++
++    return group;
 +  });
++
++  const nextGroups = renameGroups(rawGroups);
 +
 +  if (!renamed) {
 +    return addRawGroup(nextGroups, nextName);
@@ -882,7 +915,7 @@ index 00000000..ae70307f
 +}
 +
 +function deleteRawGroup(rawGroups, groupName) {
-+  return (rawGroups ?? []).filter((group) => getEntryName(group) !== groupName);
++  return extractNamedNode(rawGroups, groupName).nodes;
 +}
 +
 +function deleteRawEntry(rawGroups, groupName, itemName) {
@@ -990,29 +1023,203 @@ index 00000000..ae70307f
 +}
 +
 +function updateSettingsLayout(settings, originalName, nextName, nextLayout, mode) {
-+  const currentLayout = settings?.layout ?? {};
 +  const nextSettings = { ...(settings ?? {}) };
-+  const nextLayoutMap = {};
++  let changed = false;
++
++  const updateLayout = (layoutMap = {}) => {
++    const nextLayoutMap = {};
++
++    Object.entries(layoutMap).forEach(([key, value]) => {
++      if (key === originalName) {
++        changed = true;
++        if (mode !== "delete") {
++          nextLayoutMap[nextName] = nextLayout;
++        }
++        return;
++      }
++
++      if (value && typeof value === "object" && !Array.isArray(value)) {
++        nextLayoutMap[key] = updateLayout(value);
++      } else {
++        nextLayoutMap[key] = value;
++      }
++    });
++
++    return nextLayoutMap;
++  };
++
++  nextSettings.layout = updateLayout(settings?.layout ?? {});
++  if (!changed && mode !== "delete") {
++    nextSettings.layout[nextName] = nextLayout;
++  }
++  return nextSettings;
++}
++
++function extractNamedNode(nodes, sourceName) {
++  let extracted = null;
++
++  const nextNodes = (nodes ?? [])
++    .map((node) => {
++      const name = getEntryName(node);
++      const value = node[name];
++
++      if (name === sourceName) {
++        extracted = node;
++        return null;
++      }
++
++      if (Array.isArray(value)) {
++        return { [name]: extractNamedNode(value, sourceName).nodes };
++      }
++
++      return node;
++    })
++    .filter(Boolean);
++
++  return { extracted, nodes: nextNodes };
++}
++
++function insertRawGroup(nodes, targetName, sourceNode, placement) {
 +  let inserted = false;
 +
-+  Object.entries(currentLayout).forEach(([key, value]) => {
-+    if (key === originalName) {
-+      if (mode !== "delete") {
-+        nextLayoutMap[nextName] = nextLayout;
++  const insertIntoNodes = (currentNodes = []) => {
++    const nextNodes = [];
++
++    currentNodes.forEach((node) => {
++      const name = getEntryName(node);
++      const value = node[name];
++
++      if (placement === "before" && name === targetName) {
++        nextNodes.push(sourceNode);
++        inserted = true;
 +      }
++
++      if (Array.isArray(value)) {
++        if (placement === "inside" && name === targetName) {
++          nextNodes.push({ [name]: [...value, sourceNode] });
++          inserted = true;
++        } else {
++          nextNodes.push({ [name]: insertIntoNodes(value) });
++        }
++      } else {
++        nextNodes.push(node);
++      }
++    });
++
++    return nextNodes;
++  };
++
++  return { inserted, nodes: insertIntoNodes(nodes) };
++}
++
++function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
++  if (!targetName || sourceName === targetName) {
++    return { moved: false, nextGroups: rawGroups };
++  }
++
++  const { extracted, nodes } = extractNamedNode(rawGroups, sourceName);
++  if (!extracted) {
++    return { moved: false, nextGroups: rawGroups };
++  }
++
++  const { inserted, nodes: nextGroups } = insertRawGroup(nodes, targetName, extracted, placement);
++  return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
++}
++
++function moveRawBookmarkGroup(rawGroups, sourceName, targetName) {
++  if (!targetName || sourceName === targetName) {
++    return { moved: false, nextGroups: rawGroups };
++  }
++
++  const sourceIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === sourceName);
++  const targetIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === targetName);
++  if (sourceIndex < 0 || targetIndex < 0) {
++    return { moved: false, nextGroups: rawGroups };
++  }
++
++  const nextGroups = [...rawGroups];
++  const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
++  const nextTargetIndex = nextGroups.findIndex((group) => getEntryName(group) === targetName);
++  nextGroups.splice(nextTargetIndex, 0, sourceGroup);
++
++  return { moved: true, nextGroups };
++}
++
++function extractLayoutNode(layoutMap, sourceName) {
++  let extracted = null;
++  const nextLayout = {};
++
++  Object.entries(layoutMap ?? {}).forEach(([name, value]) => {
++    if (name === sourceName) {
++      extracted = value ?? {};
++      return;
++    }
++
++    const childResult =
++      value && typeof value === "object" && !Array.isArray(value) ? extractLayoutNode(value, sourceName) : null;
++
++    if (childResult?.extracted) {
++      extracted = childResult.extracted;
++      nextLayout[name] = childResult.layout;
++    } else {
++      nextLayout[name] = value;
++    }
++  });
++
++  return { extracted, layout: nextLayout };
++}
++
++function insertLayoutNode(layoutMap, targetName, sourceName, sourceLayout, placement) {
++  let inserted = false;
++  const nextLayout = {};
++
++  Object.entries(layoutMap ?? {}).forEach(([name, value]) => {
++    if (placement === "before" && name === targetName) {
++      nextLayout[sourceName] = sourceLayout;
++      inserted = true;
++    }
++
++    if (placement === "inside" && name === targetName) {
++      nextLayout[name] = {
++        ...(value && typeof value === "object" && !Array.isArray(value) ? value : {}),
++        [sourceName]: sourceLayout,
++      };
 +      inserted = true;
 +      return;
 +    }
 +
-+    nextLayoutMap[key] = value;
++    if (value && typeof value === "object" && !Array.isArray(value)) {
++      const childResult = insertLayoutNode(value, targetName, sourceName, sourceLayout, placement);
++      if (childResult.inserted) {
++        inserted = true;
++        nextLayout[name] = childResult.layout;
++      } else {
++        nextLayout[name] = value;
++      }
++    } else {
++      nextLayout[name] = value;
++    }
 +  });
 +
-+  if (!inserted && mode !== "delete") {
-+    nextLayoutMap[nextName] = nextLayout;
++  return { inserted, layout: nextLayout };
++}
++
++function moveSettingsLayoutGroup(settings, sourceName, targetName, placement) {
++  const { extracted, layout } = extractLayoutNode(settings?.layout ?? {}, sourceName);
++  const sourceLayout = extracted ?? {};
++  const { inserted, layout: nextLayout } = insertLayoutNode(layout, targetName, sourceName, sourceLayout, placement);
++
++  if (!inserted) {
++    return { moved: false, settings };
 +  }
 +
-+  nextSettings.layout = nextLayoutMap;
-+  return nextSettings;
++  return {
++    moved: true,
++    settings: {
++      ...(settings ?? {}),
++      layout: nextLayout,
++    },
++  };
 +}
 +
 +function Field({ label, value, onChange }) {
@@ -1328,6 +1535,65 @@ index 00000000..ae70307f
 +
 +        <div className="space-y-3">
 +          <Field label="Group name" value={name} onChange={setName} />
++          <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
++            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Quick layout</div>
++            <div className="flex flex-wrap gap-2">
++              <button
++                type="button"
++                onClick={() =>
++                  setForm((current) => ({
++                    ...current,
++                    columns: "",
++                    style: "",
++                  }))
++                }
++                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
++              >
++                Vertical
++              </button>
++              <button
++                type="button"
++                onClick={() =>
++                  setForm((current) => ({
++                    ...current,
++                    columns: current.columns || "3",
++                    style: "row",
++                  }))
++                }
++                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
++              >
++                Horizontal
++              </button>
++              {[2, 3, 4, 5].map((columns) => (
++                <button
++                  key={columns}
++                  type="button"
++                  onClick={() =>
++                    setForm((current) => ({
++                      ...current,
++                      columns: String(columns),
++                      style: "row",
++                    }))
++                  }
++                  className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
++                >
++                  {columns} columns
++                </button>
++              ))}
++              <button
++                type="button"
++                onClick={() =>
++                  setForm((current) => ({
++                    ...current,
++                    header: current.header === "false" ? "true" : "false",
++                  }))
++                }
++                className="rounded-md border border-theme-400/60 px-3 py-2 text-sm"
++              >
++                Toggle header
++              </button>
++            </div>
++          </div>
 +          <div className="grid gap-3 md:grid-cols-2">
 +            <Field
 +              label="Style"
@@ -1397,6 +1663,7 @@ index 00000000..ae70307f
 +export function ConfigEditorProvider({ children }) {
 +  const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
 +  const { mutate } = useSWRConfig();
++  const { setSettings } = useContext(SettingsContext);
 +  const [editMode, setEditMode] = useState(false);
 +  const [modal, setModal] = useState(null);
 +  const [notice, setNotice] = useState("");
@@ -1405,6 +1672,55 @@ index 00000000..ae70307f
 +  const value = useMemo(
 +    () => ({
 +      editMode,
++      moveGroup: async (type, sourceName, targetName, placement = "before") => {
++        if (!data || sourceName === targetName) {
++          return;
++        }
++
++        const rawResult =
++          type === "services"
++            ? moveRawServiceGroup(data[type], sourceName, targetName, placement)
++            : moveRawBookmarkGroup(data[type], sourceName, targetName);
++
++        const layoutResult =
++          type === "services"
++            ? moveSettingsLayoutGroup(data.settings, sourceName, targetName, placement)
++            : { moved: true, settings: data.settings };
++
++        if (!rawResult.moved || !layoutResult.moved) {
++          handleSaved("Group cannot be moved there");
++          return;
++        }
++
++        const groupResponse = await fetch("/api/config/editor", {
++          method: "PUT",
++          headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({ file: type, data: rawResult.nextGroups }),
++        });
++
++        if (!groupResponse.ok) {
++          handleSaved(await groupResponse.text());
++          return;
++        }
++
++        if (type === "services") {
++          const settingsResponse = await fetch("/api/config/editor", {
++            method: "PUT",
++            headers: { "Content-Type": "application/json" },
++            body: JSON.stringify({ file: "settings", data: layoutResult.settings }),
++          });
++
++          if (!settingsResponse.ok) {
++            handleSaved(await settingsResponse.text());
++            return;
++          }
++
++          setSettings(layoutResult.settings);
++        }
++
++        await refreshConfigData(mutate);
++        handleSaved(placement === "inside" ? "Group nested" : "Group order saved");
++      },
 +      moveItem: async (type, groupName, sourceName, targetName = null) => {
 +        if (!data || sourceName === targetName) {
 +          return;
@@ -1435,7 +1751,7 @@ index 00000000..ae70307f
 +      openNewGroup: (type) => setModal({ type, groupName: "", layout: {}, mode: "new", scope: "group" }),
 +      openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
 +    }),
-+    [data, editMode, mutate],
++    [data, editMode, mutate, setSettings],
 +  );
 +
 +  function handleSaved(message) {
