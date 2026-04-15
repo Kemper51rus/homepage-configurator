@@ -239,14 +239,14 @@ index 1acf94d6..e39ee4fc 100644
    );
  }
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index c243c3ff..44087a9d 100644
+index c243c3ff..d7fb725f 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -7,6 +7,7 @@ import ServicesGroup from "components/services/group";
  import Tab, { slugifyAndEncode } from "components/tab";
  import Revalidate from "components/toggles/revalidate";
  import Widget from "components/widgets/widget";
-+import { ConfigEditorProvider } from "mods/browser-editor/components/editor";
++import { ConfigEditorProvider, RootGroupDropZone } from "mods/browser-editor/components/editor";
  import { useTranslation } from "next-i18next";
  import { serverSideTranslations } from "next-i18next/serverSideTranslations";
  import dynamic from "next/dynamic";
@@ -270,6 +270,15 @@ index c243c3ff..44087a9d 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
+@@ -494,7 +496,7 @@ function Home({ initialSettings }) {
+           </div>
+         </div>
+ 
+-        {servicesAndBookmarksGroups}
++        <RootGroupDropZone>{servicesAndBookmarksGroups}</RootGroupDropZone>
+ 
+         <div id="footer" className="flex flex-col mt-auto p-8 w-full">
+           <div id="style" className="flex w-full justify-end">
 @@ -507,7 +509,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>

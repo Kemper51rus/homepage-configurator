@@ -450,7 +450,7 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
 }
 
 function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
-  if (!targetName || sourceName === targetName) {
+  if (placement !== "root" && (!targetName || sourceName === targetName)) {
     return { moved: false, nextGroups: rawGroups };
   }
 
@@ -459,11 +459,27 @@ function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
     return { moved: false, nextGroups: rawGroups };
   }
 
+  if (placement === "root") {
+    return { moved: true, nextGroups: [...nodes, extracted] };
+  }
+
   const { inserted, nodes: nextGroups } = insertRawGroup(nodes, targetName, extracted, placement);
   return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
 }
 
-function moveRawBookmarkGroup(rawGroups, sourceName, targetName) {
+function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "before") {
+  if (placement === "root") {
+    const sourceIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === sourceName);
+    if (sourceIndex < 0) {
+      return { moved: false, nextGroups: rawGroups };
+    }
+
+    const nextGroups = [...rawGroups];
+    const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
+    nextGroups.push(sourceGroup);
+    return { moved: true, nextGroups };
+  }
+
   if (!targetName || sourceName === targetName) {
     return { moved: false, nextGroups: rawGroups };
   }
@@ -554,6 +570,19 @@ function upsertLayoutAtPath(layoutMap, path, updater) {
 function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, placement) {
   const { extracted, layout } = extractLayoutNode(settings?.layout ?? {}, sourceName);
   const sourceLayout = extracted ?? {};
+  if (placement === "root") {
+    return {
+      moved: true,
+      settings: {
+        ...(settings ?? {}),
+        layout: {
+          ...layout,
+          [sourceName]: sourceLayout,
+        },
+      },
+    };
+  }
+
   const targetPath = findGroupPath(rawGroups, targetName);
 
   if (!targetPath) {
@@ -1090,6 +1119,45 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
   );
 }
 
+export function RootGroupDropZone({ children }) {
+  const { editMode, moveGroup } = useConfigEditor();
+
+  return (
+    <div
+      onDragOver={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        const dragged = readDragPayload(event);
+        if (dragged?.scope === "group") {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
+      }}
+      onDrop={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        const dragged = readDragPayload(event);
+        if (dragged?.scope === "group") {
+          event.preventDefault();
+          moveGroup(dragged.type, dragged.groupName, null, "root");
+        }
+      }}
+      className="relative"
+    >
+      {children}
+      {editMode && (
+        <div className="mx-4 mt-2 mb-2 rounded-md border border-dashed border-emerald-400/40 px-3 py-2 text-xs text-theme-700/80 dark:text-theme-200/80 sm:mx-8">
+          Drop group here to move it to root
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function useEditableItem(type, groupName, itemName, item) {
   const { editMode, moveItem, openItem } = useConfigEditor();
 
@@ -1166,14 +1234,14 @@ export function ConfigEditorProvider({ children }) {
     () => ({
       editMode,
       moveGroup: async (type, sourceName, targetName, placement = "before") => {
-        if (!data || sourceName === targetName) {
+        if (!data || (placement !== "root" && sourceName === targetName)) {
           return;
         }
 
         const rawResult =
           type === "services"
             ? moveRawServiceGroup(data[type], sourceName, targetName, placement)
-            : moveRawBookmarkGroup(data[type], sourceName, targetName);
+            : moveRawBookmarkGroup(data[type], sourceName, targetName, placement);
 
         const layoutResult =
           type === "services"
@@ -1212,7 +1280,9 @@ export function ConfigEditorProvider({ children }) {
         }
 
         await refreshConfigData(mutate);
-        handleSaved(placement === "inside" ? "Group nested" : "Group order saved");
+        handleSaved(
+          placement === "inside" ? "Group nested" : placement === "root" ? "Group moved to root" : "Group order saved",
+        );
       },
       moveItem: async (type, groupName, sourceName, targetName = null) => {
         if (!data || sourceName === targetName) {
