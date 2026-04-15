@@ -445,7 +445,8 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
     return nextNodes;
   };
 
-  return { inserted, nodes: insertIntoNodes(nodes) };
+  const nextNodes = insertIntoNodes(nodes);
+  return { inserted, nodes: nextNodes };
 }
 
 function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
