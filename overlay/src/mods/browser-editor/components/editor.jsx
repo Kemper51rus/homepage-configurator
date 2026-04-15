@@ -1132,39 +1132,42 @@ export function RootGroupDropZone({ children }) {
   const { draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
 
   return (
-    <div className="relative">
-      {editMode && (
-        <div
-          onDragOver={(event) => {
-            const dragged = readDragPayload(event);
-            if (dragged?.scope !== "group") {
-              return;
-            }
+    <div
+      onDragOver={(event) => {
+        if (!editMode) {
+          return;
+        }
 
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-          }}
-          onDrop={(event) => {
-            const dragged = readDragPayload(event);
-            if (dragged?.scope !== "group") {
-              return;
-            }
+        const dragged = readDragPayload(event);
+        if (dragged?.scope !== "group") {
+          return;
+        }
 
-            event.preventDefault();
-            event.stopPropagation();
-            moveGroup(dragged.type, dragged.groupName, null, "root");
-            setDraggedGroup(null);
-          }}
-          className="fixed inset-0 z-[50]"
-        >
-          {draggedGroup?.scope === "group" && (
-            <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
-              Drop anywhere outside group targets to move to root
-            </div>
-          )}
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        const dragged = readDragPayload(event);
+        if (dragged?.scope !== "group") {
+          return;
+        }
+
+        event.preventDefault();
+        moveGroup(dragged.type, dragged.groupName, null, "root");
+        setDraggedGroup(null);
+      }}
+      className="relative pb-12"
+    >
+      {children}
+      {editMode && draggedGroup?.scope === "group" && (
+        <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
+          Drop into empty space to move the group to root
         </div>
       )}
-      {children}
     </div>
   );
 }
