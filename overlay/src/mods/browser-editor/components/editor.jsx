@@ -5,6 +5,8 @@ import yaml from "js-yaml";
 import { SettingsContext } from "utils/contexts/settings";
 
 const ConfigEditorContext = createContext({
+  draggedGroup: null,
+  setDraggedGroup: () => {},
   editMode: false,
   moveGroup: () => {},
   moveItem: () => {},
@@ -15,6 +17,8 @@ const ConfigEditorContext = createContext({
 });
 
 const noopEditorContext = {
+  draggedGroup: null,
+  setDraggedGroup: () => {},
   editMode: false,
   moveGroup: () => {},
   moveItem: () => {},
@@ -1059,7 +1063,7 @@ function readDragPayload(event) {
 }
 
 export function EditorGroupToolbar({ type, groupName, layout, allowInside = false }) {
-  const { editMode, moveGroup, openGroup } = useConfigEditor();
+  const { editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
 
   if (!editMode) {
     return null;
@@ -1071,6 +1075,10 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("application/json", JSON.stringify({ scope: "group", type, groupName }));
+        setDraggedGroup({ scope: "group", type, groupName });
+      }}
+      onDragEnd={() => {
+        setDraggedGroup(null);
       }}
       onDragOver={(event) => {
         event.preventDefault();
@@ -1078,12 +1086,13 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
       }}
       onDrop={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         const dragged = readDragPayload(event);
         if (dragged?.scope === "group" && dragged.type === type) {
           moveGroup(type, dragged.groupName, groupName, "before");
         }
       }}
-      className="mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
+      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-xs text-theme-800 dark:text-theme-100"
     >
       <span className="truncate font-medium">{groupName}</span>
       <div className="flex shrink-0 gap-1">
@@ -1120,40 +1129,30 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
 }
 
 export function RootGroupDropZone({ children }) {
-  const { editMode, moveGroup } = useConfigEditor();
+  const { draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
 
   return (
-    <div
-      onDragOver={(event) => {
-        if (!editMode) {
-          return;
-        }
-
-        const dragged = readDragPayload(event);
-        if (dragged?.scope === "group") {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-        }
-      }}
-      onDrop={(event) => {
-        if (!editMode) {
-          return;
-        }
-
-        const dragged = readDragPayload(event);
-        if (dragged?.scope === "group") {
-          event.preventDefault();
-          moveGroup(dragged.type, dragged.groupName, null, "root");
-        }
-      }}
-      className="relative"
-    >
-      {children}
-      {editMode && (
-        <div className="mx-4 mt-2 mb-2 rounded-md border border-dashed border-emerald-400/40 px-3 py-2 text-xs text-theme-700/80 dark:text-theme-200/80 sm:mx-8">
-          Drop group here to move it to root
+    <div className="relative">
+      {editMode && draggedGroup?.scope === "group" && (
+        <div
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            moveGroup(draggedGroup.type, draggedGroup.groupName, null, "root");
+            setDraggedGroup(null);
+          }}
+          className="fixed inset-0 z-[50]"
+        >
+          <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-dashed border-emerald-400/40 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:bg-theme-900/70 dark:text-theme-100/90">
+            Drop anywhere outside group targets to move to root
+          </div>
         </div>
       )}
+      {children}
     </div>
   );
 }
@@ -1225,6 +1224,7 @@ export function ConfigEditorProvider({ children }) {
   const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
   const { mutate } = useSWRConfig();
   const { setSettings } = useContext(SettingsContext);
+  const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
@@ -1232,6 +1232,8 @@ export function ConfigEditorProvider({ children }) {
 
   const value = useMemo(
     () => ({
+      draggedGroup,
+      setDraggedGroup,
       editMode,
       moveGroup: async (type, sourceName, targetName, placement = "before") => {
         if (!data || (placement !== "root" && sourceName === targetName)) {
@@ -1314,7 +1316,7 @@ export function ConfigEditorProvider({ children }) {
       openNewGroup: (type) => setModal({ type, groupName: "", layout: {}, mode: "new", scope: "group" }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
     }),
-    [data, editMode, mutate, setSettings],
+    [data, draggedGroup, editMode, mutate, setDraggedGroup, setSettings],
   );
 
   function handleSaved(message) {
