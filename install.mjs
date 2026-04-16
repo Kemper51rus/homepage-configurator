@@ -45,6 +45,36 @@ function runGit(target, args, stdio = "inherit") {
   });
 }
 
+function patchFiles() {
+  const output = execFileSync("git", ["apply", "--numstat", patchPath], {
+    cwd: root,
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim().split("\t").at(-1))
+    .filter(Boolean);
+}
+
+function ensurePatchFilesNotStaged(target) {
+  const files = patchFiles();
+  if (!files.length) return;
+
+  const output = runGit(target, ["diff", "--cached", "--name-only", "--", ...files], "pipe").trim();
+  if (output) {
+    throw new Error(`Patch files have staged changes. Unstage them before continuing:\n${output}`);
+  }
+}
+
+function unstagePatchFiles(target) {
+  const files = patchFiles();
+  if (files.length) {
+    runGit(target, ["reset", "--quiet", "--", ...files], "pipe");
+  }
+}
+
 function ensureTarget(target) {
   if (!existsSync(join(target, "package.json")) || !existsSync(join(target, "src"))) {
     throw new Error(`${target} does not look like a homepage checkout`);
@@ -154,8 +184,11 @@ function removeOverlay(target) {
 }
 
 function applyPatch(target) {
+  ensurePatchFilesNotStaged(target);
+
   try {
-    runGit(target, ["apply", "--3way", patchPath], "pipe");
+    runGit(target, ["apply", "--check", patchPath], "pipe");
+    runGit(target, ["apply", patchPath], "pipe");
     console.log("Core patch applied");
     return;
   } catch (error) {
@@ -164,12 +197,21 @@ function applyPatch(target) {
       console.log("Core patch already applied");
       return;
     } catch {
-      throw error;
+      try {
+        runGit(target, ["apply", "--3way", patchPath], "pipe");
+        unstagePatchFiles(target);
+        console.log("Core patch applied with 3-way merge");
+        return;
+      } catch {
+        throw error;
+      }
     }
   }
 }
 
 function reversePatch(target) {
+  ensurePatchFilesNotStaged(target);
+
   try {
     runGit(target, ["apply", "--reverse", "--check", patchPath], "pipe");
     runGit(target, ["apply", "--reverse", patchPath], "pipe");

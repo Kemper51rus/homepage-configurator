@@ -15,26 +15,26 @@ MOD_DIR="${HOMEPAGE_EDITOR_MOD_DIR:-}"
 
 usage() {
   cat <<'EOF'
-Homepage Browser Editor Mod installer
+Установщик Homepage Browser Editor Mod
 
-Usage:
+Использование:
   bash install.sh [options]
 
-The script asks what to do after launch.
+После запуска скрипт спросит, что сделать.
 
-Options:
-  --target PATH       Path to gethomepage/homepage checkout
-  --mode MODE        auto, local, or docker
-  --repo URL         Mod git repository URL
-  --branch NAME      Mod git branch
-  --no-build         Do not run homepage build after install/uninstall
-  --no-restart       Do not restart homepage.service after install/uninstall
-  -h, --help         Show this help
+Параметры:
+  --target PATH       путь к checkout gethomepage/homepage
+  --mode MODE         auto, local или docker
+  --repo URL          git-репозиторий мода
+  --branch NAME       ветка мода
+  --no-build          не запускать сборку после установки/удаления
+  --no-restart        не перезапускать homepage.service после установки/удаления
+  -h, --help          показать эту справку
 
-Environment:
-  HOMEPAGE_TARGET_DIR       Same as --target
-  HOMEPAGE_EDITOR_MOD_DIR   Use an already downloaded mod directory
-  HOMEPAGE_SERVICE_NAME     systemd service name, default: homepage.service
+Переменные окружения:
+  HOMEPAGE_TARGET_DIR       то же самое, что --target
+  HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
+  HOMEPAGE_SERVICE_NAME     имя systemd-сервиса, по умолчанию homepage.service
 EOF
 }
 
@@ -225,8 +225,15 @@ require_node() {
   command -v node >/dev/null 2>&1 || die "node is required to run the mod installer"
 }
 
+require_git() {
+  command -v git >/dev/null 2>&1 || die "git is required to apply or revert the core patch"
+}
+
 run_mod_installer() {
   require_node
+  if [[ "$1" == "install" || "$1" == "uninstall" ]]; then
+    require_git
+  fi
   node "$MOD_DIR/install.mjs" "$1" --target "$TARGET"
 }
 
