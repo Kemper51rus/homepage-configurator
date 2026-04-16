@@ -1,13 +1,5 @@
 # Homepage Browser Editor Mod
 
-## Quick install
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
-```
-
-После запуска скрипт спросит, что сделать: установить мод, удалить мод или проверить статус.
-
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;
@@ -16,6 +8,12 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - визуальное редактирование групп и layout-параметров;
 - загрузка фонового изображения;
 - режим редактирования поверх текущего интерфейса, без отдельной длинной страницы настроек.
+
+## Quick install
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+```
 
 Проект `gethomepage/homepage` считается целевым upstream-checkout. Этот репозиторий хранит:
 
