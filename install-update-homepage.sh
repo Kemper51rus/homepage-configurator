@@ -38,6 +38,10 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+detect_container_ip() {
+  ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}'
+}
+
 install_self_to_bin() {
   local src
   src="$(readlink -f "$0" 2>/dev/null || echo "$0")"
@@ -74,13 +78,20 @@ read_current_images_dir() {
 }
 
 ask_hosts_install() {
-  local default_hosts="jexum.ru"
+  local detected_ip default_hosts
+  detected_ip="$(detect_container_ip || true)"
+
+  if [ -n "$detected_ip" ]; then
+    default_hosts="jexum.ru,${detected_ip}:${APP_PORT}"
+  else
+    default_hosts="jexum.ru"
+  fi
 
   echo
   echo "Введите HOMEPAGE_ALLOWED_HOSTS"
   echo "Примеры:"
   echo "  jexum.ru"
-  echo "  jexum.ru,localhost:3000,127.0.0.1:3000"
+  echo "  jexum.ru,192.168.1.50:3000"
   read -r -p "HOMEPAGE_ALLOWED_HOSTS [${default_hosts}]: " HOMEPAGE_ALLOWED_HOSTS
   HOMEPAGE_ALLOWED_HOSTS="${HOMEPAGE_ALLOWED_HOSTS:-$default_hosts}"
 
@@ -169,7 +180,8 @@ ensure_packages() {
     nodejs \
     npm \
     nginx \
-    sudo
+    sudo \
+    python3
 }
 
 ensure_pnpm() {
@@ -205,11 +217,13 @@ clone_repo() {
 }
 
 prepare_pnpm_build_approvals() {
-  log "Готовлю pnpm-workspace.yaml для разрешённых build scripts"
+  log "Обновляю pnpm-workspace.yaml для разрешённых build scripts"
   cd "$APP_DIR"
 
-  if [ ! -f "$APP_DIR/pnpm-workspace.yaml" ]; then
-    cat > "$APP_DIR/pnpm-workspace.yaml" <<'EOF'
+  local ws="$APP_DIR/pnpm-workspace.yaml"
+
+  if [ ! -f "$ws" ]; then
+    cat > "$ws" <<'EOF'
 onlyBuiltDependencies:
   - core-js
   - cpu-features
@@ -217,22 +231,65 @@ onlyBuiltDependencies:
   - protobufjs
   - ssh2
 EOF
-    chown "$APP_USER:$APP_GROUP" "$APP_DIR/pnpm-workspace.yaml"
+    chown "$APP_USER:$APP_GROUP" "$ws"
     return
   fi
 
-  if ! grep -q '^onlyBuiltDependencies:' "$APP_DIR/pnpm-workspace.yaml"; then
-    cat >> "$APP_DIR/pnpm-workspace.yaml" <<'EOF'
+  python3 - "$ws" <<'PY'
+import sys
+from pathlib import Path
 
-onlyBuiltDependencies:
-  - core-js
-  - cpu-features
-  - esbuild
-  - protobufjs
-  - ssh2
-EOF
-    chown "$APP_USER:$APP_GROUP" "$APP_DIR/pnpm-workspace.yaml"
-  fi
+ws = Path(sys.argv[1])
+text = ws.read_text(encoding="utf-8")
+
+needed = ["core-js", "cpu-features", "esbuild", "protobufjs", "ssh2"]
+
+if "onlyBuiltDependencies:" not in text:
+    if text and not text.endswith("\n"):
+        text += "\n"
+    text += "onlyBuiltDependencies:\n"
+    for pkg in needed:
+        text += f"  - {pkg}\n"
+else:
+    lines = text.splitlines()
+    out = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+
+        if line.strip() == "onlyBuiltDependencies:":
+            i += 1
+            existing = set()
+            block = []
+
+            while i < len(lines):
+                cur = lines[i]
+                if cur.startswith("  - "):
+                    pkg = cur[4:].strip()
+                    existing.add(pkg)
+                    block.append(cur)
+                    i += 1
+                else:
+                    break
+
+            for b in block:
+                out.append(b)
+
+            for pkg in needed:
+                if pkg not in existing:
+                    out.append(f"  - {pkg}")
+            continue
+
+        i += 1
+
+    text = "\n".join(out) + "\n"
+
+ws.write_text(text, encoding="utf-8")
+PY
+
+  chown "$APP_USER:$APP_GROUP" "$ws"
 }
 
 install_dependencies() {
