@@ -1234,11 +1234,17 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
 function GroupModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { setSettings } = useContext(SettingsContext);
+  const [groupType, setGroupType] = useState(modal.type ?? "");
   const [name, setName] = useState(modal.mode === "edit" ? modal.groupName : "");
   const [form, setForm] = useState(() => groupLayoutToForm(modal.layout));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title = modal.type === "services" ? "группу сервисов" : "группу закладок";
+  const title =
+    modal.mode === "edit"
+      ? groupType === "services"
+        ? "группу сервисов"
+        : "группу закладок"
+      : "группу";
   const isVertical = form.style.trim() !== "row";
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
@@ -1273,22 +1279,26 @@ function GroupModal({ modal, data, onClose, onSaved }) {
         throw new Error("Имя группы обязательно");
       }
 
+      if (mode !== "delete" && groupType !== "services" && groupType !== "bookmarks") {
+        throw new Error("Выберите тип группы");
+      }
+
       let nextGroups;
       const nextLayout = formToGroupLayout(form);
       let nextSettings;
 
       if (mode === "delete") {
-        nextGroups = deleteRawGroup(data[modal.type], modal.groupName);
+        nextGroups = deleteRawGroup(data[groupType], modal.groupName);
         nextSettings = updateSettingsLayout(data.settings, modal.groupName, modal.groupName, {}, "delete");
       } else if (modal.mode === "new") {
-        nextGroups = addRawGroup(data[modal.type], trimmedName, modal.type);
+        nextGroups = addRawGroup(data[groupType], trimmedName, groupType);
         nextSettings = updateSettingsLayout(data.settings, trimmedName, trimmedName, nextLayout, "save");
       } else {
-        nextGroups = renameRawGroup(data[modal.type], modal.groupName, trimmedName);
+        nextGroups = renameRawGroup(data[groupType], modal.groupName, trimmedName);
         nextSettings = updateSettingsLayout(data.settings, modal.groupName, trimmedName, nextLayout, "save");
       }
 
-      await putConfig(modal.type, nextGroups);
+      await putConfig(groupType, nextGroups);
       await putConfig("settings", nextSettings);
       setSettings(nextSettings);
       await refreshConfigData(mutate);
@@ -1312,6 +1322,29 @@ function GroupModal({ modal, data, onClose, onSaved }) {
         </div>
 
         <div className="space-y-3">
+          {modal.mode === "new" && (
+            <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
+              <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGroupType("services")}
+                  aria-pressed={groupType === "services"}
+                  className={quickLayoutButtonClass(groupType === "services")}
+                >
+                  Сервисы
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupType("bookmarks")}
+                  aria-pressed={groupType === "bookmarks"}
+                  className={quickLayoutButtonClass(groupType === "bookmarks")}
+                >
+                  Закладки
+                </button>
+              </div>
+            </div>
+          )}
           <Field label="Имя группы" value={name} onChange={setName} />
           <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
             <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
@@ -1375,7 +1408,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 Переключить заголовок
               </button>
             </div>
-            {modal.type === "services" && (
+            {groupType === "services" && (
               <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
                 <input
                   type="checkbox"
@@ -2058,22 +2091,9 @@ export function ConfigEditorProvider({ children }) {
           >
             Фон
           </button>
-          <>
-            <button
-              type="button"
-              onClick={() => value.openNewGroup("services")}
-              className={toolbarButtonClassName}
-            >
-              Группа сервисов
-            </button>
-            <button
-              type="button"
-              onClick={() => value.openNewGroup("bookmarks")}
-              className={toolbarButtonClassName}
-            >
-              Группа закладок
-            </button>
-          </>
+          <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
+            Группа
+          </button>
         </div>
       ) : (
         <div className="fixed bottom-0 left-0 z-50 h-36 w-36">
