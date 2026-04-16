@@ -194,11 +194,11 @@ docker_homepage_containers() {
 
 download_mod() {
   if [[ -n "$MOD_DIR" ]]; then
-    [[ -f "$MOD_DIR/scripts/install.mjs" ]] || die "Mod installer is missing in $MOD_DIR"
+    [[ -f "$MOD_DIR/install.mjs" ]] || die "Mod installer is missing in $MOD_DIR"
     return 0
   fi
 
-  if [[ -f "$PWD/scripts/install.mjs" && -d "$PWD/overlay" && -d "$PWD/patches" ]]; then
+  if [[ -f "$PWD/install.mjs" && -f "$PWD/browser-editor.patch" && -d "$PWD/overlay" ]]; then
     MOD_DIR="$PWD"
     return 0
   fi
@@ -227,7 +227,7 @@ require_node() {
 
 run_mod_installer() {
   require_node
-  node "$MOD_DIR/scripts/install.mjs" "$1" --target "$TARGET"
+  node "$MOD_DIR/install.mjs" "$1" --target "$TARGET"
 }
 
 build_target() {

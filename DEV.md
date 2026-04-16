@@ -49,7 +49,7 @@ http://100.100.0.230:3000/
 
 ## Когда Обновлять Patch
 
-`patches/browser-editor.patch` обновляется только если изменились точки встраивания в core:
+`browser-editor.patch` обновляется только если изменились точки встраивания в core:
 
 - `src/pages/index.jsx`
 - `src/components/services/*`

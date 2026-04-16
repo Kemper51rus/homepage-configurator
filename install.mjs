@@ -3,8 +3,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, st
 import { dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const patchPath = join(root, "patches", "browser-editor.patch");
+const root = dirname(fileURLToPath(import.meta.url));
+const patchPath = join(root, "browser-editor.patch");
 const overlayPath = join(root, "overlay");
 
 function parseArgs() {
