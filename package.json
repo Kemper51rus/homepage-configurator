@@ -9,6 +9,7 @@
     "install:target": "node scripts/install.mjs",
     "enable:target": "node scripts/install.mjs --enable",
     "disable:target": "node scripts/install.mjs --disable",
+    "uninstall:target": "node scripts/install.mjs --uninstall",
     "status:target": "node scripts/install.mjs --status"
   },
   "keywords": [

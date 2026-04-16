@@ -1,5 +1,17 @@
 # Homepage Browser Editor Mod
 
+## Quick install
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+```
+
+Удаление:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh) uninstall
+```
+
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;
@@ -105,6 +117,18 @@ HOMEPAGE_BROWSER_EDITOR=false
 ```
 
 в `.env.local` целевого проекта. Пропатченные файлы она не удаляет.
+
+Полное удаление мода:
+
+```bash
+npm run uninstall:target -- --target /opt/homepage
+```
+
+Эта команда пытается откатить core-patch, удалить overlay-файлы мода и выставить:
+
+```text
+HOMEPAGE_BROWSER_EDITOR=false
+```
 
 ## Проверка Статуса
 
