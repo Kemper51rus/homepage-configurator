@@ -8,6 +8,7 @@ SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 ACTION=""
 MODE="${HOMEPAGE_EDITOR_MODE:-auto}"
 TARGET="${HOMEPAGE_TARGET_DIR:-}"
+CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
 DO_BUILD=1
 DO_RESTART=1
 TMP_DIR=""
@@ -24,8 +25,9 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
-  --action NAME      install, update-mod, update-target, uninstall или status
+  --action NAME      install, update-mod, update-target, install-radio, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
+  --config-dir PATH   путь к внешней папке config Homepage
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
@@ -35,6 +37,7 @@ usage() {
 
 Переменные окружения:
   HOMEPAGE_TARGET_DIR       то же самое, что --target
+  HOMEPAGE_CONFIG_DIR       то же самое, что --config-dir
   HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
   HOMEPAGE_SERVICE_NAME     имя systemd-сервиса, по умолчанию homepage.service
 EOF
@@ -67,6 +70,11 @@ parse_args() {
       --target)
         [[ $# -ge 2 ]] || die "--target requires a path"
         TARGET="$2"
+        shift 2
+        ;;
+      --config-dir)
+        [[ $# -ge 2 ]] || die "--config-dir requires a path"
+        CONFIG_DIR="$2"
         shift 2
         ;;
       --mode)
@@ -112,8 +120,8 @@ parse_args() {
   esac
 
   case "$ACTION" in
-    ""|install|update-mod|update-target|uninstall|status) ;;
-    *) die "--action must be install, update-mod, update-target, uninstall, or status" ;;
+    ""|install|update-mod|update-target|install-radio|uninstall|status) ;;
+    *) die "--action must be install, update-mod, update-target, install-radio, uninstall, or status" ;;
   esac
 }
 
@@ -128,16 +136,17 @@ Homepage Browser Editor Mod
   1) Установить
   2) Обновить мод из GitHub
   3) Обновить интеграцию в target из текущего каталога
-  4) Удалить
-  5) Проверить статус
-  6) Отмена
+  4) Установить радио (custom.css/custom.js)
+  5) Удалить
+  6) Проверить статус
+  7) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-6: " choice
+      read -r -p "Введите 1-7: " choice
     else
-      read -r -p "Введите 1-6: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-7: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -154,19 +163,23 @@ EOF
         return 0
         ;;
       4)
-        ACTION="uninstall"
+        ACTION="install-radio"
         return 0
         ;;
       5)
-        ACTION="status"
+        ACTION="uninstall"
         return 0
         ;;
       6)
+        ACTION="status"
+        return 0
+        ;;
+      7)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите 1, 2, 3, 4, 5 или 6.\n' >&2
+        printf 'Введите 1, 2, 3, 4, 5, 6 или 7.\n' >&2
         ;;
     esac
   done
@@ -232,7 +245,7 @@ prompt_target() {
 
 Не удалось автоматически найти checkout Homepage.
 Укажите путь к директории gethomepage/homepage, где есть package.json и src/.
-Для отмены введите 4.
+Для отмены введите q.
 EOF
 
   while true; do
@@ -256,6 +269,78 @@ EOF
     fi
 
     printf 'Это не похоже на checkout Homepage: %s\n' "$candidate" >&2
+  done
+}
+
+find_config_dir() {
+  local candidate=""
+
+  if [[ -n "$CONFIG_DIR" ]]; then
+    CONFIG_DIR="$(normalize_path "$CONFIG_DIR")"
+    printf '%s\n' "$CONFIG_DIR"
+    return 0
+  fi
+
+  if [[ -n "$TARGET" && -e "$TARGET/config" ]]; then
+    candidate="$(readlink -f "$TARGET/config" 2>/dev/null || true)"
+    if [[ -n "$candidate" && -d "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+
+    if [[ -d "$TARGET/config" ]]; then
+      printf '%s\n' "$TARGET/config"
+      return 0
+    fi
+  fi
+
+  for candidate in "/srv/homepage-config" "$PWD/config"; do
+    if [[ -d "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+prompt_config_dir() {
+  local candidate=""
+  local default_config_dir="/srv/homepage-config"
+
+  cat >&2 <<'EOF'
+
+Не удалось автоматически найти внешнюю папку config Homepage.
+Укажите путь к директории, где лежат settings.yaml, services.yaml и custom.css/custom.js.
+Если директории ещё нет, скрипт создаст её.
+Для отмены введите q.
+EOF
+
+  while true; do
+    if [[ -t 0 ]]; then
+      read -r -p "Путь к config [$default_config_dir]: " candidate
+    else
+      read -r -p "Путь к config [$default_config_dir]: " candidate || return 1
+    fi
+
+    candidate="${candidate:-$default_config_dir}"
+
+    case "$candidate" in
+      7|q|Q|quit|exit)
+        log "Отменено"
+        exit 0
+        ;;
+    esac
+
+    candidate="$(normalize_path "$candidate")"
+
+    if [[ -e "$candidate" && ! -d "$candidate" ]]; then
+      printf 'Это не директория: %s\n' "$candidate" >&2
+      continue
+    fi
+
+    CONFIG_DIR="$candidate"
+    return 0
   done
 }
 
@@ -330,6 +415,57 @@ run_mod_installer() {
     require_git
   fi
   node "$MOD_DIR/install.mjs" "$1" --target "$TARGET"
+}
+
+config_owner() {
+  stat -c "%U" "$CONFIG_DIR"
+}
+
+config_group() {
+  stat -c "%G" "$CONFIG_DIR"
+}
+
+fix_config_ownership() {
+  [[ "$(id -u)" -eq 0 ]] || return 0
+  [[ -d "$CONFIG_DIR" ]] || return 0
+
+  local owner group
+  owner="$(config_owner)"
+  group="$(config_group)"
+
+  [[ -n "$owner" && "$owner" != "root" ]] || return 0
+  [[ -n "$group" ]] || group="$owner"
+
+  for path in "$CONFIG_DIR/custom.js" "$CONFIG_DIR/custom.css"; do
+    [[ -e "$path" ]] && chown "$owner:$group" "$path"
+  done
+}
+
+backup_if_needed() {
+  local source="$1"
+  local target="$2"
+
+  if [[ -f "$target" ]] && ! cmp -s "$source" "$target"; then
+    cp -f "$target" "${target}.bak"
+    log "Backup created: ${target}.bak"
+  fi
+}
+
+install_radio_assets() {
+  local source_dir="$MOD_DIR/custom-config/radio"
+  [[ -f "$source_dir/custom.js" && -f "$source_dir/custom.css" ]] \
+    || die "Radio custom files are missing in $source_dir"
+
+  mkdir -p "$CONFIG_DIR"
+
+  backup_if_needed "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
+  backup_if_needed "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
+
+  cp -f "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
+  cp -f "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
+
+  fix_config_ownership
+  log "Radio custom files installed into $CONFIG_DIR"
 }
 
 target_owner() {
@@ -466,6 +602,29 @@ main() {
   esac
 
   download_mod
+
+  if [[ "$ACTION" == "install-radio" ]]; then
+    local detected_target=""
+    local detected_config=""
+
+    if detected_target="$(find_target)"; then
+      TARGET="$detected_target"
+      log "Using Homepage checkout: $TARGET"
+    fi
+
+    if detected_config="$(find_config_dir)"; then
+      CONFIG_DIR="$detected_config"
+      log "Using Homepage config dir: $CONFIG_DIR"
+    elif prompt_config_dir; then
+      log "Using Homepage config dir: $CONFIG_DIR"
+    else
+      die "Homepage config directory was not found. Pass --config-dir /path/to/config or set HOMEPAGE_CONFIG_DIR."
+    fi
+
+    install_radio_assets
+    log "Done"
+    return 0
+  fi
 
   local detected_target=""
   if detected_target="$(find_target)"; then
