@@ -283,6 +283,57 @@ run_mod_installer() {
   node "$MOD_DIR/install.mjs" "$1" --target "$TARGET"
 }
 
+target_owner() {
+  stat -c "%U" "$TARGET"
+}
+
+target_group() {
+  stat -c "%G" "$TARGET"
+}
+
+run_in_target() {
+  local owner
+  owner="$(target_owner)"
+
+  if [[ "$(id -u)" -eq 0 && "$owner" != "root" && "$(command -v sudo || true)" ]]; then
+    (cd "$TARGET" && sudo -u "$owner" "$@")
+    return
+  fi
+
+  (cd "$TARGET" && "$@")
+}
+
+fix_target_ownership() {
+  [[ "$(id -u)" -eq 0 ]] || return 0
+
+  local owner group path paths=()
+  owner="$(target_owner)"
+  group="$(target_group)"
+
+  [[ -n "$owner" && "$owner" != "root" ]] || return 0
+  [[ -n "$group" ]] || group="$owner"
+
+  paths=(
+    "$TARGET/.env.local"
+    "$TARGET/.next"
+    "$TARGET/src/mods/browser-editor"
+    "$TARGET/src/pages/api/config/background.js"
+    "$TARGET/src/pages/api/config/editor.js"
+  )
+
+  if [[ -f "$MOD_DIR/browser-editor.patch" ]] && command -v git >/dev/null 2>&1; then
+    while IFS= read -r path; do
+      [[ -n "$path" ]] && paths+=("$TARGET/$path")
+    done < <(git apply --numstat "$MOD_DIR/browser-editor.patch" | awk -F '\t' '{print $NF}')
+  fi
+
+  for path in "${paths[@]}"; do
+    if [[ -e "$path" ]]; then
+      chown -R "$owner:$group" "$path"
+    fi
+  done
+}
+
 build_target() {
   [[ "$DO_BUILD" -eq 1 ]] || return 0
   [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]] || return 0
@@ -290,27 +341,27 @@ build_target() {
   log "Building homepage in $TARGET"
 
   if [[ -f "$TARGET/pnpm-lock.yaml" && "$(command -v pnpm || true)" ]]; then
-    (cd "$TARGET" && pnpm build)
+    run_in_target pnpm build
     return 0
   fi
 
   if [[ -f "$TARGET/package-lock.json" && "$(command -v npm || true)" ]]; then
-    (cd "$TARGET" && npm run build)
+    run_in_target npm run build
     return 0
   fi
 
   if [[ -f "$TARGET/yarn.lock" && "$(command -v yarn || true)" ]]; then
-    (cd "$TARGET" && yarn build)
+    run_in_target yarn build
     return 0
   fi
 
   if command -v pnpm >/dev/null 2>&1; then
-    (cd "$TARGET" && pnpm build)
+    run_in_target pnpm build
     return 0
   fi
 
   if command -v npm >/dev/null 2>&1; then
-    (cd "$TARGET" && npm run build)
+    run_in_target npm run build
     return 0
   fi
 
@@ -384,7 +435,13 @@ main() {
       ;;
   esac
 
+  if [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]]; then
+    fix_target_ownership
+  fi
   build_target
+  if [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]]; then
+    fix_target_ownership
+  fi
   restart_target
   log "Done"
 }

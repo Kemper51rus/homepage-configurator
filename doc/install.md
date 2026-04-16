@@ -16,6 +16,18 @@
 
 ## Quick install
 
+Установка target-проекта Homepage:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install-update-homepage.sh)
+```
+
+Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, nginx, внешние каталоги конфигов и картинок.
+
+Для установки target-проекта запускайте его от `root`.
+
+Установка мода:
+
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
@@ -30,6 +42,24 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 6. текущая директория запуска.
 
 Если checkout Homepage не найден, скрипт попросит ввести путь вручную.
+
+## Порядок Первой Установки
+
+1. Запустите `install-update-homepage.sh` и выберите установку target-проекта.
+2. Дождитесь успешной сборки и запуска `homepage.service`.
+3. Запустите `install.sh` и выберите установку мода.
+
+После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что `install-update-homepage.sh` создаёт `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
+
+## Обновление Target-Проекта
+
+Перед обновлением upstream Homepage лучше временно удалить мод:
+
+1. запустите `install.sh` и выберите `Удалить`;
+2. запустите `install-update-homepage.sh` и выберите `Обновить`;
+3. снова запустите `install.sh` и выберите `Установить`.
+
+Это нужно потому, что мод меняет core-файлы Homepage через `browser-editor.patch`, а `install-update-homepage.sh` обновляет target через `git pull`.
 
 ## Что делает установщик
 

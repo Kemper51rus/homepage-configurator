@@ -11,6 +11,14 @@
 
 ## Quick install
 
+Установка target-проекта Homepage:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install-update-homepage.sh)
+```
+
+Установка мода:
+
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
