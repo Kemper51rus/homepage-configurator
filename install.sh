@@ -25,7 +25,7 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
-  --action NAME      install, update-mod, update-target, install-radio, uninstall или status
+  --action NAME      install, update-mod, update-target, install-radio, install-particles, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
   --config-dir PATH   путь к внешней папке config Homepage
   --mode MODE         auto, local или docker
@@ -63,7 +63,7 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --action)
-        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, uninstall, or status"
+        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, install-radio, install-particles, uninstall, or status"
         ACTION="$2"
         shift 2
         ;;
@@ -120,8 +120,8 @@ parse_args() {
   esac
 
   case "$ACTION" in
-    ""|install|update-mod|update-target|install-radio|uninstall|status) ;;
-    *) die "--action must be install, update-mod, update-target, install-radio, uninstall, or status" ;;
+    ""|install|update-mod|update-target|install-radio|install-particles|uninstall|status) ;;
+    *) die "--action must be install, update-mod, update-target, install-radio, install-particles, uninstall, or status" ;;
   esac
 }
 
@@ -137,16 +137,17 @@ Homepage Browser Editor Mod
   2) Обновить мод из GitHub
   3) Обновить интеграцию в target из текущего каталога
   4) Установить радио (custom.css/custom.js)
-  5) Удалить
-  6) Проверить статус
-  7) Отмена
+  5) Установить эффекты фона particles
+  6) Удалить
+  7) Проверить статус
+  8) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-7: " choice
+      read -r -p "Введите 1-8: " choice
     else
-      read -r -p "Введите 1-7: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-8: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -167,19 +168,23 @@ EOF
         return 0
         ;;
       5)
-        ACTION="uninstall"
+        ACTION="install-particles"
         return 0
         ;;
       6)
-        ACTION="status"
+        ACTION="uninstall"
         return 0
         ;;
       7)
+        ACTION="status"
+        return 0
+        ;;
+      8)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите 1, 2, 3, 4, 5, 6 или 7.\n' >&2
+        printf 'Введите 1, 2, 3, 4, 5, 6, 7 или 8.\n' >&2
         ;;
     esac
   done
@@ -441,31 +446,91 @@ fix_config_ownership() {
   done
 }
 
-backup_if_needed() {
+get_fragment_markers() {
+  local source="$1"
+  local start_marker end_marker
+
+  start_marker="$(grep -m1 'HOMEPAGE-EDITOR .* START' "$source" || true)"
+  end_marker="$(grep -m1 'HOMEPAGE-EDITOR .* END' "$source" || true)"
+
+  [[ -n "$start_marker" && -n "$end_marker" ]] || die "Managed block markers are missing in $source"
+  printf '%s\n%s\n' "$start_marker" "$end_marker"
+}
+
+upsert_fragment() {
   local source="$1"
   local target="$2"
+  local tmp=""
+  local markers=()
+  local start_marker end_marker
+  local target_existed=0
 
-  if [[ -f "$target" ]] && ! cmp -s "$source" "$target"; then
+  mapfile -t markers < <(get_fragment_markers "$source")
+  start_marker="${markers[0]}"
+  end_marker="${markers[1]}"
+
+  mkdir -p "$(dirname "$target")"
+  [[ -f "$target" ]] && target_existed=1
+  [[ -f "$target" ]] || : > "$target"
+
+  tmp="$(mktemp)"
+
+  if grep -Fqx "$start_marker" "$target" && grep -Fqx "$end_marker" "$target"; then
+    awk -v start="$start_marker" -v end="$end_marker" -v replacement="$source" '
+      BEGIN {
+        skip = 0
+        inserted = 0
+      }
+      $0 == start {
+        if (!inserted) {
+          while ((getline line < replacement) > 0) {
+            print line
+          }
+          close(replacement)
+          inserted = 1
+        }
+        skip = 1
+        next
+      }
+      skip && $0 == end {
+        skip = 0
+        next
+      }
+      !skip {
+        print
+      }
+    ' "$target" > "$tmp"
+  else
+    if [[ -s "$target" ]]; then
+      cp -f "$target" "$tmp"
+      printf '\n\n' >> "$tmp"
+    fi
+    cat "$source" >> "$tmp"
+    printf '\n' >> "$tmp"
+  fi
+
+  if [[ "$target_existed" -eq 1 ]] && ! cmp -s "$tmp" "$target"; then
     cp -f "$target" "${target}.bak"
     log "Backup created: ${target}.bak"
   fi
+
+  cp -f "$tmp" "$target"
+  rm -f "$tmp"
 }
 
-install_radio_assets() {
-  local source_dir="$MOD_DIR/custom-config/radio"
+install_custom_fragment_set() {
+  local preset="$1"
+  local source_dir="$MOD_DIR/custom-config/$preset"
   [[ -f "$source_dir/custom.js" && -f "$source_dir/custom.css" ]] \
-    || die "Radio custom files are missing in $source_dir"
+    || die "Custom files are missing in $source_dir"
 
   mkdir -p "$CONFIG_DIR"
 
-  backup_if_needed "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
-  backup_if_needed "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
-
-  cp -f "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
-  cp -f "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
+  upsert_fragment "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
+  upsert_fragment "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
 
   fix_config_ownership
-  log "Radio custom files installed into $CONFIG_DIR"
+  log "Custom preset '$preset' installed into $CONFIG_DIR"
 }
 
 target_owner() {
@@ -603,9 +668,16 @@ main() {
 
   download_mod
 
-  if [[ "$ACTION" == "install-radio" ]]; then
+  if [[ "$ACTION" == "install-radio" || "$ACTION" == "install-particles" ]]; then
     local detected_target=""
     local detected_config=""
+    local preset=""
+
+    case "$ACTION" in
+      install-radio) preset="radio" ;;
+      install-particles) preset="particles" ;;
+      *) die "Unknown custom preset action: $ACTION" ;;
+    esac
 
     if detected_target="$(find_target)"; then
       TARGET="$detected_target"
@@ -621,7 +693,7 @@ main() {
       die "Homepage config directory was not found. Pass --config-dir /path/to/config or set HOMEPAGE_CONFIG_DIR."
     fi
 
-    install_radio_assets
+    install_custom_fragment_set "$preset"
     log "Done"
     return 0
   fi

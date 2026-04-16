@@ -28,10 +28,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - `Установить` - первая установка;
 - `Обновить мод из GitHub` - снять мод и поставить заново из актуальной версии репозитория на GitHub;
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
-- `Установить радио (custom.css/custom.js)` - скопировать шаблонные `custom.js` и `custom.css` из репозитория во внешнюю папку config Homepage;
+- `Установить радио (custom.css/custom.js)` - накатить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage;
+- `Установить эффекты фона particles` - накатить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
 - `Удалить` - убрать мод из target-проекта.
 
-Шаблоны для радио и сопутствующих CSS-правок лежат в репозитории в `custom-config/radio/` и могут накатываться отдельно через `install.sh`.
+Шаблоны лежат в репозитории в `custom-config/radio/` и `custom-config/particles/`. Установщик встраивает их как отдельные managed-блоки, поэтому `radio` и `particles` можно ставить независимо друг от друга без взаимного затирания.
 
 ## Использование
 

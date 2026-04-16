@@ -37,7 +37,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - `Установить` - первая установка мода;
 - `Обновить мод из GitHub` - переустановить мод поверх target-проекта из актуальной версии GitHub-репозитория;
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
-- `Установить радио (custom.css/custom.js)` - скопировать шаблонные `custom.js` и `custom.css` во внешнюю папку config Homepage;
+- `Установить радио (custom.css/custom.js)` - встроить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage;
+- `Установить эффекты фона particles` - встроить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
 - `Удалить` - убрать мод из target-проекта;
 - `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в `.env.local`.
 
@@ -52,7 +53,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 
 Если checkout Homepage не найден, скрипт попросит ввести путь вручную.
 
-Для действия `Установить радио (custom.css/custom.js)` скрипт сначала пытается определить папку config автоматически:
+Для действий `Установить радио (custom.css/custom.js)` и `Установить эффекты фона particles` скрипт сначала пытается определить папку config автоматически:
 
 1. `HOMEPAGE_CONFIG_DIR` или `--config-dir`;
 2. `config` target-проекта Homepage, если это symlink или обычная директория;
@@ -111,15 +112,18 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-browser-editor-mod bash ./install.sh --act
 4. одну сборку Homepage;
 5. один перезапуск `homepage.service`, если сервис активен.
 
-## Установка Радио И Custom Файлов
+## Установка Radio / Particles Во Внешние Custom Файлы
 
-Если нужно только накатить шаблонные `custom.js` и `custom.css` из этого репозитория во внешнюю папку config Homepage, запустите:
+Если нужно накатить только managed-блоки `radio` или `particles` из этого репозитория во внешнюю папку config Homepage, запустите:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
 
-и выберите `Установить радио (custom.css/custom.js)`.
+и выберите нужное действие:
+
+1. `Установить радио (custom.css/custom.js)`
+2. `Установить эффекты фона particles`
 
 Либо можно указать директорию явно:
 
@@ -127,12 +131,18 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-radio
 ```
 
-Это действие:
+или:
 
-1. берёт `custom-config/radio/custom.js` и `custom-config/radio/custom.css` из репозитория мода;
+```bash
+HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-particles
+```
+
+Эти действия:
+
+1. берут `custom-config/radio/` или `custom-config/particles/` из репозитория мода;
 2. создаёт резервные копии существующих `custom.js` и `custom.css` как `.bak`, если содержимое отличается;
-3. копирует шаблонные файлы в папку config Homepage;
-4. не требует сборки target-проекта и не перезапускает `homepage.service`.
+3. встраивают или обновляют только свой managed-блок в `custom.js` и `custom.css`, не затирая другой preset;
+4. не требуют сборки target-проекта и не перезапускают `homepage.service`.
 
 ## Что делает установщик
 
