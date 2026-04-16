@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import yaml from "js-yaml";
 import { SettingsContext } from "utils/contexts/settings";
@@ -349,50 +349,103 @@ function resetServiceWeights(entries) {
   });
 }
 
-function getServicePositionWeight(entry, index) {
-  const value = getEntryValue(entry);
-  return typeof value?.weight === "number" ? value.weight : (index + 1) * 100;
+function compareServiceEntriesByWeight(entryA, entryB) {
+  const valueA = getEntryValue(entryA);
+  const valueB = getEntryValue(entryB);
+  const weightDiff = valueA.weight - valueB.weight;
+
+  if (weightDiff !== 0) {
+    return weightDiff;
+  }
+
+  return getEntryName(entryA).localeCompare(getEntryName(entryB));
 }
 
-function applyServicePositionWeights(entries, referenceEntries) {
-  const referenceWeights = (referenceEntries ?? []).map(getServicePositionWeight);
+function getSortedServiceEntries(entries = []) {
+  const serviceEntries = [];
+  let serviceIndex = 0;
 
-  return entries.map((entry, index) => {
-    const name = getEntryName(entry);
-    const value = entry[name];
+  entries.forEach((entry) => {
+    const value = getEntryValue(entry);
+    if (Array.isArray(value)) {
+      return;
+    }
 
+    serviceEntries.push({
+      entry,
+      effectiveWeight: typeof value?.weight === "number" ? value.weight : (serviceIndex + 1) * 100,
+    });
+    serviceIndex += 1;
+  });
+
+  return serviceEntries
+    .map(({ entry, effectiveWeight }) => ({
+      [getEntryName(entry)]: {
+        ...getEntryValue(entry),
+        weight: effectiveWeight,
+      },
+    }))
+    .sort(compareServiceEntriesByWeight);
+}
+
+function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) {
+  const weightedEntriesByName = new Map(weightedServiceEntries.map((entry) => [getEntryName(entry), entry]));
+
+  return entries.map((entry) => {
+    const value = getEntryValue(entry);
     if (Array.isArray(value)) {
       return entry;
     }
 
-    return {
-      [name]: {
-        ...value,
-        weight: referenceWeights[index] ?? (index + 1) * 100,
-      },
-    };
+    return weightedEntriesByName.get(getEntryName(entry)) ?? entry;
   });
 }
 
 function reorderServiceEntriesInGroup(entries = [], sourceName, targetName = null) {
-  const sourceIndex = entries.findIndex((entry) => getEntryName(entry) === sourceName && !Array.isArray(getEntryValue(entry)));
+  const currentServiceEntries = getSortedServiceEntries(entries);
+  const sourceIndex = currentServiceEntries.findIndex((entry) => getEntryName(entry) === sourceName);
   if (sourceIndex < 0) {
     return { moved: false, entries };
   }
 
-  const nextEntries = [...entries];
-  const [removedEntry] = nextEntries.splice(sourceIndex, 1);
-  const targetIndex =
-    targetName === null
-      ? nextEntries.length
-      : nextEntries.findIndex((entry) => getEntryName(entry) === targetName && !Array.isArray(getEntryValue(entry)));
+  if (targetName !== null) {
+    const targetIndex = currentServiceEntries.findIndex((entry) => getEntryName(entry) === targetName);
+    if (targetIndex < 0 || targetIndex === sourceIndex) {
+      return { moved: false, entries };
+    }
 
-  if (!removedEntry || targetIndex < 0) {
+    const swappedServiceEntries = [...currentServiceEntries];
+    const sourceEntry = swappedServiceEntries[sourceIndex];
+    const targetEntry = swappedServiceEntries[targetIndex];
+    const sourceWeight = getEntryValue(sourceEntry).weight;
+    const targetWeight = getEntryValue(targetEntry).weight;
+
+    swappedServiceEntries[sourceIndex] = {
+      [getEntryName(sourceEntry)]: {
+        ...getEntryValue(sourceEntry),
+        weight: targetWeight,
+      },
+    };
+    swappedServiceEntries[targetIndex] = {
+      [getEntryName(targetEntry)]: {
+        ...getEntryValue(targetEntry),
+        weight: sourceWeight,
+      },
+    };
+
+    return { moved: true, entries: applyWeightedServiceEntries(entries, swappedServiceEntries) };
+  }
+
+  const nextServiceEntries = [...currentServiceEntries];
+  const [removedEntry] = nextServiceEntries.splice(sourceIndex, 1);
+  if (!removedEntry) {
     return { moved: false, entries };
   }
 
-  nextEntries.splice(targetIndex, 0, removedEntry);
-  return { moved: true, entries: applyServicePositionWeights(nextEntries, entries) };
+  nextServiceEntries.push(removedEntry);
+
+  const reorderedServices = resetServiceWeights(nextServiceEntries);
+  return { moved: true, entries: applyWeightedServiceEntries(entries, reorderedServices) };
 }
 
 function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, targetName = null) {
@@ -1661,8 +1714,10 @@ export function ConfigEditorProvider({ children }) {
   const { setSettings } = useContext(SettingsContext);
   const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [editButtonVisible, setEditButtonVisible] = useState(false);
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
+  const editButtonHideTimeoutRef = useRef(null);
   const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
 
@@ -1764,6 +1819,67 @@ export function ConfigEditorProvider({ children }) {
     window.setTimeout(() => setNotice(""), 3000);
   }
 
+  const showEditButton = useCallback(() => {
+    if (editButtonHideTimeoutRef.current) {
+      window.clearTimeout(editButtonHideTimeoutRef.current);
+      editButtonHideTimeoutRef.current = null;
+    }
+    setEditButtonVisible(true);
+  }, []);
+
+  const hideEditButton = useCallback(() => {
+    if (editButtonHideTimeoutRef.current) {
+      window.clearTimeout(editButtonHideTimeoutRef.current);
+    }
+    editButtonHideTimeoutRef.current = window.setTimeout(() => {
+      setEditButtonVisible(false);
+      editButtonHideTimeoutRef.current = null;
+    }, 120);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (modal) {
+        setModal(null);
+        return;
+      }
+
+      if (editMode) {
+        setDraggedGroup(null);
+        setEditMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editMode, enabled, modal, setDraggedGroup]);
+
+  useEffect(
+    () => () => {
+      if (editButtonHideTimeoutRef.current) {
+        window.clearTimeout(editButtonHideTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (editMode) {
+      showEditButton();
+      return;
+    }
+
+    setEditButtonVisible(false);
+  }, [editMode, showEditButton]);
+
   if (!enabled) {
     return <ConfigEditorContext.Provider value={noopEditorContext}>{children}</ConfigEditorContext.Provider>;
   }
@@ -1771,17 +1887,19 @@ export function ConfigEditorProvider({ children }) {
   return (
     <ConfigEditorContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setEditMode((current) => !current)}
-          className={classNames(
-            editMode ? toolbarPrimaryButtonClassName : toolbarButtonClassName,
-          )}
-        >
-          {editMode ? "Done" : "Edit"}
-        </button>
-        {editMode && (
+      {editMode ? (
+        <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDraggedGroup(null);
+              setModal(null);
+              setEditMode(false);
+            }}
+            className={toolbarPrimaryButtonClassName}
+          >
+            Done
+          </button>
           <button
             type="button"
             onClick={() => setModal({ type: "background" })}
@@ -1789,8 +1907,6 @@ export function ConfigEditorProvider({ children }) {
           >
             Background
           </button>
-        )}
-        {editMode && (
           <>
             <button
               type="button"
@@ -1807,8 +1923,35 @@ export function ConfigEditorProvider({ children }) {
               Bookmark group
             </button>
           </>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="fixed bottom-0 left-0 z-50 h-36 w-36">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            onPointerEnter={showEditButton}
+            onPointerMove={showEditButton}
+            onPointerLeave={hideEditButton}
+          />
+          <button
+            type="button"
+            onClick={() => setEditMode(true)}
+            onPointerEnter={showEditButton}
+            onPointerLeave={hideEditButton}
+            onFocus={showEditButton}
+            onBlur={hideEditButton}
+            className={classNames(
+              toolbarButtonClassName,
+              "absolute bottom-5 left-5 origin-bottom-left transition-[opacity,transform,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              editButtonVisible
+                ? "pointer-events-auto translate-y-0 scale-100 opacity-100 blur-0"
+                : "pointer-events-none translate-y-2 scale-[0.96] opacity-0 blur-[2px]",
+            )}
+          >
+            Edit
+          </button>
+        </div>
+      )}
       {notice && (
         <div className="fixed bottom-20 left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20">
           {notice}
