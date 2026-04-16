@@ -349,6 +349,83 @@ function resetServiceWeights(entries) {
   });
 }
 
+function getServicePositionWeight(entry, index) {
+  const value = getEntryValue(entry);
+  return typeof value?.weight === "number" ? value.weight : (index + 1) * 100;
+}
+
+function applyServicePositionWeights(entries, referenceEntries) {
+  const referenceWeights = (referenceEntries ?? []).map(getServicePositionWeight);
+
+  return entries.map((entry, index) => {
+    const name = getEntryName(entry);
+    const value = entry[name];
+
+    if (Array.isArray(value)) {
+      return entry;
+    }
+
+    return {
+      [name]: {
+        ...value,
+        weight: referenceWeights[index] ?? (index + 1) * 100,
+      },
+    };
+  });
+}
+
+function reorderServiceEntriesInGroup(entries = [], sourceName, targetName = null) {
+  const sourceIndex = entries.findIndex((entry) => getEntryName(entry) === sourceName && !Array.isArray(getEntryValue(entry)));
+  if (sourceIndex < 0) {
+    return { moved: false, entries };
+  }
+
+  const nextEntries = [...entries];
+  const [removedEntry] = nextEntries.splice(sourceIndex, 1);
+  const targetIndex =
+    targetName === null
+      ? nextEntries.length
+      : nextEntries.findIndex((entry) => getEntryName(entry) === targetName && !Array.isArray(getEntryValue(entry)));
+
+  if (!removedEntry || targetIndex < 0) {
+    return { moved: false, entries };
+  }
+
+  nextEntries.splice(targetIndex, 0, removedEntry);
+  return { moved: true, entries: applyServicePositionWeights(nextEntries, entries) };
+}
+
+function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, targetName = null) {
+  let moved = false;
+
+  const reorderEntries = (entries = [], currentGroup) => {
+    if (currentGroup === groupName) {
+      const reordered = reorderServiceEntriesInGroup(entries, sourceName, targetName);
+      moved = moved || reordered.moved;
+      return reordered.entries;
+    }
+
+    return entries.map((entry) => {
+      const name = getEntryName(entry);
+      const value = entry[name];
+
+      if (!Array.isArray(value)) {
+        return entry;
+      }
+
+      return { [name]: reorderEntries(value, name) };
+    });
+  };
+
+  const nextGroups = (rawGroups ?? []).map((group) => {
+    const name = getEntryName(group);
+    const value = group[name] ?? [];
+    return { [name]: reorderEntries(value, name) };
+  });
+
+  return { moved, nextGroups: moved ? nextGroups : rawGroups };
+}
+
 function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
   let removedEntry = null;
 
@@ -415,6 +492,10 @@ function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, ta
 }
 
 function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGroupName, targetName = null) {
+  if (type === "services" && sourceGroupName === targetGroupName) {
+    return reorderRawServiceEntryInGroup(rawGroups, sourceGroupName, sourceName, targetName);
+  }
+
   const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName);
   if (!removedEntry) {
     return { moved: false, nextGroups: rawGroups };

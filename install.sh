@@ -12,6 +12,7 @@ DO_BUILD=1
 DO_RESTART=1
 TMP_DIR=""
 MOD_DIR="${HOMEPAGE_EDITOR_MOD_DIR:-}"
+MOD_SOURCE_MODE="auto"
 
 usage() {
   cat <<'EOF'
@@ -23,12 +24,13 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
+  --action NAME      install, update-mod, update-target, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
-  --no-build          не запускать сборку после установки/удаления
-  --no-restart        не перезапускать homepage.service после установки/удаления
+  --no-build          не запускать сборку после установки/обновления/удаления
+  --no-restart        не перезапускать homepage.service после установки/обновления/удаления
   -h, --help          показать эту справку
 
 Переменные окружения:
@@ -57,6 +59,11 @@ trap cleanup EXIT
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --action)
+        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, uninstall, or status"
+        ACTION="$2"
+        shift 2
+        ;;
       --target)
         [[ $# -ge 2 ]] || die "--target requires a path"
         TARGET="$2"
@@ -99,6 +106,15 @@ parse_args() {
     auto|local|docker) ;;
     *) die "--mode must be auto, local, or docker" ;;
   esac
+
+  case "$ACTION" in
+    update) ACTION="update-mod" ;;
+  esac
+
+  case "$ACTION" in
+    ""|install|update-mod|update-target|uninstall|status) ;;
+    *) die "--action must be install, update-mod, update-target, uninstall, or status" ;;
+  esac
 }
 
 prompt_action() {
@@ -110,16 +126,18 @@ Homepage Browser Editor Mod
 
 Выберите действие:
   1) Установить
-  2) Удалить
-  3) Проверить статус
-  4) Отмена
+  2) Обновить мод из GitHub
+  3) Обновить интеграцию в target из текущего каталога
+  4) Удалить
+  5) Проверить статус
+  6) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-4: " choice
+      read -r -p "Введите 1-6: " choice
     else
-      read -r -p "Введите 1-4: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-6: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -128,19 +146,27 @@ EOF
         return 0
         ;;
       2)
-        ACTION="uninstall"
+        ACTION="update-mod"
         return 0
         ;;
       3)
-        ACTION="status"
+        ACTION="update-target"
         return 0
         ;;
       4)
+        ACTION="uninstall"
+        return 0
+        ;;
+      5)
+        ACTION="status"
+        return 0
+        ;;
+      6)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите 1, 2, 3 или 4.\n' >&2
+        printf 'Введите 1, 2, 3, 4, 5 или 6.\n' >&2
         ;;
     esac
   done
@@ -239,13 +265,32 @@ docker_homepage_containers() {
 }
 
 download_mod() {
-  if [[ -n "$MOD_DIR" ]]; then
+  if [[ "$MOD_SOURCE_MODE" == "current" ]]; then
+    if [[ -n "$MOD_DIR" ]]; then
+      [[ -f "$MOD_DIR/install.mjs" && -f "$MOD_DIR/browser-editor.patch" && -d "$MOD_DIR/overlay" ]] \
+        || die "Local mod checkout is missing in $MOD_DIR"
+      log "Using mod source: $MOD_DIR (from HOMEPAGE_EDITOR_MOD_DIR)"
+      return 0
+    fi
+
+    if [[ -f "$PWD/install.mjs" && -f "$PWD/browser-editor.patch" && -d "$PWD/overlay" ]]; then
+      MOD_DIR="$PWD"
+      log "Using mod source: $MOD_DIR (from current directory)"
+      return 0
+    fi
+
+    die "update-target requires running from the mod repository root or setting HOMEPAGE_EDITOR_MOD_DIR"
+  fi
+
+  if [[ -n "$MOD_DIR" && "$MOD_SOURCE_MODE" != "remote" ]]; then
     [[ -f "$MOD_DIR/install.mjs" ]] || die "Mod installer is missing in $MOD_DIR"
+    log "Using mod source: $MOD_DIR (from HOMEPAGE_EDITOR_MOD_DIR)"
     return 0
   fi
 
-  if [[ -f "$PWD/install.mjs" && -f "$PWD/browser-editor.patch" && -d "$PWD/overlay" ]]; then
+  if [[ "$MOD_SOURCE_MODE" != "remote" && -f "$PWD/install.mjs" && -f "$PWD/browser-editor.patch" && -d "$PWD/overlay" ]]; then
     MOD_DIR="$PWD"
+    log "Using mod source: $MOD_DIR (from current directory)"
     return 0
   fi
 
@@ -254,7 +299,10 @@ download_mod() {
 
   if command -v git >/dev/null 2>&1; then
     log "Downloading mod from $REPO_URL#$BRANCH"
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$MOD_DIR" >/dev/null 2>&1 && return 0
+    if git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$MOD_DIR" >/dev/null 2>&1; then
+      log "Using mod source: $MOD_DIR (downloaded via git clone)"
+      return 0
+    fi
     log "git clone failed, trying tarball download"
     rm -rf "$MOD_DIR"
   fi
@@ -265,6 +313,7 @@ download_mod() {
   mkdir -p "$MOD_DIR"
   curl -fsSL "https://github.com/Kemper51rus/homepage-editor/archive/refs/heads/${BRANCH}.tar.gz" \
     | tar -xz -C "$MOD_DIR" --strip-components=1
+  log "Using mod source: $MOD_DIR (downloaded from GitHub tarball)"
 }
 
 require_node() {
@@ -336,7 +385,7 @@ fix_target_ownership() {
 
 build_target() {
   [[ "$DO_BUILD" -eq 1 ]] || return 0
-  [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]] || return 0
+  [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]] || return 0
 
   log "Building homepage in $TARGET"
 
@@ -370,13 +419,20 @@ build_target() {
 
 restart_target() {
   [[ "$DO_RESTART" -eq 1 ]] || return 0
-  [[ "$ACTION" == "install" || "$ACTION" == "uninstall" || "$ACTION" == "enable" || "$ACTION" == "disable" ]] || return 0
+  [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" || "$ACTION" == "enable" || "$ACTION" == "disable" ]] || return 0
   command -v systemctl >/dev/null 2>&1 || return 0
 
   if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     log "Restarting $SERVICE_NAME"
     systemctl restart "$SERVICE_NAME"
   fi
+}
+
+run_update() {
+  log "Updating browser editor in $TARGET"
+  run_mod_installer uninstall
+  run_mod_installer install
+  run_mod_installer enable
 }
 
 explain_docker_limit() {
@@ -399,6 +455,16 @@ EOF
 main() {
   parse_args "$@"
   prompt_action
+
+  case "$ACTION" in
+    update-mod)
+      MOD_SOURCE_MODE="remote"
+      ;;
+    update-target)
+      MOD_SOURCE_MODE="current"
+      ;;
+  esac
+
   download_mod
 
   local detected_target=""
@@ -421,6 +487,9 @@ main() {
       run_mod_installer install
       run_mod_installer enable
       ;;
+    update-mod|update-target)
+      run_update
+      ;;
     uninstall)
       run_mod_installer uninstall
       ;;
@@ -435,11 +504,11 @@ main() {
       ;;
   esac
 
-  if [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]]; then
+  if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
   fi
   build_target
-  if [[ "$ACTION" == "install" || "$ACTION" == "uninstall" ]]; then
+  if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
   fi
   restart_target

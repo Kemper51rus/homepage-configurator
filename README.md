@@ -23,6 +23,13 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
 
+Повторный запуск `install.sh` поддерживает разные сценарии обновления:
+
+- `Установить` - первая установка;
+- `Обновить мод из GitHub` - снять мод и поставить заново из актуальной версии репозитория на GitHub;
+- `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
+- `Удалить` - убрать мод из target-проекта.
+
 ## Использование
 
 После включения мода на странице homepage появится кнопка `Edit`.
