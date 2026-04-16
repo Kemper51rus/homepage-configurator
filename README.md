@@ -8,12 +8,6 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 
 После запуска скрипт спросит, что сделать: установить мод, удалить мод или проверить статус.
 
-Удаление:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh) uninstall
-```
-
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;

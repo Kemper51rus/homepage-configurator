@@ -18,9 +18,9 @@ usage() {
 Homepage Browser Editor Mod installer
 
 Usage:
-  bash install.sh [install|uninstall|enable|disable|status] [options]
+  bash install.sh [options]
 
-If no command is provided, the script asks what to do.
+The script asks what to do after launch.
 
 Options:
   --target PATH       Path to gethomepage/homepage checkout
@@ -57,11 +57,6 @@ trap cleanup EXIT
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      install|uninstall|remove|enable|disable|status)
-        ACTION="$1"
-        [[ "$ACTION" == "remove" ]] && ACTION="uninstall"
-        shift
-        ;;
       --target)
         [[ $# -ge 2 ]] || die "--target requires a path"
         TARGET="$2"
@@ -113,39 +108,39 @@ prompt_action() {
   cat <<'EOF'
 Homepage Browser Editor Mod
 
-Choose action:
-  1) Install
-  2) Uninstall
-  3) Status
-  4) Cancel
+Выберите действие:
+  1) Установить
+  2) Удалить
+  3) Проверить статус
+  4) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Enter 1-4: " choice
+      read -r -p "Введите 1-4: " choice
     else
-      read -r -p "Enter 1-4: " choice || die "No action selected. Pass install or uninstall as an argument."
+      read -r -p "Введите 1-4: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
-      1|install|Install)
+      1)
         ACTION="install"
         return 0
         ;;
-      2|uninstall|remove|delete|Uninstall)
+      2)
         ACTION="uninstall"
         return 0
         ;;
-      3|status|Status)
+      3)
         ACTION="status"
         return 0
         ;;
-      4|cancel|exit|quit|Cancel)
-        log "Cancelled"
+      4)
+        log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Please enter 1, 2, 3, or 4.\n' >&2
+        printf 'Введите 1, 2, 3 или 4.\n' >&2
         ;;
     esac
   done
