@@ -5,7 +5,7 @@ REPO_URL="${HOMEPAGE_EDITOR_REPO:-https://github.com/Kemper51rus/homepage-editor
 BRANCH="${HOMEPAGE_EDITOR_BRANCH:-main}"
 SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 
-ACTION="install"
+ACTION=""
 MODE="${HOMEPAGE_EDITOR_MODE:-auto}"
 TARGET="${HOMEPAGE_TARGET_DIR:-}"
 DO_BUILD=1
@@ -19,6 +19,8 @@ Homepage Browser Editor Mod installer
 
 Usage:
   bash install.sh [install|uninstall|enable|disable|status] [options]
+
+If no command is provided, the script asks what to do.
 
 Options:
   --target PATH       Path to gethomepage/homepage checkout
@@ -102,6 +104,51 @@ parse_args() {
     auto|local|docker) ;;
     *) die "--mode must be auto, local, or docker" ;;
   esac
+}
+
+prompt_action() {
+  [[ -z "$ACTION" ]] || return 0
+
+  local choice=""
+  cat <<'EOF'
+Homepage Browser Editor Mod
+
+Choose action:
+  1) Install
+  2) Uninstall
+  3) Status
+  4) Cancel
+EOF
+
+  while true; do
+    if [[ -t 0 ]]; then
+      read -r -p "Enter 1-4: " choice
+    else
+      read -r -p "Enter 1-4: " choice || die "No action selected. Pass install or uninstall as an argument."
+    fi
+
+    case "$choice" in
+      1|install|Install)
+        ACTION="install"
+        return 0
+        ;;
+      2|uninstall|remove|delete|Uninstall)
+        ACTION="uninstall"
+        return 0
+        ;;
+      3|status|Status)
+        ACTION="status"
+        return 0
+        ;;
+      4|cancel|exit|quit|Cancel)
+        log "Cancelled"
+        exit 0
+        ;;
+      *)
+        printf 'Please enter 1, 2, 3, or 4.\n' >&2
+        ;;
+    esac
+  done
 }
 
 is_homepage_target() {
@@ -252,6 +299,7 @@ EOF
 
 main() {
   parse_args "$@"
+  prompt_action
   download_mod
 
   if TARGET="$(find_target)"; then

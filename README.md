@@ -6,6 +6,8 @@
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
 
+После запуска скрипт спросит, что сделать: установить мод, удалить мод или проверить статус.
+
 Удаление:
 
 ```bash
