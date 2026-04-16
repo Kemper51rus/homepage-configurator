@@ -1,11 +1,5 @@
 # Homepage Browser Editor Mod
 
-## Quick install
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
-```
-
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;
@@ -15,11 +9,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - загрузка фонового изображения;
 - режим редактирования поверх текущего интерфейса, без отдельной длинной страницы настроек.
 
-## Документация
+## Quick install
 
-- [Установка и удаление](doc/install.md)
-- [Структура мода](doc/mod-structure.md)
-- [Разработка](doc/development.md)
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+```
 
 ## Использование
 
@@ -62,3 +56,9 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - `Horizontal` - группа на всю строку;
 - `2/3/4/5 columns` - горизонтальная группа с выбранным числом колонок;
 - `Toggle header` - показать или скрыть заголовок группы.
+
+## Документация
+
+- [Установка и удаление](doc/install.md)
+- [Структура мода](doc/mod-structure.md)
+- [Разработка](doc/development.md)
