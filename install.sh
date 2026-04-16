@@ -526,7 +526,7 @@ build_target() {
   log "Building homepage in $TARGET"
 
   if [[ -f "$TARGET/pnpm-lock.yaml" && "$(command -v pnpm || true)" ]]; then
-    run_in_target pnpm build
+    run_in_target pnpm run build
     return 0
   fi
 
@@ -541,7 +541,7 @@ build_target() {
   fi
 
   if command -v pnpm >/dev/null 2>&1; then
-    run_in_target pnpm build
+    run_in_target pnpm run build
     return 0
   fi
 

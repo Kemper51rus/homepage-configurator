@@ -331,7 +331,7 @@ build_project() {
     NEXT_PUBLIC_BUILDTIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     NEXT_PUBLIC_VERSION="manual" \
     NEXT_PUBLIC_REVISION="$revision" \
-    pnpm build
+    pnpm run build
 }
 
 write_env_file() {

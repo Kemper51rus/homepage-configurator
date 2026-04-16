@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import yaml from "js-yaml";
 import { SettingsContext } from "utils/contexts/settings";
@@ -42,25 +42,25 @@ let activeDragPayload = null;
 
 const serviceFields = [
   ["href", "URL"],
-  ["icon", "Icon"],
-  ["description", "Description"],
-  ["abbr", "Abbr"],
-  ["target", "Target"],
-  ["weight", "Weight"],
-  ["ping", "Ping"],
-  ["siteMonitor", "Site monitor"],
-  ["showStats", "Show stats"],
-  ["proxmoxNode", "Proxmox node"],
+  ["icon", "Иконка"],
+  ["description", "Описание"],
+  ["abbr", "Сокращение"],
+  ["target", "Цель"],
+  ["weight", "Вес"],
+  ["ping", "Пинг"],
+  ["siteMonitor", "Мониторинг сайта"],
+  ["showStats", "Показывать статистику"],
+  ["proxmoxNode", "Узел Proxmox"],
   ["proxmoxVMID", "Proxmox VMID"],
-  ["proxmoxType", "Proxmox type"],
+  ["proxmoxType", "Тип Proxmox"],
 ];
 
 const bookmarkFields = [
   ["href", "URL"],
-  ["icon", "Icon"],
-  ["description", "Description"],
-  ["abbr", "Abbr"],
-  ["target", "Target"],
+  ["icon", "Иконка"],
+  ["description", "Описание"],
+  ["abbr", "Сокращение"],
+  ["target", "Цель"],
 ];
 
 const knownFields = {
@@ -80,6 +80,10 @@ function parseInputValue(value) {
   if (trimmed === "false") return false;
   if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
   return value;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function splitConfig(config, type) {
@@ -117,7 +121,7 @@ function formToConfig(form) {
   if (form.extraYaml.trim()) {
     const parsed = yaml.load(form.extraYaml);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("Advanced YAML must be an object");
+      throw new Error("Расширенный YAML должен быть объектом");
     }
     Object.assign(config, parsed);
   }
@@ -131,14 +135,14 @@ function validateItemConfig(type, config) {
   }
 
   if (!config.href || typeof config.href !== "string") {
-    throw new Error("Bookmark URL is required");
+    throw new Error("URL закладки обязателен");
   }
 
   try {
     // Bookmark rendering expects an absolute URL when it derives the hostname.
     new URL(config.href);
   } catch {
-    throw new Error("Bookmark URL must be absolute, for example https://example.com");
+    throw new Error("URL закладки должен быть абсолютным, например https://example.com");
   }
 }
 
@@ -270,11 +274,11 @@ function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
 
 function addRawGroup(rawGroups, groupName, type) {
   if ((rawGroups ?? []).some((group) => getEntryName(group) === groupName)) {
-    throw new Error("Group already exists");
+    throw new Error("Группа уже существует");
   }
 
   if (type === "services") {
-    return [...(rawGroups ?? []), { [groupName]: [{ "New service": { href: "#", weight: 100 } }] }];
+    return [...(rawGroups ?? []), { [groupName]: [{ "Новый сервис": { href: "#", weight: 100 } }] }];
   }
 
   return [...(rawGroups ?? []), { [groupName]: [] }];
@@ -876,7 +880,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title = modal.type === "services" ? "service" : "bookmark";
+  const title = modal.type === "services" ? "сервис" : "закладка";
 
   async function save(nextData) {
     const response = await fetch("/api/config/editor", {
@@ -899,7 +903,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     try {
       const trimmedName = name.trim();
       if (!trimmedName) {
-        throw new Error("Name is required");
+        throw new Error("Имя обязательно");
       }
 
       const config = formToConfig(form);
@@ -910,7 +914,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           : addRawEntry(data[modal.type], modal.type, modal.groupName, trimmedName, config);
 
       await save(nextData);
-      onSaved(`${trimmedName} saved`);
+      onSaved(`Сохранено: ${trimmedName}`);
       onClose();
     } catch (saveError) {
       setError(saveError.message);
@@ -925,7 +929,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
 
     try {
       await save(deleteRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName));
-      onSaved(`${modal.itemName} deleted`);
+      onSaved(`Удалено: ${modal.itemName}`);
       onClose();
     } catch (deleteError) {
       setError(deleteError.message);
@@ -938,14 +942,14 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
       <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Edit ${title}` : `Add ${title}`}</h2>
+          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}</h2>
           <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Close
+            Закрыть
           </button>
         </div>
 
         <div className="space-y-3">
-          <Field label="Name" value={name} onChange={setName} />
+          <Field label="Имя" value={name} onChange={setName} />
           <div className="grid gap-3 md:grid-cols-2">
             {typeFields.map(([key, label]) => (
               <Field
@@ -965,7 +969,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
             ))}
           </div>
           <label className="block text-xs text-theme-600 dark:text-theme-300">
-            Advanced YAML
+            Расширенный YAML
             <textarea
               value={form.extraYaml}
               onChange={(event) => setForm((current) => ({ ...current, extraYaml: event.target.value }))}
@@ -987,7 +991,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
                 disabled={saving}
                 className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
               >
-                Delete
+                Удалить
               </button>
             )}
           </div>
@@ -997,7 +1001,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
             disabled={saving}
             className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Сохранение..." : "Сохранить"}
           </button>
         </div>
       </div>
@@ -1005,31 +1009,35 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   );
 }
 
-function BackgroundModal({ settings, onClose, onSaved }) {
+function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const [file, setFile] = useState(null);
+  const fileInputRef = useRef(null);
+  const panelRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [backgroundValue, setBackgroundValue] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [position, setPosition] = useState(null);
   const currentBackground = typeof settings?.background === "string" ? settings.background : settings?.background?.image;
 
-  async function save() {
-    if (!file) return;
-
+  async function saveUploadedFile(nextFile) {
+    if (!nextFile) return;
     setSaving(true);
     setError("");
+    setSelectedFileName(nextFile.name);
 
     try {
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(nextFile);
       });
 
       const response = await fetch("/api/config/editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ background: { name: file.name, type: file.type, dataUrl } }),
+        body: JSON.stringify({ background: { name: nextFile.name, type: nextFile.type, dataUrl } }),
       });
 
       if (!response.ok) {
@@ -1037,7 +1045,7 @@ function BackgroundModal({ settings, onClose, onSaved }) {
       }
 
       await refreshConfigData(mutate, ["/api/config/editor"]);
-      onSaved("Background saved");
+      onSaved("Фон сохранён");
       window.location.reload();
     } catch (saveError) {
       setError(saveError.message);
@@ -1046,37 +1054,178 @@ function BackgroundModal({ settings, onClose, onSaved }) {
     }
   }
 
+  async function saveBackgroundPath() {
+    const nextBackground = backgroundValue.trim();
+    if (!nextBackground) {
+      setError("Укажите путь или URL фона");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSelectedFileName("");
+
+    try {
+      const response = await fetch("/api/config/editor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backgroundPath: nextBackground }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      await refreshConfigData(mutate, ["/api/config/editor"]);
+      onSaved("Фон сохранён");
+      window.location.reload();
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleFileChange(event) {
+    const nextFile = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!nextFile) {
+      return;
+    }
+
+    saveUploadedFile(nextFile);
+  }
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!panelRef.current?.contains(event.target)) {
+        onClose();
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [onClose]);
+
+  useLayoutEffect(() => {
+    function updatePosition() {
+      const panel = panelRef.current;
+      if (!panel || typeof window === "undefined") {
+        return;
+      }
+
+      const margin = 12;
+      const gap = 10;
+      const panelRect = panel.getBoundingClientRect();
+      const panelWidth = panelRect.width || panel.offsetWidth || 416;
+      const panelHeight = panelRect.height || panel.offsetHeight || 220;
+      const maxLeft = Math.max(margin, window.innerWidth - panelWidth - margin);
+      const maxTop = Math.max(margin, window.innerHeight - panelHeight - margin);
+      const anchorRect = anchorRef?.current?.getBoundingClientRect?.() ?? null;
+
+      if (!anchorRect) {
+        setPosition({
+          left: clamp(20, margin, maxLeft),
+          top: clamp(window.innerHeight - panelHeight - 76, margin, maxTop),
+        });
+        return;
+      }
+
+      const preferredLeft = clamp(anchorRect.left, margin, maxLeft);
+      const aboveTop = anchorRect.top - panelHeight - gap;
+      const belowTop = anchorRect.bottom + gap;
+      const preferredTop = aboveTop >= margin ? aboveTop : belowTop;
+
+      setPosition({
+        left: preferredLeft,
+        top: clamp(preferredTop, margin, maxTop),
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorRef]);
+
+  const modalStyle = position
+    ? {
+        left: `${position.left}px`,
+        top: `${position.top}px`,
+      }
+    : {
+        left: "20px",
+        bottom: "76px",
+      };
+
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
-      <div className="mx-auto max-w-xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
+    <div className="fixed inset-0 z-[60] pointer-events-none">
+      <div
+        ref={panelRef}
+        style={modalStyle}
+        className="pointer-events-auto fixed z-[61] w-[min(26rem,calc(100vw-1.5rem))] rounded-md border border-theme-300/50 bg-theme-50/95 p-4 text-theme-900 shadow-xl backdrop-blur-sm dark:border-white/10 dark:bg-theme-800/95 dark:text-theme-100"
+      >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Background</h2>
+          <h2 className="text-lg font-semibold">Фон</h2>
           <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Close
+            Закрыть
           </button>
         </div>
-        {currentBackground && (
-          <div className="mb-3 text-sm text-theme-700 dark:text-theme-200">
-            Current: <span className="font-mono">{currentBackground}</span>
+        <label className="mb-3 block text-xs text-theme-600 dark:text-theme-300">
+          Путь или URL фона
+          <div className="mt-1 flex items-center gap-3">
+            <input
+              type="text"
+              value={backgroundValue}
+              onChange={(event) => setBackgroundValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  saveBackgroundPath();
+                }
+              }}
+              placeholder={currentBackground || "/images/background.jpg"}
+              disabled={saving}
+              className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+            />
+            <button
+              type="button"
+              onClick={saveBackgroundPath}
+              disabled={saving}
+              className="shrink-0 rounded-md border border-theme-400/60 px-3 py-2 text-sm disabled:opacity-60"
+            >
+              Применить
+            </button>
           </div>
-        )}
+        </label>
         <input
+          ref={fileInputRef}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className="block w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+          onChange={handleFileChange}
+          className="hidden"
         />
-        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
-        <div className="mt-4 flex justify-end">
+        <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={save}
-            disabled={!file || saving}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={saving}
             className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
-            {saving ? "Uploading..." : "Upload"}
+            Выбрать
           </button>
+          <div className="min-w-0 flex-1 text-right text-sm text-theme-700 dark:text-theme-200">
+            {saving
+              ? selectedFileName
+                ? `Загрузка ${selectedFileName}...`
+                : "Загрузка..."
+              : selectedFileName || " "}
+          </div>
         </div>
+        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
       </div>
     </div>
   );
@@ -1089,7 +1238,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const [form, setForm] = useState(() => groupLayoutToForm(modal.layout));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title = modal.type === "services" ? "service group" : "bookmark group";
+  const title = modal.type === "services" ? "группу сервисов" : "группу закладок";
   const isVertical = form.style.trim() !== "row";
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
@@ -1121,7 +1270,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
     try {
       const trimmedName = name.trim();
       if (mode !== "delete" && !trimmedName) {
-        throw new Error("Group name is required");
+        throw new Error("Имя группы обязательно");
       }
 
       let nextGroups;
@@ -1143,7 +1292,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
       await putConfig("settings", nextSettings);
       setSettings(nextSettings);
       await refreshConfigData(mutate);
-      onSaved(mode === "delete" ? "Group deleted" : "Group saved");
+      onSaved(mode === "delete" ? "Группа удалена" : "Группа сохранена");
       onClose();
     } catch (saveError) {
       setError(saveError.message);
@@ -1156,16 +1305,16 @@ function GroupModal({ modal, data, onClose, onSaved }) {
     <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
       <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Edit ${title}` : `Add ${title}`}</h2>
+          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}</h2>
           <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Close
+            Закрыть
           </button>
         </div>
 
         <div className="space-y-3">
-          <Field label="Group name" value={name} onChange={setName} />
+          <Field label="Имя группы" value={name} onChange={setName} />
           <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Quick layout</div>
+            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1179,7 +1328,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 aria-pressed={isVertical}
                 className={quickLayoutButtonClass(isVertical)}
               >
-                Vertical
+                Вертикально
               </button>
               <button
                 type="button"
@@ -1193,7 +1342,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 aria-pressed={!isVertical}
                 className={quickLayoutButtonClass(!isVertical)}
               >
-                Horizontal
+                Горизонтально
               </button>
               {[2, 3, 4, 5].map((columns) => (
                 <button
@@ -1209,7 +1358,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                   aria-pressed={!isVertical && currentColumns === String(columns)}
                   className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
                 >
-                  {columns} columns
+                  {columns} колонки
                 </button>
               ))}
               <button
@@ -1223,7 +1372,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 aria-pressed={headerHidden}
                 className={quickLayoutButtonClass(headerHidden)}
               >
-                Toggle header
+                Переключить заголовок
               </button>
             </div>
             {modal.type === "services" && (
@@ -1239,40 +1388,40 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                   }
                   className="h-4 w-4"
                 />
-                Align card heights with groups in the same row
+                Выравнивать высоту карточек в одной строке
               </label>
             )}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field
-              label="Style"
+              label="Стиль"
               value={form.style}
               onChange={(value) => setForm((current) => ({ ...current, style: value }))}
             />
             <Field
-              label="Columns"
+              label="Колонки"
               value={form.columns}
               onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
             />
             <Field
-              label="Header"
+              label="Заголовок"
               value={form.header}
               onChange={(value) => setForm((current) => ({ ...current, header: value }))}
             />
-            <Field label="Tab" value={form.tab} onChange={(value) => setForm((current) => ({ ...current, tab: value }))} />
+            <Field label="Вкладка" value={form.tab} onChange={(value) => setForm((current) => ({ ...current, tab: value }))} />
             <Field
-              label="Icon"
+              label="Иконка"
               value={form.icon}
               onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
             />
             <Field
-              label="Initially collapsed"
+              label="Свернута изначально"
               value={form.initiallyCollapsed}
               onChange={(value) => setForm((current) => ({ ...current, initiallyCollapsed: value }))}
             />
           </div>
           <p className="text-xs text-theme-600 dark:text-theme-300">
-            Style: empty or row. Header and Initially collapsed: true or false.
+            Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
           </p>
         </div>
 
@@ -1287,7 +1436,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 disabled={saving}
                 className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
               >
-                Delete group
+                Удалить группу
               </button>
             )}
           </div>
@@ -1297,7 +1446,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
             disabled={saving}
             className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Сохранение..." : "Сохранить"}
           </button>
         </div>
       </div>
@@ -1528,7 +1677,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
             data-editor-group-drop-target="true"
             className="rounded-md border border-theme-400/70 px-2 py-1 text-xs dark:border-white/25"
           >
-            Drop inside
+            Вложить
           </button>
         )}
         <button
@@ -1536,7 +1685,7 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
           onClick={() => openGroup(type, groupName, layout)}
           className="rounded-md border border-theme-400/70 bg-theme-200/60 px-2 py-1 text-xs text-theme-900 dark:border-white/25 dark:bg-white/10 dark:text-theme-100"
         >
-          Layout
+          Разметка
         </button>
       </div>
     </div>
@@ -1631,10 +1780,10 @@ export function RootGroupDropZone({ children }) {
             }}
             className="fixed left-4 right-4 top-4 z-[80] flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-50/90 px-3 py-3 text-sm font-medium text-theme-800 shadow-lg backdrop-blur-sm dark:border-white/25 dark:bg-theme-900/85 dark:text-theme-100"
           >
-            Drop here to move group to root
+            Отпустите здесь, чтобы переместить группу в корень
           </div>
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90">
-            Drop into empty space to move the group to root
+            Перетащите в пустое место, чтобы переместить группу в корень
           </div>
         </>
       )}
@@ -1718,6 +1867,7 @@ export function ConfigEditorProvider({ children }) {
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
   const editButtonHideTimeoutRef = useRef(null);
+  const backgroundButtonRef = useRef(null);
   const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
 
@@ -1742,7 +1892,7 @@ export function ConfigEditorProvider({ children }) {
             : { moved: true, settings: data.settings };
 
         if (!rawResult.moved || !layoutResult.moved) {
-          handleSaved("Group cannot be moved there");
+          handleSaved("Группу нельзя переместить сюда");
           return;
         }
 
@@ -1774,7 +1924,7 @@ export function ConfigEditorProvider({ children }) {
 
         await refreshConfigData(mutate);
         handleSaved(
-          placement === "inside" ? "Group nested" : placement === "root" ? "Group moved to root" : "Group order saved",
+          placement === "inside" ? "Группа вложена" : placement === "root" ? "Группа перемещена в корень" : "Порядок групп сохранён",
         );
       },
       moveItem: async (type, sourceGroupName, sourceName, targetGroupName, targetName = null) => {
@@ -1788,7 +1938,7 @@ export function ConfigEditorProvider({ children }) {
 
         const { moved, nextGroups } = reorderRawEntry(data[type], type, sourceGroupName, sourceName, targetGroupName, targetName);
         if (!moved) {
-          handleSaved("Only configured YAML items can be reordered");
+          handleSaved("Можно переставлять только элементы, описанные в YAML");
           return;
         }
 
@@ -1804,7 +1954,7 @@ export function ConfigEditorProvider({ children }) {
         }
 
         await refreshConfigData(mutate);
-        handleSaved("Order saved");
+        handleSaved("Порядок сохранён");
       },
       openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
       openItem: (type, groupName, itemName, item) => setModal({ type, groupName, itemName, item, mode: "edit" }),
@@ -1898,14 +2048,15 @@ export function ConfigEditorProvider({ children }) {
             }}
             className={toolbarPrimaryButtonClassName}
           >
-            Done
+            Готово
           </button>
           <button
+            ref={backgroundButtonRef}
             type="button"
             onClick={() => setModal({ type: "background" })}
             className={toolbarButtonClassName}
           >
-            Background
+            Фон
           </button>
           <>
             <button
@@ -1913,14 +2064,14 @@ export function ConfigEditorProvider({ children }) {
               onClick={() => value.openNewGroup("services")}
               className={toolbarButtonClassName}
             >
-              Service group
+              Группа сервисов
             </button>
             <button
               type="button"
               onClick={() => value.openNewGroup("bookmarks")}
               className={toolbarButtonClassName}
             >
-              Bookmark group
+              Группа закладок
             </button>
           </>
         </div>
@@ -1948,7 +2099,7 @@ export function ConfigEditorProvider({ children }) {
                 : "pointer-events-none translate-y-2 scale-[0.96] opacity-0 blur-[2px]",
             )}
           >
-            Edit
+            Редактировать
           </button>
         </div>
       )}
@@ -1957,7 +2108,14 @@ export function ConfigEditorProvider({ children }) {
           {notice}
         </div>
       )}
-      {modal?.type === "background" && <BackgroundModal settings={data?.settings} onClose={() => setModal(null)} onSaved={handleSaved} />}
+      {modal?.type === "background" && (
+        <BackgroundModal
+          settings={data?.settings}
+          anchorRef={backgroundButtonRef}
+          onClose={() => setModal(null)}
+          onSaved={handleSaved}
+        />
+      )}
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}

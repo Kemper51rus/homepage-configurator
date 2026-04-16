@@ -86,7 +86,7 @@ function parseBackground(background) {
   };
 }
 
-async function saveBackground(background) {
+async function saveBackgroundUpload(background) {
   const { buffer, extension } = parseBackground(background);
   const settings = await readYamlFile("settings", {});
   const cacheKey = Date.now();
@@ -96,6 +96,20 @@ async function saveBackground(background) {
   await fs.writeFile(path.join(CONF_DIR, fileName), buffer);
 
   settings.background = `/api/config/background?v=${cacheKey}`;
+  await writeYamlFile("settings", settings);
+
+  return settings;
+}
+
+async function saveBackgroundValue(backgroundPath) {
+  const nextBackground = typeof backgroundPath === "string" ? backgroundPath.trim() : "";
+  if (!nextBackground) {
+    throw new Error("Путь или URL фона обязателен");
+  }
+
+  const settings = await readYamlFile("settings", {});
+  await removeOldBackgrounds();
+  settings.background = nextBackground;
   await writeYamlFile("settings", settings);
 
   return settings;
@@ -137,8 +151,14 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { background } = req.body ?? {};
-      await saveBackground(background);
+      const { background, backgroundPath } = req.body ?? {};
+
+      if (backgroundPath !== undefined) {
+        await saveBackgroundValue(backgroundPath);
+        return res.status(200).json(await getEditorConfig());
+      }
+
+      await saveBackgroundUpload(background);
       return res.status(200).json(await getEditorConfig());
     }
 
