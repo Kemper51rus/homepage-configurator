@@ -187,6 +187,52 @@ find_target() {
   return 1
 }
 
+normalize_path() {
+  local candidate="$1"
+
+  if [[ "$candidate" == "~" ]]; then
+    candidate="$HOME"
+  elif [[ "$candidate" == "~/"* ]]; then
+    candidate="$HOME/${candidate#~/}"
+  fi
+
+  printf '%s\n' "$candidate"
+}
+
+prompt_target() {
+  local candidate=""
+
+  cat >&2 <<'EOF'
+
+Не удалось автоматически найти checkout Homepage.
+Укажите путь к директории gethomepage/homepage, где есть package.json и src/.
+Для отмены введите 4.
+EOF
+
+  while true; do
+    if [[ -t 0 ]]; then
+      read -r -p "Путь к Homepage: " candidate
+    else
+      read -r -p "Путь к Homepage: " candidate || return 1
+    fi
+
+    case "$candidate" in
+      4|q|Q|quit|exit)
+        log "Отменено"
+        exit 0
+        ;;
+    esac
+
+    candidate="$(normalize_path "$candidate")"
+    if is_homepage_target "$candidate"; then
+      TARGET="$candidate"
+      return 0
+    fi
+
+    printf 'Это не похоже на checkout Homepage: %s\n' "$candidate" >&2
+  done
+}
+
 docker_homepage_containers() {
   command -v docker >/dev/null 2>&1 || return 0
   docker ps --format '{{.ID}} {{.Image}} {{.Names}}' 2>/dev/null | grep -Ei '(homepage|gethomepage)' || true
@@ -304,7 +350,11 @@ main() {
   prompt_action
   download_mod
 
-  if TARGET="$(find_target)"; then
+  local detected_target=""
+  if detected_target="$(find_target)"; then
+    TARGET="$detected_target"
+    log "Using Homepage checkout: $TARGET"
+  elif prompt_target; then
     log "Using Homepage checkout: $TARGET"
   else
     local containers=""

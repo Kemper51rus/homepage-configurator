@@ -15,21 +15,6 @@
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
 ```
 
-После запуска скрипт покажет меню:
-
-```text
-1) Установить
-2) Удалить
-3) Проверить статус
-4) Отмена
-```
-
-Если Homepage установлен не в `/opt/homepage`, укажите путь явно:
-
-```bash
-HOMEPAGE_TARGET_DIR=/path/to/homepage bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
-```
-
 ## Требования
 
 Для установки нужен именно checkout исходников `gethomepage/homepage`, а не только директория `config`.
