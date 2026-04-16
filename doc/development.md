@@ -1,4 +1,4 @@
-# DEV Workflow
+# Разработка
 
 Рабочий каталог разработки:
 
@@ -22,6 +22,8 @@ overlay/src/pages/api/config/*
 ```
 
 Core `homepage` не редактируем напрямую, если изменение можно сделать в overlay.
+
+Подробная структура мода описана в [mod-structure.md](mod-structure.md).
 
 ## Базовый Цикл
 
