@@ -93,10 +93,10 @@ index 88d4d7e8..40fde785 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..1a9c3d4c 100644
+index 7ea16bba..55cca786 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,10 +1,24 @@
+@@ -1,10 +1,30 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
@@ -118,11 +118,17 @@ index 7ea16bba..1a9c3d4c 100644
  export default function Item({ bookmark, iconOnly = false }) {
 -  const description = bookmark.description ?? new URL(bookmark.href).hostname;
 +  const description = bookmarkDescription(bookmark);
-+  const { editMode, itemProps } = useEditableItem("bookmarks", bookmark.groupName, bookmark.name, bookmark);
++  const { editMode, itemProps } = useEditableItem(
++    "bookmarks",
++    bookmark.groupName,
++    bookmark.name,
++    bookmark,
++    bookmark.itemIndex,
++  );
    const { settings } = useContext(SettingsContext);
  
    return (
-@@ -15,11 +29,14 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -15,11 +35,14 @@ export default function Item({ bookmark, iconOnly = false }) {
        data-name={bookmark.name}
      >
        <a
@@ -140,7 +146,7 @@ index 7ea16bba..1a9c3d4c 100644
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
            iconOnly ? "h-[60px] w-[60px] grid" : "block w-full mb-3",
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index f24794db..7e34298f 100644
+index f24794db..23c8c3bd 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
 @@ -1,9 +1,10 @@
@@ -155,12 +161,16 @@ index f24794db..7e34298f 100644
    let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
    const style = {};
    if (layout?.iconsOnly || bookmarksStyle === "icons") {
-@@ -15,10 +16,20 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
-       {bookmarks.map((bookmark) => (
+@@ -12,13 +13,23 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
+   }
+   return (
+     <ul className={classNames(classes, "mb-2", layout?.header === false ? "" : "mt-3")} style={style}>
+-      {bookmarks.map((bookmark) => (
++      {bookmarks.map((bookmark, index) => (
          <Item
            key={`${bookmark.name}-${bookmark.href}`}
 -          bookmark={bookmark}
-+          bookmark={{ ...bookmark, groupName }}
++          bookmark={{ ...bookmark, groupName, itemIndex: index }}
            iconOnly={layout?.iconsOnly || bookmarksStyle === "icons"}
          />
        ))}
@@ -284,24 +294,28 @@ index 403f6063..f5fd2635 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..5abbeb39 100644
+index c23e16a2..6161c6a6 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
-@@ -1,4 +1,5 @@
+@@ -1,5 +1,6 @@
  import classNames from "classnames";
-+import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
++import { useEditableItem } from "mods/browser-editor/components/editor";
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
-@@ -15,6 +16,7 @@ import Widget from "./widget";
+ import Docker from "widgets/docker/component";
+@@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
+ import Status from "./status";
+ import Widget from "./widget";
  
- export default function Item({ service, groupName, useEqualHeights }) {
+-export default function Item({ service, groupName, useEqualHeights }) {
++export default function Item({ service, groupName, useEqualHeights, itemIndex }) {
    const hasLink = service.href && service.href !== "#";
-+  const { editMode, itemProps } = useEditableItem("services", groupName, service.name, service);
++  const { editMode, itemProps } = useEditableItem("services", groupName, service.name, service, itemIndex);
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -188,6 +190,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -310,7 +324,8 @@ index c23e16a2..5abbeb39 100644
 +          <button
 +            type="button"
 +            {...itemProps}
-+            className="absolute inset-0 z-40 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++            style={{ borderRadius: "inherit", inset: "2px" }}
++            className="absolute z-40 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +            aria-label={`Edit ${service.name}`}
 +          />
 +        )}
@@ -318,10 +333,10 @@ index c23e16a2..5abbeb39 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..84796ccb 100644
+index 1acf94d6..531ba65d 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
-@@ -1,13 +1,17 @@
+@@ -1,25 +1,37 @@
  import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
@@ -340,7 +355,14 @@ index 1acf94d6..84796ccb 100644
          header ? "mt-3" : "",
          "services-list",
        )}
-@@ -20,6 +24,13 @@ export default function List({ groupName, services, layout, useEqualHeights, hea
+     >
+-      {services.map((service) => (
++      {services.map((service, index) => (
+         <Item
+           key={[service.container, service.app, service.name].filter((s) => s).join("-")}
+           service={service}
+           groupName={groupName}
++          itemIndex={index}
            useEqualHeights={layout?.useEqualHeights ?? useEqualHeights}
          />
        ))}

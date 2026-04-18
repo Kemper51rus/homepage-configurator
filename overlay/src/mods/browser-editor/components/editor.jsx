@@ -1,7 +1,7 @@
 import classNames from "classnames";
+import yaml from "js-yaml";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import yaml from "js-yaml";
 import { SettingsContext } from "utils/contexts/settings";
 
 const ConfigEditorContext = createContext({
@@ -41,6 +41,7 @@ const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
 let activeDragPayload = null;
 
 const serviceFields = [
+  ["id", "ID"],
   ["href", "URL"],
   ["icon", "Иконка"],
   ["description", "Описание"],
@@ -63,10 +64,105 @@ const bookmarkFields = [
   ["target", "Цель"],
 ];
 
+const serviceCardColorOptions = [
+  ["", "Без цвета", ""],
+  ["color-sky", "Небесный", "#25C1FF"],
+  ["color-yellow", "Жёлтый", "#FFC230"],
+  ["color-green", "Зелёный", "#00C655"],
+  ["color-red-orange", "Красно-оранжевый", "#ff3d00"],
+  ["color-purple", "Фиолетовый", "#AA5CC3"],
+  ["color-lime", "Лайм", "#39BA5D"],
+  ["color-emerald", "Изумрудный", "#4ade80"],
+  ["color-cyan", "Циан", "#22d3ee"],
+  ["color-blue", "Синий", "#3eadff"],
+  ["color-mint", "Мятный", "#61efad"],
+  ["color-orange", "Оранжевый", "#ff7b00"],
+  ["color-bright-green", "Ярко-зелёный", "#33cc33"],
+  ["color-dark-red", "Тёмно-красный", "#96060c"],
+  ["color-red", "Красный", "#ea2222"],
+  ["color-teal", "Бирюзовый", "#3fb1db"],
+  ["color-amber", "Янтарный", "#ff7700"],
+  ["color-indigo", "Индиго", "#2a2978"],
+];
+
 const knownFields = {
   bookmarks: bookmarkFields.map(([key]) => key),
   services: serviceFields.map(([key]) => key),
 };
+
+function slugifyCardName(value) {
+  const transliteration = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+  const slug = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[а-яё]/g, (letter) => transliteration[letter] ?? "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "service";
+}
+
+function getServiceCardColor(id) {
+  const normalizedId = String(id ?? "").trim();
+  const match = serviceCardColorOptions.find(([value]) => value && normalizedId.startsWith(`${value}-`));
+  return match?.[0] ?? "";
+}
+
+function getServiceCardBaseId(id, itemName) {
+  const normalizedId = String(id ?? "").trim();
+  const color = getServiceCardColor(normalizedId);
+  let base = normalizedId;
+
+  if (color) {
+    base = base.slice(color.length + 1);
+  }
+
+  if (base.endsWith("-card")) {
+    base = base.slice(0, -5);
+  }
+
+  base = base.replace(/^-+|-+$/g, "");
+  return base || slugifyCardName(itemName);
+}
+
+function buildServiceCardId(id, itemName, color) {
+  const base = getServiceCardBaseId(id, itemName);
+  return color ? `${color}-${base}-card` : `${base}-card`;
+}
 
 function valueToInput(value) {
   if (value === undefined || value === null) return "";
@@ -154,6 +250,14 @@ function getEntryValue(entry) {
   return entry[getEntryName(entry)];
 }
 
+function namesEqual(left, right) {
+  return String(left ?? "").trim() === String(right ?? "").trim();
+}
+
+function isMatcherField(type, key) {
+  return !(type === "services" && key === "weight");
+}
+
 function normalizeComparableValue(value) {
   if (Array.isArray(value)) {
     return value.map(normalizeComparableValue);
@@ -171,11 +275,15 @@ function normalizeComparableValue(value) {
   return value;
 }
 
+function comparableValuesEqual(left, right) {
+  return JSON.stringify(normalizeComparableValue(left)) === JSON.stringify(normalizeComparableValue(right));
+}
+
 function createItemMatcher(type, itemName, itemConfig = {}) {
   const config = {};
 
   knownFields[type].forEach((key) => {
-    if (itemConfig?.[key] !== undefined) {
+    if (isMatcherField(type, key) && itemConfig?.[key] !== undefined) {
       config[key] = normalizeComparableValue(itemConfig[key]);
     }
   });
@@ -199,7 +307,7 @@ function itemMatcherEquals(left, right) {
 }
 
 function entryMatchesItemMatcher(entry, type, itemName, matcher = null) {
-  if (getEntryName(entry) !== itemName) {
+  if (!namesEqual(getEntryName(entry), itemName)) {
     return false;
   }
 
@@ -210,6 +318,26 @@ function entryMatchesItemMatcher(entry, type, itemName, matcher = null) {
   return itemMatcherEquals(createEntryMatcher(entry, type), matcher);
 }
 
+function findItemEntryIndex(entries = [], type, itemName, matcher = null) {
+  const exactIndex = entries.findIndex(
+    (entry) => isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, itemName, matcher),
+  );
+
+  if (exactIndex >= 0 || !matcher) {
+    return exactIndex;
+  }
+
+  const namedIndexes = entries.reduce((indexes, entry, index) => {
+    if (isItemEntry(entry, type) && namesEqual(getEntryName(entry), itemName)) {
+      indexes.push(index);
+    }
+
+    return indexes;
+  }, []);
+
+  return namedIndexes.length === 1 ? namedIndexes[0] : -1;
+}
+
 function isItemEntry(entry, type) {
   const value = getEntryValue(entry);
   if (type === "services") {
@@ -217,6 +345,122 @@ function isItemEntry(entry, type) {
   }
 
   return Array.isArray(value);
+}
+
+function countMatchingRawEntries(rawGroups, type, matchesEntry) {
+  let count = 0;
+
+  const countInEntries = (entries = [], currentGroup) => {
+    entries.forEach((entry) => {
+      const name = getEntryName(entry);
+      const value = entry[name];
+
+      if (isItemEntry(entry, type) && matchesEntry(entry, currentGroup)) {
+        count += 1;
+      }
+
+      if (type === "services" && Array.isArray(value)) {
+        countInEntries(value, name);
+      }
+    });
+  };
+
+  (rawGroups ?? []).forEach((group) => {
+    const currentGroup = getEntryName(group);
+    countInEntries(group[currentGroup], currentGroup);
+  });
+
+  return count;
+}
+
+function getMatcherConfigValue(matcher, key) {
+  if (!matcher?.config || !Object.prototype.hasOwnProperty.call(matcher.config, key)) {
+    return undefined;
+  }
+
+  return matcher.config[key];
+}
+
+function rawEntryConfigValueEquals(entry, type, key, value) {
+  if (value === undefined || value === null || value === "") {
+    return false;
+  }
+
+  const config = rawEntryToConfig(entry, type);
+  return config?.[key] !== undefined && comparableValuesEqual(config[key], value);
+}
+
+function findUniqueRawEntryPredicate(rawGroups, type, predicates) {
+  return predicates.find((matchesEntry) => countMatchingRawEntries(rawGroups, type, matchesEntry) === 1) ?? null;
+}
+
+function normalizedItemIndex(itemIndex) {
+  const numericIndex = Number(itemIndex);
+  return Number.isInteger(numericIndex) && numericIndex >= 0 ? numericIndex : null;
+}
+
+function getRenderedItemEntryIndexes(entries = [], type) {
+  const itemEntries = entries.map((entry, index) => ({ entry, index })).filter(({ entry }) => isItemEntry(entry, type));
+
+  if (type !== "services") {
+    return itemEntries.map(({ index }) => index);
+  }
+
+  return itemEntries
+    .map(({ entry, index }, serviceIndex) => ({
+      entry: {
+        [getEntryName(entry)]: {
+          ...getEntryValue(entry),
+          weight:
+            typeof getEntryValue(entry)?.weight === "number" ? getEntryValue(entry).weight : (serviceIndex + 1) * 100,
+        },
+      },
+      index,
+    }))
+    .sort((entryA, entryB) => compareServiceEntriesByWeight(entryA.entry, entryB.entry))
+    .map(({ index }) => index);
+}
+
+function getRenderedItemRawIndex(entries = [], type, itemIndex = null) {
+  const normalizedIndex = normalizedItemIndex(itemIndex);
+  if (normalizedIndex === null) {
+    return -1;
+  }
+
+  return getRenderedItemEntryIndexes(entries, type)[normalizedIndex] ?? -1;
+}
+
+function rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher = null) {
+  const matcherId = getMatcherConfigValue(itemMatcher, "id");
+  const matcherHref = getMatcherConfigValue(itemMatcher, "href");
+  const predicates = [
+    (entry, currentGroup) =>
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, itemName, null),
+  ];
+
+  if (type === "services" && matcherId !== undefined) {
+    predicates.push(
+      (entry, currentGroup) =>
+        namesEqual(currentGroup, groupName) && rawEntryConfigValueEquals(entry, type, "id", matcherId),
+      (entry) => rawEntryConfigValueEquals(entry, type, "id", matcherId),
+    );
+  }
+
+  if (matcherHref !== undefined) {
+    predicates.push(
+      (entry, currentGroup) =>
+        namesEqual(currentGroup, groupName) && rawEntryConfigValueEquals(entry, type, "href", matcherHref),
+      (entry) => rawEntryConfigValueEquals(entry, type, "href", matcherHref),
+    );
+  }
+
+  if (itemMatcher) {
+    predicates.push((entry) => entryMatchesItemMatcher(entry, type, itemName, itemMatcher));
+  }
+
+  predicates.push((entry) => entryMatchesItemMatcher(entry, type, itemName, null));
+
+  return predicates.filter((predicate) => countMatchingRawEntries(rawGroups, type, predicate) > 0);
 }
 
 function rawEntryToConfig(entry, type) {
@@ -241,15 +485,104 @@ function configToRawEntry(type, itemName, itemConfig) {
   return { [itemName]: itemConfig };
 }
 
-function findRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null) {
+function findRawEntry(
+  rawGroups,
+  type,
+  groupName,
+  itemName,
+  itemMatcher = null,
+  itemIndex = null,
+  allowNameFallback = true,
+) {
+  const findWithPredicate = (matchesEntry) => {
+    const findInEntries = (entries = [], currentGroup) => {
+      for (const entry of entries) {
+        const name = getEntryName(entry);
+        const value = entry[name];
+
+        if (isItemEntry(entry, type) && matchesEntry(entry, currentGroup)) {
+          return rawEntryToConfig(entry, type);
+        }
+
+        if (type === "services" && Array.isArray(value)) {
+          const nested = findInEntries(value, name);
+          if (nested) return nested;
+        }
+      }
+
+      return null;
+    };
+
+    for (const group of rawGroups ?? []) {
+      const currentGroup = getEntryName(group);
+      const found = findInEntries(group[currentGroup], currentGroup);
+      if (found) return found;
+    }
+
+    return null;
+  };
+
   const findInEntries = (entries = [], currentGroup) => {
     for (const entry of entries) {
       const name = getEntryName(entry);
       const value = entry[name];
 
-      if (currentGroup === groupName && isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, itemName, itemMatcher)) {
+      if (
+        namesEqual(currentGroup, groupName) &&
+        isItemEntry(entry, type) &&
+        entryMatchesItemMatcher(entry, type, itemName, itemMatcher)
+      ) {
         return rawEntryToConfig(entry, type);
       }
+
+      if (type === "services" && Array.isArray(value)) {
+        const nested = findInEntries(value, name);
+        if (nested) return nested;
+      }
+    }
+
+    return null;
+  };
+
+  for (const group of rawGroups ?? []) {
+    const currentGroup = getEntryName(group);
+    const found = findInEntries(group[currentGroup], currentGroup);
+    if (found) return found;
+  }
+
+  if (allowNameFallback) {
+    const fallbackPredicate = findUniqueRawEntryPredicate(
+      rawGroups,
+      type,
+      rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher),
+    );
+
+    if (fallbackPredicate) {
+      return findWithPredicate(fallbackPredicate);
+    }
+
+    const indexMatch = findWithRenderedIndex(rawGroups, type, groupName, itemIndex);
+    if (indexMatch) {
+      return indexMatch;
+    }
+  }
+
+  return null;
+}
+
+function findWithRenderedIndex(rawGroups, type, groupName, itemIndex) {
+  const findInEntries = (entries = [], currentGroup) => {
+    if (namesEqual(currentGroup, groupName)) {
+      const rawIndex = getRenderedItemRawIndex(entries, type, itemIndex);
+      const entry = entries[rawIndex];
+      if (entry && isItemEntry(entry, type)) {
+        return rawEntryToConfig(entry, type);
+      }
+    }
+
+    for (const entry of entries) {
+      const name = getEntryName(entry);
+      const value = entry[name];
 
       if (type === "services" && Array.isArray(value)) {
         const nested = findInEntries(value, name);
@@ -269,45 +602,112 @@ function findRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null) 
   return null;
 }
 
-function updateRawEntry(rawGroups, type, groupName, originalName, originalMatcher, nextName, nextConfig) {
-  let changed = false;
+function updateRawEntry(
+  rawGroups,
+  type,
+  groupName,
+  originalName,
+  originalMatcher,
+  originalIndex,
+  nextName,
+  nextConfig,
+) {
+  const updateWithPredicate = (matchesEntry) => {
+    let changed = false;
 
-  const updateEntries = (entries = [], currentGroup) =>
-    entries.map((entry) => {
-      const name = getEntryName(entry);
-      const value = entry[name];
+    const updateEntries = (entries = [], currentGroup) =>
+      entries.map((entry) => {
+        const name = getEntryName(entry);
+        const value = entry[name];
 
-      if (currentGroup === groupName && isItemEntry(entry, type) && !changed && entryMatchesItemMatcher(entry, type, originalName, originalMatcher)) {
-        changed = true;
-        return configToRawEntry(type, nextName, nextConfig);
-      }
+        if (isItemEntry(entry, type) && !changed && matchesEntry(entry, currentGroup)) {
+          changed = true;
+          return configToRawEntry(type, nextName, nextConfig);
+        }
 
-      if (type === "services" && Array.isArray(value)) {
-        return { [name]: updateEntries(value, name) };
-      }
+        if (type === "services" && Array.isArray(value)) {
+          return { [name]: updateEntries(value, name) };
+        }
 
-      return entry;
+        return entry;
+      });
+
+    const nextGroups = (rawGroups ?? []).map((group) => {
+      const name = getEntryName(group);
+      const entries = group[name] ?? [];
+
+      return { [name]: updateEntries(entries, name) };
     });
 
-  const nextGroups = (rawGroups ?? []).map((group) => {
-    const name = getEntryName(group);
-    const entries = group[name] ?? [];
+    return { changed, nextGroups };
+  };
 
-    return { [name]: updateEntries(entries, name) };
-  });
+  const updateWithRenderedIndex = () => {
+    let changed = false;
 
-  if (!changed) {
-    return addRawEntry(nextGroups, type, groupName, nextName, nextConfig);
+    const updateEntries = (entries = [], currentGroup) => {
+      const rawIndex = namesEqual(currentGroup, groupName) ? getRenderedItemRawIndex(entries, type, originalIndex) : -1;
+
+      return entries.map((entry, index) => {
+        const name = getEntryName(entry);
+        const value = entry[name];
+
+        if (isItemEntry(entry, type) && !changed && index === rawIndex) {
+          changed = true;
+          return configToRawEntry(type, nextName, nextConfig);
+        }
+
+        if (type === "services" && Array.isArray(value)) {
+          return { [name]: updateEntries(value, name) };
+        }
+
+        return entry;
+      });
+    };
+
+    const nextGroups = (rawGroups ?? []).map((group) => {
+      const name = getEntryName(group);
+      const entries = group[name] ?? [];
+
+      return { [name]: updateEntries(entries, name) };
+    });
+
+    return { changed, nextGroups };
+  };
+
+  let result = updateWithPredicate(
+    (entry, currentGroup) =>
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, originalName, originalMatcher),
+  );
+
+  if (!result.changed) {
+    const fallbackPredicate = findUniqueRawEntryPredicate(
+      rawGroups,
+      type,
+      rawItemFallbackPredicates(rawGroups, type, groupName, originalName, originalMatcher),
+    );
+
+    if (fallbackPredicate) {
+      result = updateWithPredicate(fallbackPredicate);
+    }
   }
 
-  return nextGroups;
+  if (!result.changed) {
+    result = updateWithRenderedIndex();
+  }
+
+  if (!result.changed) {
+    throw new Error("Исходная карточка не найдена. Обновите страницу и попробуйте снова.");
+  }
+
+  return result.nextGroups;
 }
 
 function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
   let added = false;
 
   const addToEntries = (entries = [], currentGroup) => {
-    if (currentGroup === groupName) {
+    if (namesEqual(currentGroup, groupName)) {
       added = true;
       return [...entries, configToRawEntry(type, itemName, itemConfig)];
     }
@@ -329,7 +729,7 @@ function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
 }
 
 function addRawGroup(rawGroups, groupName, type) {
-  if ((rawGroups ?? []).some((group) => getEntryName(group) === groupName)) {
+  if ((rawGroups ?? []).some((group) => namesEqual(getEntryName(group), groupName))) {
     throw new Error("Группа уже существует");
   }
 
@@ -343,21 +743,22 @@ function addRawGroup(rawGroups, groupName, type) {
 function renameRawGroup(rawGroups, originalName, nextName) {
   let renamed = false;
 
-  const renameGroups = (groups = []) => groups.map((group) => {
-    const name = getEntryName(group);
-    const value = group[name];
+  const renameGroups = (groups = []) =>
+    groups.map((group) => {
+      const name = getEntryName(group);
+      const value = group[name];
 
-    if (name === originalName) {
-      renamed = true;
-      return { [nextName]: value ?? [] };
-    }
+      if (namesEqual(name, originalName)) {
+        renamed = true;
+        return { [nextName]: value ?? [] };
+      }
 
-    if (Array.isArray(value)) {
-      return { [name]: renameGroups(value) };
-    }
+      if (Array.isArray(value)) {
+        return { [name]: renameGroups(value) };
+      }
 
-    return group;
-  });
+      return group;
+    });
 
   const nextGroups = renameGroups(rawGroups);
 
@@ -372,33 +773,94 @@ function deleteRawGroup(rawGroups, groupName) {
   return extractNamedNode(rawGroups, groupName).nodes;
 }
 
-function deleteRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null) {
-  let removed = false;
+function deleteRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null, itemIndex = null) {
+  const deleteWithPredicate = (matchesEntry) => {
+    let removed = false;
 
-  const filterEntries = (entries = [], currentGroup) =>
-    entries
-      .filter((entry) => {
-        if (!isItemEntry(entry, type) || currentGroup !== groupName || removed) {
+    const filterEntries = (entries = [], currentGroup) =>
+      entries
+        .filter((entry) => {
+          if (!isItemEntry(entry, type) || removed) {
+            return true;
+          }
+
+          if (matchesEntry(entry, currentGroup)) {
+            removed = true;
+            return false;
+          }
+
           return true;
-        }
+        })
+        .map((entry) => {
+          const name = getEntryName(entry);
+          const value = entry[name];
+          return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
+        });
 
-        if (entryMatchesItemMatcher(entry, type, itemName, itemMatcher)) {
+    const nextGroups = (rawGroups ?? []).map((group) => {
+      const name = getEntryName(group);
+      return { [name]: filterEntries(group[name], name) };
+    });
+
+    return { removed, nextGroups };
+  };
+
+  const deleteWithRenderedIndex = () => {
+    let removed = false;
+
+    const filterEntries = (entries = [], currentGroup) => {
+      const rawIndex = namesEqual(currentGroup, groupName) ? getRenderedItemRawIndex(entries, type, itemIndex) : -1;
+
+      return entries
+        .filter((entry, index) => {
+          if (!isItemEntry(entry, type) || removed || index !== rawIndex) {
+            return true;
+          }
+
           removed = true;
           return false;
-        }
+        })
+        .map((entry) => {
+          const name = getEntryName(entry);
+          const value = entry[name];
+          return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
+        });
+    };
 
-        return true;
-      })
-      .map((entry) => {
-        const name = getEntryName(entry);
-        const value = entry[name];
-        return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
-      });
+    const nextGroups = (rawGroups ?? []).map((group) => {
+      const name = getEntryName(group);
+      return { [name]: filterEntries(group[name], name) };
+    });
 
-  return (rawGroups ?? []).map((group) => {
-    const name = getEntryName(group);
-    return { [name]: filterEntries(group[name], name) };
-  });
+    return { removed, nextGroups };
+  };
+
+  let result = deleteWithPredicate(
+    (entry, currentGroup) =>
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, itemName, itemMatcher),
+  );
+
+  if (!result.removed) {
+    const fallbackPredicate = findUniqueRawEntryPredicate(
+      rawGroups,
+      type,
+      rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher),
+    );
+
+    if (fallbackPredicate) {
+      result = deleteWithPredicate(fallbackPredicate);
+    }
+  }
+
+  if (!result.removed) {
+    result = deleteWithRenderedIndex();
+  }
+
+  if (!result.removed) {
+    throw new Error("Исходная карточка не найдена. Обновите страницу и попробуйте снова.");
+  }
+
+  return result.nextGroups;
 }
 
 function resetServiceWeights(entries) {
@@ -468,7 +930,9 @@ function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) 
     }
 
     const entryMatcher = createEntryMatcher(entry, "services");
-    const weightedIndex = remainingWeightedEntries.findIndex((weightedEntry) => itemMatcherEquals(createEntryMatcher(weightedEntry, "services"), entryMatcher));
+    const weightedIndex = remainingWeightedEntries.findIndex((weightedEntry) =>
+      itemMatcherEquals(createEntryMatcher(weightedEntry, "services"), entryMatcher),
+    );
 
     if (weightedIndex < 0) {
       return entry;
@@ -479,43 +943,68 @@ function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) 
   });
 }
 
-function reorderServiceEntriesInGroup(entries = [], sourceName, sourceMatcher = null, targetName = null, targetMatcher = null) {
+function reorderServiceEntriesInGroup(
+  entries = [],
+  sourceName,
+  sourceMatcher = null,
+  sourceIndex = null,
+  targetName = null,
+  targetMatcher = null,
+  targetIndex = null,
+) {
   const currentServiceEntries = getSortedServiceEntries(entries);
-  const sourceIndex = currentServiceEntries.findIndex((entry) => entryMatchesItemMatcher(entry, "services", sourceName, sourceMatcher));
-  if (sourceIndex < 0) {
+  const matchedSourceIndex = findItemEntryIndex(currentServiceEntries, "services", sourceName, sourceMatcher);
+  const renderedSourceIndex = normalizedItemIndex(sourceIndex);
+  const sourceEntryIndex =
+    matchedSourceIndex >= 0
+      ? matchedSourceIndex
+      : renderedSourceIndex !== null && renderedSourceIndex < currentServiceEntries.length
+        ? renderedSourceIndex
+        : -1;
+  if (sourceEntryIndex < 0) {
     return { moved: false, entries };
   }
 
   if (targetName !== null) {
-    const targetIndex = currentServiceEntries.findIndex((entry) => entryMatchesItemMatcher(entry, "services", targetName, targetMatcher));
-    if (targetIndex < 0 || targetIndex === sourceIndex) {
+    const matchedTargetIndex = findItemEntryIndex(currentServiceEntries, "services", targetName, targetMatcher);
+    const renderedTargetIndex = normalizedItemIndex(targetIndex);
+    const targetEntryIndex =
+      matchedTargetIndex >= 0
+        ? matchedTargetIndex
+        : renderedTargetIndex !== null && renderedTargetIndex < currentServiceEntries.length
+          ? renderedTargetIndex
+          : -1;
+    if (targetEntryIndex < 0 || targetEntryIndex === sourceEntryIndex) {
       return { moved: false, entries };
     }
 
     const swappedServiceEntries = [...currentServiceEntries];
-    const sourceEntry = swappedServiceEntries[sourceIndex];
-    const targetEntry = swappedServiceEntries[targetIndex];
+    const sourceEntry = swappedServiceEntries[sourceEntryIndex];
+    const targetEntry = swappedServiceEntries[targetEntryIndex];
     const sourceWeight = getEntryValue(sourceEntry).weight;
     const targetWeight = getEntryValue(targetEntry).weight;
 
-    swappedServiceEntries[sourceIndex] = {
+    swappedServiceEntries[sourceEntryIndex] = {
       [getEntryName(sourceEntry)]: {
         ...getEntryValue(sourceEntry),
         weight: targetWeight,
       },
     };
-    swappedServiceEntries[targetIndex] = {
+    swappedServiceEntries[targetEntryIndex] = {
       [getEntryName(targetEntry)]: {
         ...getEntryValue(targetEntry),
         weight: sourceWeight,
       },
     };
 
-    return { moved: true, entries: applyWeightedServiceEntries(entries, swappedServiceEntries) };
+    return {
+      moved: true,
+      entries: applyWeightedServiceEntries(entries, swappedServiceEntries),
+    };
   }
 
   const nextServiceEntries = [...currentServiceEntries];
-  const [removedEntry] = nextServiceEntries.splice(sourceIndex, 1);
+  const [removedEntry] = nextServiceEntries.splice(sourceEntryIndex, 1);
   if (!removedEntry) {
     return { moved: false, entries };
   }
@@ -523,15 +1012,35 @@ function reorderServiceEntriesInGroup(entries = [], sourceName, sourceMatcher = 
   nextServiceEntries.push(removedEntry);
 
   const reorderedServices = resetServiceWeights(nextServiceEntries);
-  return { moved: true, entries: applyWeightedServiceEntries(entries, reorderedServices) };
+  return {
+    moved: true,
+    entries: applyWeightedServiceEntries(entries, reorderedServices),
+  };
 }
 
-function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, sourceMatcher = null, targetName = null, targetMatcher = null) {
+function reorderRawServiceEntryInGroup(
+  rawGroups,
+  groupName,
+  sourceName,
+  sourceMatcher = null,
+  sourceIndex = null,
+  targetName = null,
+  targetMatcher = null,
+  targetIndex = null,
+) {
   let moved = false;
 
   const reorderEntries = (entries = [], currentGroup) => {
-    if (currentGroup === groupName) {
-      const reordered = reorderServiceEntriesInGroup(entries, sourceName, sourceMatcher, targetName, targetMatcher);
+    if (namesEqual(currentGroup, groupName)) {
+      const reordered = reorderServiceEntriesInGroup(
+        entries,
+        sourceName,
+        sourceMatcher,
+        sourceIndex,
+        targetName,
+        targetMatcher,
+        targetIndex,
+      );
       moved = moved || reordered.moved;
       return reordered.entries;
     }
@@ -557,20 +1066,29 @@ function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, sourceM
   return { moved, nextGroups: moved ? nextGroups : rawGroups };
 }
 
-function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher = null) {
+function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher = null, sourceIndex = null) {
   let removedEntry = null;
 
-  const removeFromEntries = (entries = [], currentGroup) =>
-    entries
-      .map((entry) => {
+  const removeFromEntries = (entries = [], currentGroup) => {
+    const matcherIndex = namesEqual(currentGroup, sourceGroupName)
+      ? findItemEntryIndex(entries, type, sourceName, sourceMatcher)
+      : -1;
+    const renderedRawIndex = namesEqual(currentGroup, sourceGroupName)
+      ? getRenderedItemRawIndex(entries, type, sourceIndex)
+      : -1;
+
+    return entries
+      .map((entry, index) => {
         const name = getEntryName(entry);
         const value = entry[name];
 
         if (isItemEntry(entry, type)) {
           if (
-            currentGroup === sourceGroupName &&
+            namesEqual(currentGroup, sourceGroupName) &&
             removedEntry === null &&
-            entryMatchesItemMatcher(entry, type, sourceName, sourceMatcher)
+            (entryMatchesItemMatcher(entry, type, sourceName, sourceMatcher) ||
+              index === matcherIndex ||
+              index === renderedRawIndex)
           ) {
             removedEntry = entry;
             return null;
@@ -579,24 +1097,40 @@ function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sou
         }
 
         const nestedEntries = removeFromEntries(value, name);
-        return { [name]: type === "services" && name === sourceGroupName ? resetServiceWeights(nestedEntries) : nestedEntries };
+        return {
+          [name]:
+            type === "services" && namesEqual(name, sourceGroupName)
+              ? resetServiceWeights(nestedEntries)
+              : nestedEntries,
+        };
       })
       .filter(Boolean);
+  };
 
   const nextGroups = (rawGroups ?? []).map((group) => {
     const name = getEntryName(group);
     const nextEntries = removeFromEntries(group[name], name);
-    return { [name]: type === "services" && name === sourceGroupName ? resetServiceWeights(nextEntries) : nextEntries };
+    return {
+      [name]: type === "services" && namesEqual(name, sourceGroupName) ? resetServiceWeights(nextEntries) : nextEntries,
+    };
   });
 
   return { removedEntry, nextGroups };
 }
 
-function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, targetName = null, targetMatcher = null) {
+function insertRawEntryForMove(
+  rawGroups,
+  type,
+  targetGroupName,
+  sourceEntry,
+  targetName = null,
+  targetMatcher = null,
+  targetIndex = null,
+) {
   let inserted = false;
 
   const insertToEntries = (entries = [], currentGroup) => {
-    if (currentGroup !== targetGroupName) {
+    if (!namesEqual(currentGroup, targetGroupName)) {
       return entries.map((entry) => {
         const name = getEntryName(entry);
         const value = entry[name];
@@ -605,16 +1139,16 @@ function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, ta
     }
 
     const nextEntries = [...entries];
-    const targetIndex =
-      targetName === null
-        ? nextEntries.length
-        : nextEntries.findIndex((entry) => isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, targetName, targetMatcher));
+    const matchedTargetIndex =
+      targetName === null ? nextEntries.length : findItemEntryIndex(nextEntries, type, targetName, targetMatcher);
+    const renderedRawIndex = targetName === null ? -1 : getRenderedItemRawIndex(nextEntries, type, targetIndex);
+    const insertionIndex = matchedTargetIndex >= 0 ? matchedTargetIndex : renderedRawIndex;
 
-    if (targetIndex < 0) {
+    if (insertionIndex < 0) {
       return entries;
     }
 
-    nextEntries.splice(targetIndex, 0, sourceEntry);
+    nextEntries.splice(insertionIndex, 0, sourceEntry);
     inserted = true;
     return type === "services" ? resetServiceWeights(nextEntries) : nextEntries;
   };
@@ -622,23 +1156,60 @@ function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, ta
   const nextGroups = (rawGroups ?? []).map((group) => {
     const name = getEntryName(group);
     const nextEntries = insertToEntries(group[name], name);
-    return { [name]: type === "services" && name === targetGroupName ? resetServiceWeights(nextEntries) : nextEntries };
+    return {
+      [name]: type === "services" && namesEqual(name, targetGroupName) ? resetServiceWeights(nextEntries) : nextEntries,
+    };
   });
 
   return { inserted, nextGroups };
 }
 
-function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGroupName, targetName = null, sourceMatcher = null, targetMatcher = null) {
-  if (type === "services" && sourceGroupName === targetGroupName) {
-    return reorderRawServiceEntryInGroup(rawGroups, sourceGroupName, sourceName, sourceMatcher, targetName, targetMatcher);
+function reorderRawEntry(
+  rawGroups,
+  type,
+  sourceGroupName,
+  sourceName,
+  targetGroupName,
+  targetName = null,
+  sourceMatcher = null,
+  targetMatcher = null,
+  sourceIndex = null,
+  targetIndex = null,
+) {
+  if (type === "services" && namesEqual(sourceGroupName, targetGroupName)) {
+    return reorderRawServiceEntryInGroup(
+      rawGroups,
+      sourceGroupName,
+      sourceName,
+      sourceMatcher,
+      sourceIndex,
+      targetName,
+      targetMatcher,
+      targetIndex,
+    );
   }
 
-  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher);
+  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(
+    rawGroups,
+    type,
+    sourceGroupName,
+    sourceName,
+    sourceMatcher,
+    sourceIndex,
+  );
   if (!removedEntry) {
     return { moved: false, nextGroups: rawGroups };
   }
 
-  const { inserted, nextGroups } = insertRawEntryForMove(groupsWithoutSource, type, targetGroupName, removedEntry, targetName, targetMatcher);
+  const { inserted, nextGroups } = insertRawEntryForMove(
+    groupsWithoutSource,
+    type,
+    targetGroupName,
+    removedEntry,
+    targetName,
+    targetMatcher,
+    targetIndex,
+  );
   return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
 }
 
@@ -676,7 +1247,7 @@ function updateSettingsLayout(settings, originalName, nextName, nextLayout, mode
     const nextLayoutMap = {};
 
     Object.entries(layoutMap).forEach(([key, value]) => {
-      if (key === originalName) {
+      if (namesEqual(key, originalName)) {
         changed = true;
         if (mode !== "delete") {
           nextLayoutMap[nextName] = nextLayout;
@@ -709,7 +1280,7 @@ function extractNamedNode(nodes, sourceName) {
       const name = getEntryName(node);
       const value = node[name];
 
-      if (name === sourceName) {
+      if (namesEqual(name, sourceName)) {
         extracted = node;
         return null;
       }
@@ -739,13 +1310,13 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
       const name = getEntryName(node);
       const value = node[name];
 
-      if (placement === "before" && name === targetName) {
+      if (placement === "before" && namesEqual(name, targetName)) {
         nextNodes.push(sourceNode);
         inserted = true;
       }
 
       if (Array.isArray(value)) {
-        if (placement === "inside" && name === targetName) {
+        if (placement === "inside" && namesEqual(name, targetName)) {
           nextNodes.push({ [name]: [...value, sourceNode] });
           inserted = true;
         } else {
@@ -764,7 +1335,7 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
 }
 
 function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
-  if (placement !== "root" && (!targetName || sourceName === targetName)) {
+  if (placement !== "root" && (!targetName || namesEqual(sourceName, targetName))) {
     return { moved: false, nextGroups: rawGroups };
   }
 
@@ -783,7 +1354,7 @@ function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
 
 function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "before") {
   if (placement === "root") {
-    const sourceIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === sourceName);
+    const sourceIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), sourceName));
     if (sourceIndex < 0) {
       return { moved: false, nextGroups: rawGroups };
     }
@@ -794,19 +1365,19 @@ function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "be
     return { moved: true, nextGroups };
   }
 
-  if (!targetName || sourceName === targetName) {
+  if (!targetName || namesEqual(sourceName, targetName)) {
     return { moved: false, nextGroups: rawGroups };
   }
 
-  const sourceIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === sourceName);
-  const targetIndex = (rawGroups ?? []).findIndex((group) => getEntryName(group) === targetName);
+  const sourceIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), sourceName));
+  const targetIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), targetName));
   if (sourceIndex < 0 || targetIndex < 0) {
     return { moved: false, nextGroups: rawGroups };
   }
 
   const nextGroups = [...rawGroups];
   const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
-  const nextTargetIndex = nextGroups.findIndex((group) => getEntryName(group) === targetName);
+  const nextTargetIndex = nextGroups.findIndex((group) => namesEqual(getEntryName(group), targetName));
   nextGroups.splice(nextTargetIndex, 0, sourceGroup);
 
   return { moved: true, nextGroups };
@@ -818,7 +1389,7 @@ function findGroupPath(nodes, targetName, path = []) {
     const value = node[name];
     const nextPath = [...path, name];
 
-    if (name === targetName) {
+    if (namesEqual(name, targetName)) {
       return nextPath;
     }
 
@@ -838,7 +1409,7 @@ function extractLayoutNode(layoutMap, sourceName) {
   const nextLayout = {};
 
   Object.entries(layoutMap ?? {}).forEach(([name, value]) => {
-    if (name === sourceName) {
+    if (namesEqual(name, sourceName)) {
       extracted = value ?? {};
       return;
     }
@@ -865,7 +1436,9 @@ function cloneLayoutValue(value) {
   return Object.fromEntries(
     Object.entries(value).map(([key, childValue]) => [
       key,
-      childValue && typeof childValue === "object" && !Array.isArray(childValue) ? cloneLayoutValue(childValue) : childValue,
+      childValue && typeof childValue === "object" && !Array.isArray(childValue)
+        ? cloneLayoutValue(childValue)
+        : childValue,
     ]),
   );
 }
@@ -937,6 +1510,39 @@ function Field({ label, value, onChange }) {
   );
 }
 
+function ServiceCardColorField({ value, itemName, onChange }) {
+  const selectedColor = getServiceCardColor(value);
+
+  return (
+    <div className="block text-xs text-theme-600 dark:text-theme-300">
+      <div>Цвет карточки</div>
+      <div className="mt-1 flex flex-wrap gap-1.5 rounded-md border border-theme-300/50 bg-theme-50/70 p-1.5 shadow-sm dark:border-white/10 dark:bg-theme-900/70">
+        {serviceCardColorOptions.map(([colorValue, label, optionSwatch]) => {
+          const selected = colorValue === selectedColor;
+
+          return (
+            <button
+              key={colorValue || "none"}
+              type="button"
+              title={optionSwatch ? `${label} ${optionSwatch}` : label}
+              aria-label={label}
+              aria-pressed={selected}
+              onClick={() => onChange(buildServiceCardId(value, itemName, colorValue))}
+              className={classNames(
+                "flex h-7 w-7 items-center justify-center rounded border border-theme-400/50 bg-theme-200/40 shadow-sm transition-[transform,box-shadow,border-color] hover:scale-110 hover:border-theme-700 hover:shadow-md focus:outline-hidden focus:ring-2 focus:ring-theme-600 dark:border-white/20 dark:bg-white/5 dark:hover:border-white/50 dark:focus:ring-theme-200",
+                selected && "scale-105 border-theme-800 ring-2 ring-theme-700 dark:border-white dark:ring-theme-100",
+              )}
+              style={optionSwatch ? { backgroundColor: optionSwatch } : undefined}
+            >
+              {!optionSwatch && <span className="text-sm leading-none text-theme-700 dark:text-theme-200">×</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 async function refreshConfigData(mutate, keys = ["/api/config/editor", "/api/services", "/api/bookmarks"]) {
   await fetch("/api/revalidate");
   await Promise.all(keys.map((key) => mutate(key)));
@@ -954,8 +1560,22 @@ async function refreshConfigData(mutate, keys = ["/api/config/editor", "/api/ser
 function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
-  const rawConfig =
-    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher) ?? modal.item : {};
+  const rawEntryConfig =
+    modal.mode === "edit"
+      ? findRawEntry(
+          data?.[modal.type],
+          modal.type,
+          modal.groupName,
+          modal.itemName,
+          modal.itemMatcher,
+          modal.itemIndex,
+        )
+      : null;
+  const rawConfig = modal.mode === "edit" ? (rawEntryConfig ?? modal.item) : {};
+  const originalItemMatcher =
+    modal.mode === "edit" && rawEntryConfig
+      ? createItemMatcher(modal.type, modal.itemName, rawEntryConfig)
+      : modal.itemMatcher;
   const [name, setName] = useState(modal.mode === "edit" ? modal.itemName : "");
   const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
@@ -976,6 +1596,35 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     await refreshConfigData(mutate);
   }
 
+  async function loadLatestEditorData() {
+    const response = await fetch("/api/config/editor");
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    return response.json();
+  }
+
+  function getLatestItemMatcher(latestData) {
+    if (modal.mode !== "edit") {
+      return null;
+    }
+
+    const latestRawEntryConfig = findRawEntry(
+      latestData?.[modal.type],
+      modal.type,
+      modal.groupName,
+      modal.itemName,
+      originalItemMatcher ?? modal.itemMatcher,
+      modal.itemIndex,
+    );
+
+    return latestRawEntryConfig
+      ? createItemMatcher(modal.type, modal.itemName, latestRawEntryConfig)
+      : (originalItemMatcher ?? modal.itemMatcher);
+  }
+
   async function handleSave() {
     setSaving(true);
     setError("");
@@ -988,10 +1637,20 @@ function ItemModal({ modal, data, onClose, onSaved }) {
 
       const config = formToConfig(form);
       validateItemConfig(modal.type, config);
+      const latestData = await loadLatestEditorData();
       const nextData =
         modal.mode === "edit"
-          ? updateRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher, trimmedName, config)
-          : addRawEntry(data[modal.type], modal.type, modal.groupName, trimmedName, config);
+          ? updateRawEntry(
+              latestData[modal.type],
+              modal.type,
+              modal.groupName,
+              modal.itemName,
+              getLatestItemMatcher(latestData),
+              modal.itemIndex,
+              trimmedName,
+              config,
+            )
+          : addRawEntry(latestData[modal.type], modal.type, modal.groupName, trimmedName, config);
 
       await save(nextData);
       onSaved(`Сохранено: ${trimmedName}`);
@@ -1008,7 +1667,17 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     setError("");
 
     try {
-      await save(deleteRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher));
+      const latestData = await loadLatestEditorData();
+      await save(
+        deleteRawEntry(
+          latestData[modal.type],
+          modal.type,
+          modal.groupName,
+          modal.itemName,
+          getLatestItemMatcher(latestData),
+          modal.itemIndex,
+        ),
+      );
       onSaved(`Удалено: ${modal.itemName}`);
       onClose();
     } catch (deleteError) {
@@ -1030,6 +1699,21 @@ function ItemModal({ modal, data, onClose, onSaved }) {
 
         <div className="space-y-3">
           <Field label="Имя" value={name} onChange={setName} />
+          {modal.type === "services" && (
+            <ServiceCardColorField
+              value={form.fields.id ?? ""}
+              itemName={name}
+              onChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  fields: {
+                    ...current.fields,
+                    id: value,
+                  },
+                }))
+              }
+            />
+          )}
           <div className="grid gap-3 md:grid-cols-2">
             {typeFields.map(([key, label]) => (
               <Field
@@ -1052,7 +1736,12 @@ function ItemModal({ modal, data, onClose, onSaved }) {
             Расширенный YAML
             <textarea
               value={form.extraYaml}
-              onChange={(event) => setForm((current) => ({ ...current, extraYaml: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  extraYaml: event.target.value,
+                }))
+              }
               rows={modal.type === "services" ? 9 : 4}
               className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 font-mono text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               placeholder={modal.type === "services" ? "widget:\n  type: customapi\n  url: http://example.local" : ""}
@@ -1060,7 +1749,11 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           </label>
         </div>
 
-        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
+        {error && (
+          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap justify-between gap-2">
           <div>
@@ -1098,7 +1791,8 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
   const [backgroundValue, setBackgroundValue] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [position, setPosition] = useState(null);
-  const currentBackground = typeof settings?.background === "string" ? settings.background : settings?.background?.image;
+  const currentBackground =
+    typeof settings?.background === "string" ? settings.background : settings?.background?.image;
 
   async function saveUploadedFile(nextFile) {
     if (!nextFile) return;
@@ -1117,7 +1811,9 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
       const response = await fetch("/api/config/editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ background: { name: nextFile.name, type: nextFile.type, dataUrl } }),
+        body: JSON.stringify({
+          background: { name: nextFile.name, type: nextFile.type, dataUrl },
+        }),
       });
 
       if (!response.ok) {
@@ -1298,14 +1994,14 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
             Выбрать
           </button>
           <div className="min-w-0 flex-1 text-right text-sm text-theme-700 dark:text-theme-200">
-            {saving
-              ? selectedFileName
-                ? `Загрузка ${selectedFileName}...`
-                : "Загрузка..."
-              : selectedFileName || " "}
+            {saving ? (selectedFileName ? `Загрузка ${selectedFileName}...` : "Загрузка...") : selectedFileName || " "}
           </div>
         </div>
-        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
+        {error && (
+          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1319,12 +2015,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const [form, setForm] = useState(() => groupLayoutToForm(modal.layout));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title =
-    modal.mode === "edit"
-      ? groupType === "services"
-        ? "группу сервисов"
-        : "группу закладок"
-      : "группу";
+  const title = modal.mode === "edit" ? (groupType === "services" ? "группу сервисов" : "группу закладок") : "группу";
   const isVertical = form.style.trim() !== "row";
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
@@ -1521,7 +2212,11 @@ function GroupModal({ modal, data, onClose, onSaved }) {
               value={form.header}
               onChange={(value) => setForm((current) => ({ ...current, header: value }))}
             />
-            <Field label="Вкладка" value={form.tab} onChange={(value) => setForm((current) => ({ ...current, tab: value }))} />
+            <Field
+              label="Вкладка"
+              value={form.tab}
+              onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
+            />
             <Field
               label="Иконка"
               value={form.icon}
@@ -1530,7 +2225,12 @@ function GroupModal({ modal, data, onClose, onSaved }) {
             <Field
               label="Свернута изначально"
               value={form.initiallyCollapsed}
-              onChange={(value) => setForm((current) => ({ ...current, initiallyCollapsed: value }))}
+              onChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  initiallyCollapsed: value,
+                }))
+              }
             />
           </div>
           <p className="text-xs text-theme-600 dark:text-theme-300">
@@ -1538,7 +2238,11 @@ function GroupModal({ modal, data, onClose, onSaved }) {
           </p>
         </div>
 
-        {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
+        {error && (
+          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap justify-between gap-2">
           <div>
@@ -1621,7 +2325,9 @@ function readGroupDragPayload(event, fallbackPayload = null) {
 }
 
 function isGroupDragOver(event, fallbackPayload = null) {
-  return hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group";
+  return (
+    hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group"
+  );
 }
 
 function isExplicitGroupDropTarget(event) {
@@ -1636,8 +2342,7 @@ function useServiceRowHeightBalancer() {
 
     let frame = null;
 
-    const groupElements = () =>
-      Array.from(document.querySelectorAll("[data-editor-service-group='true']"));
+    const groupElements = () => Array.from(document.querySelectorAll("[data-editor-service-group='true']"));
 
     const directListForGroup = (group) => group.querySelector(":scope ul[data-editor-service-list]");
 
@@ -1808,18 +2513,21 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
 export function RootGroupDropZone({ children }) {
   const { draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
 
-  const dropGroupToRoot = useCallback((event) => {
-    const dragged = readGroupDragPayload(event, draggedGroup);
-    if (!dragged) {
-      return false;
-    }
+  const dropGroupToRoot = useCallback(
+    (event) => {
+      const dragged = readGroupDragPayload(event, draggedGroup);
+      if (!dragged) {
+        return false;
+      }
 
-    event.preventDefault();
-    moveGroup(dragged.type, dragged.groupName, null, "root");
-    clearDragPayload();
-    setDraggedGroup(null);
-    return true;
-  }, [draggedGroup, moveGroup, setDraggedGroup]);
+      event.preventDefault();
+      moveGroup(dragged.type, dragged.groupName, null, "root");
+      clearDragPayload();
+      setDraggedGroup(null);
+      return true;
+    },
+    [draggedGroup, moveGroup, setDraggedGroup],
+  );
 
   useEffect(() => {
     if (!editMode) {
@@ -1904,7 +2612,7 @@ export function RootGroupDropZone({ children }) {
   );
 }
 
-export function useEditableItem(type, groupName, itemName, item) {
+export function useEditableItem(type, groupName, itemName, item, itemIndex = null) {
   const { editMode, moveItem, openItem } = useConfigEditor();
   const itemMatcher = useMemo(() => createItemMatcher(type, itemName, item), [item, itemName, type]);
 
@@ -1915,7 +2623,7 @@ export function useEditableItem(type, groupName, itemName, item) {
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            writeDragPayload(event, { type, groupName, itemName, itemMatcher }, ITEM_DRAG_TYPE);
+            writeDragPayload(event, { type, groupName, itemName, itemMatcher, itemIndex }, ITEM_DRAG_TYPE);
           },
           onDragEnd: () => {
             window.setTimeout(clearDragPayload, 0);
@@ -1928,12 +2636,22 @@ export function useEditableItem(type, groupName, itemName, item) {
             event.preventDefault();
             const dragged = readDragPayload(event);
             if (dragged?.type === type) {
-              moveItem(type, dragged.groupName, dragged.itemName, groupName, itemName, dragged.itemMatcher, itemMatcher);
+              moveItem(
+                type,
+                dragged.groupName,
+                dragged.itemName,
+                groupName,
+                itemName,
+                dragged.itemMatcher,
+                itemMatcher,
+                dragged.itemIndex,
+                itemIndex,
+              );
             }
           },
           onClick: (event) => {
             event.preventDefault();
-            openItem(type, groupName, itemName, item, itemMatcher);
+            openItem(type, groupName, itemName, item, itemMatcher, itemIndex);
           },
         }
       : {},
@@ -1959,7 +2677,16 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
           event.preventDefault();
           const dragged = readDragPayload(event);
           if (dragged?.type === type) {
-            moveItem(type, dragged.groupName, dragged.itemName, groupName, null, dragged.itemMatcher, null);
+            moveItem(
+              type,
+              dragged.groupName,
+              dragged.itemName,
+              groupName,
+              null,
+              dragged.itemMatcher,
+              null,
+              dragged.itemIndex,
+            );
           }
         }}
         onClick={() => openNewItem(type, groupName)}
@@ -1991,7 +2718,7 @@ export function ConfigEditorProvider({ children }) {
       setDraggedGroup,
       editMode,
       moveGroup: async (type, sourceName, targetName, placement = "before") => {
-        if (!data || (placement !== "root" && sourceName === targetName)) {
+        if (!data || (placement !== "root" && namesEqual(sourceName, targetName))) {
           return;
         }
 
@@ -2025,7 +2752,10 @@ export function ConfigEditorProvider({ children }) {
           const settingsResponse = await fetch("/api/config/editor", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ file: "settings", data: layoutResult.settings }),
+            body: JSON.stringify({
+              file: "settings",
+              data: layoutResult.settings,
+            }),
           });
 
           if (!settingsResponse.ok) {
@@ -2038,15 +2768,29 @@ export function ConfigEditorProvider({ children }) {
 
         await refreshConfigData(mutate);
         handleSaved(
-          placement === "inside" ? "Группа вложена" : placement === "root" ? "Группа перемещена в корень" : "Порядок групп сохранён",
+          placement === "inside"
+            ? "Группа вложена"
+            : placement === "root"
+              ? "Группа перемещена в корень"
+              : "Порядок групп сохранён",
         );
       },
-      moveItem: async (type, sourceGroupName, sourceName, targetGroupName, targetName = null, sourceMatcher = null, targetMatcher = null) => {
+      moveItem: async (
+        type,
+        sourceGroupName,
+        sourceName,
+        targetGroupName,
+        targetName = null,
+        sourceMatcher = null,
+        targetMatcher = null,
+        sourceIndex = null,
+        targetIndex = null,
+      ) => {
         if (!data || !sourceGroupName || !targetGroupName) {
           return;
         }
 
-        if (sourceGroupName === targetGroupName && sourceName === targetName) {
+        if (namesEqual(sourceGroupName, targetGroupName) && namesEqual(sourceName, targetName)) {
           return;
         }
 
@@ -2059,6 +2803,8 @@ export function ConfigEditorProvider({ children }) {
           targetName,
           sourceMatcher,
           targetMatcher,
+          sourceIndex,
+          targetIndex,
         );
         if (!moved) {
           handleSaved("Можно переставлять только элементы, описанные в YAML");
@@ -2080,8 +2826,24 @@ export function ConfigEditorProvider({ children }) {
         handleSaved("Порядок сохранён");
       },
       openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
-      openItem: (type, groupName, itemName, item, itemMatcher = null) => setModal({ type, groupName, itemName, item, itemMatcher, mode: "edit" }),
-      openNewGroup: (type) => setModal({ type, groupName: "", layout: {}, mode: "new", scope: "group" }),
+      openItem: (type, groupName, itemName, item, itemMatcher = null, itemIndex = null) =>
+        setModal({
+          type,
+          groupName,
+          itemName,
+          item,
+          itemMatcher,
+          itemIndex,
+          mode: "edit",
+        }),
+      openNewGroup: (type) =>
+        setModal({
+          type,
+          groupName: "",
+          layout: {},
+          mode: "new",
+          scope: "group",
+        }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
     }),
     [data, draggedGroup, editMode, mutate, setDraggedGroup, setSettings],
