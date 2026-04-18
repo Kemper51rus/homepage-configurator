@@ -154,6 +154,62 @@ function getEntryValue(entry) {
   return entry[getEntryName(entry)];
 }
 
+function normalizeComparableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeComparableValue);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((accumulator, key) => {
+        accumulator[key] = normalizeComparableValue(value[key]);
+        return accumulator;
+      }, {});
+  }
+
+  return value;
+}
+
+function createItemMatcher(type, itemName, itemConfig = {}) {
+  const config = {};
+
+  knownFields[type].forEach((key) => {
+    if (itemConfig?.[key] !== undefined) {
+      config[key] = normalizeComparableValue(itemConfig[key]);
+    }
+  });
+
+  return {
+    name: itemName,
+    config,
+  };
+}
+
+function createEntryMatcher(entry, type) {
+  return createItemMatcher(type, getEntryName(entry), rawEntryToConfig(entry, type));
+}
+
+function itemMatcherEquals(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function entryMatchesItemMatcher(entry, type, itemName, matcher = null) {
+  if (getEntryName(entry) !== itemName) {
+    return false;
+  }
+
+  if (!matcher) {
+    return true;
+  }
+
+  return itemMatcherEquals(createEntryMatcher(entry, type), matcher);
+}
+
 function isItemEntry(entry, type) {
   const value = getEntryValue(entry);
   if (type === "services") {
@@ -185,13 +241,13 @@ function configToRawEntry(type, itemName, itemConfig) {
   return { [itemName]: itemConfig };
 }
 
-function findRawEntry(rawGroups, type, groupName, itemName) {
+function findRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null) {
   const findInEntries = (entries = [], currentGroup) => {
     for (const entry of entries) {
       const name = getEntryName(entry);
       const value = entry[name];
 
-      if (currentGroup === groupName && name === itemName && isItemEntry(entry, type)) {
+      if (currentGroup === groupName && isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, itemName, itemMatcher)) {
         return rawEntryToConfig(entry, type);
       }
 
@@ -213,7 +269,7 @@ function findRawEntry(rawGroups, type, groupName, itemName) {
   return null;
 }
 
-function updateRawEntry(rawGroups, type, groupName, originalName, nextName, nextConfig) {
+function updateRawEntry(rawGroups, type, groupName, originalName, originalMatcher, nextName, nextConfig) {
   let changed = false;
 
   const updateEntries = (entries = [], currentGroup) =>
@@ -221,7 +277,7 @@ function updateRawEntry(rawGroups, type, groupName, originalName, nextName, next
       const name = getEntryName(entry);
       const value = entry[name];
 
-      if (currentGroup === groupName && name === originalName && isItemEntry(entry, type)) {
+      if (currentGroup === groupName && isItemEntry(entry, type) && !changed && entryMatchesItemMatcher(entry, type, originalName, originalMatcher)) {
         changed = true;
         return configToRawEntry(type, nextName, nextConfig);
       }
@@ -316,12 +372,22 @@ function deleteRawGroup(rawGroups, groupName) {
   return extractNamedNode(rawGroups, groupName).nodes;
 }
 
-function deleteRawEntry(rawGroups, type, groupName, itemName) {
+function deleteRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null) {
+  let removed = false;
+
   const filterEntries = (entries = [], currentGroup) =>
     entries
       .filter((entry) => {
-        const name = getEntryName(entry);
-        return !isItemEntry(entry, type) || currentGroup !== groupName || name !== itemName;
+        if (!isItemEntry(entry, type) || currentGroup !== groupName || removed) {
+          return true;
+        }
+
+        if (entryMatchesItemMatcher(entry, type, itemName, itemMatcher)) {
+          removed = true;
+          return false;
+        }
+
+        return true;
       })
       .map((entry) => {
         const name = getEntryName(entry);
@@ -393,7 +459,7 @@ function getSortedServiceEntries(entries = []) {
 }
 
 function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) {
-  const weightedEntriesByName = new Map(weightedServiceEntries.map((entry) => [getEntryName(entry), entry]));
+  const remainingWeightedEntries = [...weightedServiceEntries];
 
   return entries.map((entry) => {
     const value = getEntryValue(entry);
@@ -401,19 +467,27 @@ function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) 
       return entry;
     }
 
-    return weightedEntriesByName.get(getEntryName(entry)) ?? entry;
+    const entryMatcher = createEntryMatcher(entry, "services");
+    const weightedIndex = remainingWeightedEntries.findIndex((weightedEntry) => itemMatcherEquals(createEntryMatcher(weightedEntry, "services"), entryMatcher));
+
+    if (weightedIndex < 0) {
+      return entry;
+    }
+
+    const [weightedEntry] = remainingWeightedEntries.splice(weightedIndex, 1);
+    return weightedEntry ?? entry;
   });
 }
 
-function reorderServiceEntriesInGroup(entries = [], sourceName, targetName = null) {
+function reorderServiceEntriesInGroup(entries = [], sourceName, sourceMatcher = null, targetName = null, targetMatcher = null) {
   const currentServiceEntries = getSortedServiceEntries(entries);
-  const sourceIndex = currentServiceEntries.findIndex((entry) => getEntryName(entry) === sourceName);
+  const sourceIndex = currentServiceEntries.findIndex((entry) => entryMatchesItemMatcher(entry, "services", sourceName, sourceMatcher));
   if (sourceIndex < 0) {
     return { moved: false, entries };
   }
 
   if (targetName !== null) {
-    const targetIndex = currentServiceEntries.findIndex((entry) => getEntryName(entry) === targetName);
+    const targetIndex = currentServiceEntries.findIndex((entry) => entryMatchesItemMatcher(entry, "services", targetName, targetMatcher));
     if (targetIndex < 0 || targetIndex === sourceIndex) {
       return { moved: false, entries };
     }
@@ -452,12 +526,12 @@ function reorderServiceEntriesInGroup(entries = [], sourceName, targetName = nul
   return { moved: true, entries: applyWeightedServiceEntries(entries, reorderedServices) };
 }
 
-function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, targetName = null) {
+function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, sourceMatcher = null, targetName = null, targetMatcher = null) {
   let moved = false;
 
   const reorderEntries = (entries = [], currentGroup) => {
     if (currentGroup === groupName) {
-      const reordered = reorderServiceEntriesInGroup(entries, sourceName, targetName);
+      const reordered = reorderServiceEntriesInGroup(entries, sourceName, sourceMatcher, targetName, targetMatcher);
       moved = moved || reordered.moved;
       return reordered.entries;
     }
@@ -483,7 +557,7 @@ function reorderRawServiceEntryInGroup(rawGroups, groupName, sourceName, targetN
   return { moved, nextGroups: moved ? nextGroups : rawGroups };
 }
 
-function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
+function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher = null) {
   let removedEntry = null;
 
   const removeFromEntries = (entries = [], currentGroup) =>
@@ -493,7 +567,11 @@ function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
         const value = entry[name];
 
         if (isItemEntry(entry, type)) {
-          if (currentGroup === sourceGroupName && name === sourceName && removedEntry === null) {
+          if (
+            currentGroup === sourceGroupName &&
+            removedEntry === null &&
+            entryMatchesItemMatcher(entry, type, sourceName, sourceMatcher)
+          ) {
             removedEntry = entry;
             return null;
           }
@@ -514,7 +592,7 @@ function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName) {
   return { removedEntry, nextGroups };
 }
 
-function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, targetName = null) {
+function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, targetName = null, targetMatcher = null) {
   let inserted = false;
 
   const insertToEntries = (entries = [], currentGroup) => {
@@ -528,7 +606,9 @@ function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, ta
 
     const nextEntries = [...entries];
     const targetIndex =
-      targetName === null ? nextEntries.length : nextEntries.findIndex((entry) => isItemEntry(entry, type) && getEntryName(entry) === targetName);
+      targetName === null
+        ? nextEntries.length
+        : nextEntries.findIndex((entry) => isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, targetName, targetMatcher));
 
     if (targetIndex < 0) {
       return entries;
@@ -548,17 +628,17 @@ function insertRawEntryForMove(rawGroups, type, targetGroupName, sourceEntry, ta
   return { inserted, nextGroups };
 }
 
-function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGroupName, targetName = null) {
+function reorderRawEntry(rawGroups, type, sourceGroupName, sourceName, targetGroupName, targetName = null, sourceMatcher = null, targetMatcher = null) {
   if (type === "services" && sourceGroupName === targetGroupName) {
-    return reorderRawServiceEntryInGroup(rawGroups, sourceGroupName, sourceName, targetName);
+    return reorderRawServiceEntryInGroup(rawGroups, sourceGroupName, sourceName, sourceMatcher, targetName, targetMatcher);
   }
 
-  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName);
+  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher);
   if (!removedEntry) {
     return { moved: false, nextGroups: rawGroups };
   }
 
-  const { inserted, nextGroups } = insertRawEntryForMove(groupsWithoutSource, type, targetGroupName, removedEntry, targetName);
+  const { inserted, nextGroups } = insertRawEntryForMove(groupsWithoutSource, type, targetGroupName, removedEntry, targetName, targetMatcher);
   return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
 }
 
@@ -875,7 +955,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawConfig =
-    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.type, modal.groupName, modal.itemName) ?? modal.item : {};
+    modal.mode === "edit" ? findRawEntry(data?.[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher) ?? modal.item : {};
   const [name, setName] = useState(modal.mode === "edit" ? modal.itemName : "");
   const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
@@ -910,7 +990,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
       validateItemConfig(modal.type, config);
       const nextData =
         modal.mode === "edit"
-          ? updateRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, trimmedName, config)
+          ? updateRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher, trimmedName, config)
           : addRawEntry(data[modal.type], modal.type, modal.groupName, trimmedName, config);
 
       await save(nextData);
@@ -928,7 +1008,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     setError("");
 
     try {
-      await save(deleteRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName));
+      await save(deleteRawEntry(data[modal.type], modal.type, modal.groupName, modal.itemName, modal.itemMatcher));
       onSaved(`Удалено: ${modal.itemName}`);
       onClose();
     } catch (deleteError) {
@@ -1826,6 +1906,7 @@ export function RootGroupDropZone({ children }) {
 
 export function useEditableItem(type, groupName, itemName, item) {
   const { editMode, moveItem, openItem } = useConfigEditor();
+  const itemMatcher = useMemo(() => createItemMatcher(type, itemName, item), [item, itemName, type]);
 
   return {
     editMode,
@@ -1834,7 +1915,7 @@ export function useEditableItem(type, groupName, itemName, item) {
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            writeDragPayload(event, { type, groupName, itemName }, ITEM_DRAG_TYPE);
+            writeDragPayload(event, { type, groupName, itemName, itemMatcher }, ITEM_DRAG_TYPE);
           },
           onDragEnd: () => {
             window.setTimeout(clearDragPayload, 0);
@@ -1847,12 +1928,12 @@ export function useEditableItem(type, groupName, itemName, item) {
             event.preventDefault();
             const dragged = readDragPayload(event);
             if (dragged?.type === type) {
-              moveItem(type, dragged.groupName, dragged.itemName, groupName, itemName);
+              moveItem(type, dragged.groupName, dragged.itemName, groupName, itemName, dragged.itemMatcher, itemMatcher);
             }
           },
           onClick: (event) => {
             event.preventDefault();
-            openItem(type, groupName, itemName, item);
+            openItem(type, groupName, itemName, item, itemMatcher);
           },
         }
       : {},
@@ -1878,7 +1959,7 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
           event.preventDefault();
           const dragged = readDragPayload(event);
           if (dragged?.type === type) {
-            moveItem(type, dragged.groupName, dragged.itemName, groupName, null);
+            moveItem(type, dragged.groupName, dragged.itemName, groupName, null, dragged.itemMatcher, null);
           }
         }}
         onClick={() => openNewItem(type, groupName)}
@@ -1960,7 +2041,7 @@ export function ConfigEditorProvider({ children }) {
           placement === "inside" ? "Группа вложена" : placement === "root" ? "Группа перемещена в корень" : "Порядок групп сохранён",
         );
       },
-      moveItem: async (type, sourceGroupName, sourceName, targetGroupName, targetName = null) => {
+      moveItem: async (type, sourceGroupName, sourceName, targetGroupName, targetName = null, sourceMatcher = null, targetMatcher = null) => {
         if (!data || !sourceGroupName || !targetGroupName) {
           return;
         }
@@ -1969,7 +2050,16 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        const { moved, nextGroups } = reorderRawEntry(data[type], type, sourceGroupName, sourceName, targetGroupName, targetName);
+        const { moved, nextGroups } = reorderRawEntry(
+          data[type],
+          type,
+          sourceGroupName,
+          sourceName,
+          targetGroupName,
+          targetName,
+          sourceMatcher,
+          targetMatcher,
+        );
         if (!moved) {
           handleSaved("Можно переставлять только элементы, описанные в YAML");
           return;
@@ -1990,7 +2080,7 @@ export function ConfigEditorProvider({ children }) {
         handleSaved("Порядок сохранён");
       },
       openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
-      openItem: (type, groupName, itemName, item) => setModal({ type, groupName, itemName, item, mode: "edit" }),
+      openItem: (type, groupName, itemName, item, itemMatcher = null) => setModal({ type, groupName, itemName, item, itemMatcher, mode: "edit" }),
       openNewGroup: (type) => setModal({ type, groupName: "", layout: {}, mode: "new", scope: "group" }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
     }),
