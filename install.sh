@@ -9,6 +9,7 @@ ACTION=""
 MODE="${HOMEPAGE_EDITOR_MODE:-auto}"
 TARGET="${HOMEPAGE_TARGET_DIR:-}"
 CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
+CUSTOM_INSTALL="${HOMEPAGE_EDITOR_CUSTOM_INSTALL:-prompt}"
 DO_BUILD=1
 DO_RESTART=1
 TMP_DIR=""
@@ -25,9 +26,10 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
-  --action NAME      install, update-mod, update-target, install-radio, install-particles, uninstall или status
+  --action NAME      install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
   --config-dir PATH   путь к внешней папке config Homepage
+  --custom MODE       что ставить после install/update: prompt, skip, cards, extras или all
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
@@ -38,6 +40,8 @@ usage() {
 Переменные окружения:
   HOMEPAGE_TARGET_DIR       то же самое, что --target
   HOMEPAGE_CONFIG_DIR       то же самое, что --config-dir
+  HOMEPAGE_EDITOR_CUSTOM_INSTALL
+                            prompt, skip, cards, extras или all для custom.css/custom.js дополнений
   HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
   HOMEPAGE_SERVICE_NAME     имя systemd-сервиса, по умолчанию homepage.service
 EOF
@@ -75,6 +79,11 @@ parse_args() {
       --config-dir)
         [[ $# -ge 2 ]] || die "--config-dir requires a path"
         CONFIG_DIR="$2"
+        shift 2
+        ;;
+      --custom)
+        [[ $# -ge 2 ]] || die "--custom requires prompt, skip, cards, extras, or all"
+        CUSTOM_INSTALL="$2"
         shift 2
         ;;
       --mode)
@@ -120,8 +129,13 @@ parse_args() {
   esac
 
   case "$ACTION" in
-    ""|install|update-mod|update-target|install-radio|install-particles|uninstall|status) ;;
-    *) die "--action must be install, update-mod, update-target, install-radio, install-particles, uninstall, or status" ;;
+    ""|install|update-mod|update-target|install-cards|install-extras|install-radio|install-particles|install-custom|uninstall|status) ;;
+    *) die "--action must be install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall, or status" ;;
+  esac
+
+  case "$CUSTOM_INSTALL" in
+    prompt|skip|none|cards|extras|all) ;;
+    *) die "--custom must be prompt, skip, cards, extras, or all" ;;
   esac
 }
 
@@ -139,20 +153,23 @@ Homepage Browser Editor Mod
 
   -----------------------------
   Через custom.css/custom.js:
-  4) Установить радио
-  5) Установить эффекты фона particles
+  4) Установить/обновить цветные карточки
+  5) Установить/обновить остальные правки custom.css
+  6) Установить радио
+  7) Установить эффекты фона particles
+  8) Установить все дополнения custom.css/custom.js
   -----------------------------
 
-  6) Удалить
-  7) Проверить статус
-  8) Отмена
+  9) Удалить
+  10) Проверить статус
+  11) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-8: " choice
+      read -r -p "Введите 1-11: " choice
     else
-      read -r -p "Введите 1-8: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-11: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -169,27 +186,39 @@ EOF
         return 0
         ;;
       4)
-        ACTION="install-radio"
+        ACTION="install-cards"
         return 0
         ;;
       5)
-        ACTION="install-particles"
+        ACTION="install-extras"
         return 0
         ;;
       6)
-        ACTION="uninstall"
+        ACTION="install-radio"
         return 0
         ;;
       7)
-        ACTION="status"
+        ACTION="install-particles"
         return 0
         ;;
       8)
+        ACTION="install-custom"
+        return 0
+        ;;
+      9)
+        ACTION="uninstall"
+        return 0
+        ;;
+      10)
+        ACTION="status"
+        return 0
+        ;;
+      11)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите 1, 2, 3, 4, 5, 6, 7 или 8.\n' >&2
+        printf 'Введите число от 1 до 11.\n' >&2
         ;;
     esac
   done
@@ -462,6 +491,105 @@ get_fragment_markers() {
   printf '%s\n%s\n' "$start_marker" "$end_marker"
 }
 
+backup_file_once() {
+  local target="$1"
+
+  [[ -f "$target" ]] || return 0
+
+  if [[ -e "${target}.bak" ]]; then
+    log "Backup already exists, keeping: ${target}.bak"
+    return 0
+  fi
+
+  cp -f "$target" "${target}.bak"
+  log "Backup created: ${target}.bak"
+}
+
+remove_legacy_color_cards_css() {
+  local target="$1"
+  local tmp=""
+
+  [[ -f "$target" ]] || return 0
+  grep -Fq "HOMEPAGE-EDITOR COLOR CARDS CSS START" "$target" && return 0
+  grep -q '^\[id\^="color-' "$target" || return 0
+  grep -q '^\.service-card,[[:space:]]*$' "$target" || return 0
+
+  tmp="$(mktemp)"
+
+  if awk '
+    BEGIN {
+      skip = 0
+      removed = 0
+    }
+    !skip && $0 ~ /^\.service-card,[[:space:]]*$/ {
+      skip = 1
+      removed = 1
+      next
+    }
+    skip && $0 ~ /^\/\* --- STATUS & PING BADGE POSITIONING --- \*\// {
+      skip = 0
+      print
+      next
+    }
+    !skip {
+      print
+    }
+    END {
+      if (skip || !removed) {
+        exit 1
+      }
+    }
+  ' "$target" > "$tmp"; then
+    backup_file_once "$target"
+    cp -f "$tmp" "$target"
+    log "Legacy unmarked color-card CSS block migrated in $target"
+  fi
+
+  rm -f "$tmp"
+}
+
+remove_legacy_custom_extras_css() {
+  local target="$1"
+  local tmp=""
+
+  [[ -f "$target" ]] || return 0
+  grep -Fq "HOMEPAGE-EDITOR CUSTOM EXTRAS CSS START" "$target" && return 0
+  grep -q '^/\* --- TAB NAVIGATION --- \*/' "$target" || return 0
+
+  tmp="$(mktemp)"
+
+  if awk '
+    BEGIN {
+      skip = 0
+      removed = 0
+    }
+    !skip && $0 ~ /^\/\* --- TAB NAVIGATION --- \*\// {
+      skip = 1
+      removed = 1
+      next
+    }
+    skip && $0 ~ /^\/\* >>> HOMEPAGE-EDITOR COLOR CARDS CSS START >>> \*\// {
+      skip = 0
+      print
+      next
+    }
+    !skip {
+      print
+    }
+    END {
+      if (!removed) {
+        exit 1
+      }
+    }
+  ' "$target" > "$tmp"; then
+    backup_file_once "$target"
+    cp -f "$tmp" "$target"
+    log "Legacy unmarked custom extras CSS block migrated in $target"
+  fi
+
+  rm -f "$tmp"
+}
+
 upsert_fragment() {
   local source="$1"
   local target="$2"
@@ -515,8 +643,7 @@ upsert_fragment() {
   fi
 
   if [[ "$target_existed" -eq 1 ]] && ! cmp -s "$tmp" "$target"; then
-    cp -f "$target" "${target}.bak"
-    log "Backup created: ${target}.bak"
+    backup_file_once "$target"
   fi
 
   cp -f "$tmp" "$target"
@@ -526,16 +653,123 @@ upsert_fragment() {
 install_custom_fragment_set() {
   local preset="$1"
   local source_dir="$MOD_DIR/custom-config/$preset"
-  [[ -f "$source_dir/custom.js" && -f "$source_dir/custom.css" ]] \
+  local installed=0
+
+  [[ -d "$source_dir" ]] || die "Custom preset is missing: $source_dir"
+  [[ -f "$source_dir/custom.js" || -f "$source_dir/custom.css" ]] \
     || die "Custom files are missing in $source_dir"
 
   mkdir -p "$CONFIG_DIR"
 
-  upsert_fragment "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
-  upsert_fragment "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
+  if [[ -f "$source_dir/custom.js" ]]; then
+    upsert_fragment "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
+    installed=1
+  fi
+
+  if [[ -f "$source_dir/custom.css" ]]; then
+    if [[ "$preset" == "cards" ]]; then
+      remove_legacy_color_cards_css "$CONFIG_DIR/custom.css"
+    elif [[ "$preset" == "extras" ]]; then
+      remove_legacy_custom_extras_css "$CONFIG_DIR/custom.css"
+    fi
+    upsert_fragment "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
+    installed=1
+  fi
+
+  [[ "$installed" -eq 1 ]] || die "Custom preset '$preset' has no installable files"
 
   fix_config_ownership
   log "Custom preset '$preset' installed into $CONFIG_DIR"
+}
+
+install_custom_presets() {
+  local preset=""
+
+  for preset in "$@"; do
+    install_custom_fragment_set "$preset"
+  done
+}
+
+ensure_config_dir() {
+  local detected_config=""
+
+  if detected_config="$(find_config_dir)"; then
+    CONFIG_DIR="$detected_config"
+    log "Using Homepage config dir: $CONFIG_DIR"
+  elif prompt_config_dir; then
+    log "Using Homepage config dir: $CONFIG_DIR"
+  else
+    die "Homepage config directory was not found. Pass --config-dir /path/to/config or set HOMEPAGE_CONFIG_DIR."
+  fi
+}
+
+prompt_custom_install_choice() {
+  [[ "$CUSTOM_INSTALL" == "prompt" ]] || return 0
+  [[ -t 0 ]] || {
+    CUSTOM_INSTALL="skip"
+    return 0
+  }
+
+  local choice=""
+  cat <<'EOF'
+
+Установить/обновить custom.css/custom.js дополнения?
+  1) Только цветные карточки
+  2) Цветные карточки + остальные правки custom.css без радио/фона
+  3) Все дополнения: цветные карточки + остальные правки custom.css + радио + фон particles/FPS
+  4) Пропустить
+EOF
+
+  while true; do
+    read -r -p "Введите 1-4 [1]: " choice
+    choice="${choice:-1}"
+
+    case "$choice" in
+      1)
+        CUSTOM_INSTALL="cards"
+        return 0
+        ;;
+      2)
+        CUSTOM_INSTALL="extras"
+        return 0
+        ;;
+      3)
+        CUSTOM_INSTALL="all"
+        return 0
+        ;;
+      4)
+        CUSTOM_INSTALL="skip"
+        return 0
+        ;;
+      *)
+        printf 'Введите 1, 2, 3 или 4.\n' >&2
+        ;;
+    esac
+  done
+}
+
+install_requested_custom() {
+  case "$CUSTOM_INSTALL" in
+    cards)
+      ensure_config_dir
+      install_custom_presets cards
+      ;;
+    extras)
+      ensure_config_dir
+      install_custom_presets cards extras
+      ;;
+    all)
+      ensure_config_dir
+      install_custom_presets cards extras radio particles
+      ;;
+    skip|none)
+      log "Custom additions skipped"
+      ;;
+    prompt)
+      prompt_custom_install_choice
+      install_requested_custom
+      ;;
+  esac
 }
 
 target_owner() {
@@ -673,14 +907,15 @@ main() {
 
   download_mod
 
-  if [[ "$ACTION" == "install-radio" || "$ACTION" == "install-particles" ]]; then
+  if [[ "$ACTION" == "install-cards" || "$ACTION" == "install-extras" || "$ACTION" == "install-radio" || "$ACTION" == "install-particles" || "$ACTION" == "install-custom" ]]; then
     local detected_target=""
-    local detected_config=""
-    local preset=""
 
     case "$ACTION" in
-      install-radio) preset="radio" ;;
-      install-particles) preset="particles" ;;
+      install-cards) CUSTOM_INSTALL="cards" ;;
+      install-extras) CUSTOM_INSTALL="extras" ;;
+      install-radio) CUSTOM_INSTALL="radio" ;;
+      install-particles) CUSTOM_INSTALL="particles" ;;
+      install-custom) CUSTOM_INSTALL="all" ;;
       *) die "Unknown custom preset action: $ACTION" ;;
     esac
 
@@ -689,16 +924,19 @@ main() {
       log "Using Homepage checkout: $TARGET"
     fi
 
-    if detected_config="$(find_config_dir)"; then
-      CONFIG_DIR="$detected_config"
-      log "Using Homepage config dir: $CONFIG_DIR"
-    elif prompt_config_dir; then
-      log "Using Homepage config dir: $CONFIG_DIR"
-    else
-      die "Homepage config directory was not found. Pass --config-dir /path/to/config or set HOMEPAGE_CONFIG_DIR."
-    fi
-
-    install_custom_fragment_set "$preset"
+    case "$CUSTOM_INSTALL" in
+      radio)
+        ensure_config_dir
+        install_custom_presets radio
+        ;;
+      particles)
+        ensure_config_dir
+        install_custom_presets particles
+        ;;
+      *)
+        install_requested_custom
+        ;;
+    esac
     log "Done"
     return 0
   fi
@@ -747,6 +985,11 @@ main() {
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
   fi
+
+  if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]]; then
+    install_requested_custom
+  fi
+
   restart_target
   log "Done"
 }

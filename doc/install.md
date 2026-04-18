@@ -37,8 +37,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 - `Установить` - первая установка мода;
 - `Обновить мод из GitHub` - переустановить мод поверх target-проекта из актуальной версии GitHub-репозитория;
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
+- `Установить/обновить цветные карточки` - встроить managed-блок CSS, который нужен для `id` вида `color-red-name-card`;
+- `Установить/обновить остальные правки custom.css` - встроить managed-блок дополнительных CSS-правок без радио и фона;
 - `Установить радио (custom.css/custom.js)` - встроить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage;
 - `Установить эффекты фона particles` - встроить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
+- `Установить все дополнения custom.css/custom.js` - встроить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта;
 - `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в `.env.local`.
 
@@ -53,7 +56,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 
 Если checkout Homepage не найден, скрипт попросит ввести путь вручную.
 
-Для действий `Установить радио (custom.css/custom.js)` и `Установить эффекты фона particles` скрипт сначала пытается определить папку config автоматически:
+Для действий с `custom.css/custom.js` скрипт сначала пытается определить папку config автоматически:
 
 1. `HOMEPAGE_CONFIG_DIR` или `--config-dir`;
 2. `config` target-проекта Homepage, если это symlink или обычная директория;
@@ -67,6 +70,15 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 1. Запустите `install-update-homepage.sh` и выберите установку target-проекта.
 2. Дождитесь успешной сборки и запуска `homepage.service`.
 3. Запустите `install.sh` и выберите установку мода.
+
+После установки или обновления мода в интерактивном режиме `install.sh` спросит, что делать с дополнениями `custom.css/custom.js`:
+
+1. поставить только цветные карточки;
+2. поставить цветные карточки и остальные правки `custom.css` без радио/фона;
+3. поставить все дополнения: `cards`, `extras`, `radio`, `particles`;
+4. пропустить custom-дополнения.
+
+Для неинтерактивного запуска используйте `--custom skip`, `--custom cards`, `--custom extras` или `--custom all`.
 
 После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что `install-update-homepage.sh` создаёт `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
 
@@ -112,9 +124,9 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-browser-editor-mod bash ./install.sh --act
 4. одну сборку Homepage;
 5. один перезапуск `homepage.service`, если сервис активен.
 
-## Установка Radio / Particles Во Внешние Custom Файлы
+## Установка Custom-Дополнений Во Внешние Custom Файлы
 
-Если нужно накатить только managed-блоки `radio` или `particles` из этого репозитория во внешнюю папку config Homepage, запустите:
+Если нужно накатить только managed-блоки custom-дополнений из этого репозитория во внешнюю папку config Homepage, запустите:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
@@ -122,8 +134,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 
 и выберите нужное действие:
 
-1. `Установить радио (custom.css/custom.js)`
-2. `Установить эффекты фона particles`
+1. `Установить/обновить цветные карточки`
+2. `Установить/обновить остальные правки custom.css`
+3. `Установить радио (custom.css/custom.js)`
+4. `Установить эффекты фона particles`
+5. `Установить все дополнения custom.css/custom.js`
 
 Либо можно указать директорию явно:
 
@@ -137,12 +152,27 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-radi
 HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-particles
 ```
 
+Цветные карточки и остальные CSS-правки:
+
+```bash
+HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cards
+HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-extras
+```
+
+Все custom-дополнения сразу:
+
+```bash
+HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-custom
+```
+
 Эти действия:
 
-1. берут `custom-config/radio/` или `custom-config/particles/` из репозитория мода;
+1. берут нужный preset из `custom-config/` репозитория мода;
 2. создаёт резервные копии существующих `custom.js` и `custom.css` как `.bak`, если содержимое отличается;
 3. встраивают или обновляют только свой managed-блок в `custom.js` и `custom.css`, не затирая другой preset;
 4. не требуют сборки target-проекта и не перезапускают `homepage.service`.
+
+Блоки `cards` и `extras` в `custom.css` помечены как управляемые. Не правьте CSS внутри этих блоков руками: при следующей установке или обновлении `install.sh` заменит содержимое между START/END-маркерами. Свои ручные правила добавляйте ниже END-маркера.
 
 ## Что делает установщик
 

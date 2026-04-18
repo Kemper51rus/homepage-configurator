@@ -1,0 +1,187 @@
+/* >>> HOMEPAGE-EDITOR CUSTOM EXTRAS CSS START >>> */
+/* ============================================================================
+ * MANAGED BLOCK: HOMEPAGE BROWSER EDITOR CUSTOM EXTRAS
+ * ----------------------------------------------------------------------------
+ * Этот блок обновляется install.sh.
+ * Не правьте правила внутри блока руками: при следующей установке/обновлении
+ * install.sh заменит весь блок между START и END.
+ *
+ * Здесь лежат дополнительные правки custom.css без радио и фона particles/FPS.
+ * Для ручных правок добавляйте свои CSS-правила ниже END-маркера.
+ * ============================================================================
+ */
+
+/* --- TAB NAVIGATION --- */
+#tabs ul {
+    width: fit-content !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    border-radius: 50px !important;
+    padding: 4px !important;
+    background-color: rgba(58, 58, 58, 0.2);
+}
+
+#tabs ul li {
+    width: auto !important;
+    flex: 0 0 auto !important;
+}
+
+#tabs ul li button {
+    width: auto !important;
+    border-radius: 50px !important;
+    padding: 6px 20px !important;
+    min-height: unset !important;
+    color: #ffffff83 !important;
+    background-color: transparent !important;
+}
+
+#tabs ul li button[aria-selected="true"] {
+    color: #6aabbf !important;
+    background-color: rgba(78, 59, 122, 0.15) !important;
+    font-weight: bold !important;
+}
+
+@media (max-width: 768px) {
+    #tabs ul li button {
+        padding: 5px 10px !important;
+        font-size: 13px !important;
+    }
+
+    #tabs ul {
+        max-width: 100% !important;
+    }
+}
+
+/* --- BOOKMARK STYLING --- */
+li.bookmark a {
+    border-radius: 25px !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    margin-bottom: 8px !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+li.bookmark .bookmark-icon {
+    border-radius: 0 !important;
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+li.bookmark .bookmark-text {
+    border-radius: 0 !important;
+}
+
+.bookmark-name {
+    color: #f5f5f583 !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+}
+
+.bookmark-description {
+    color: #94a3b8 !important;
+    font-size: 0.7rem !important;
+}
+
+li.bookmark a:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+li.bookmark a:hover .bookmark-name {
+    color: #555555 !important;
+}
+
+/* --- SYSTEM MONITOR --- */
+.information-widget-resource div[style*="width"] {
+    background: linear-gradient(90deg, #4ade80 0%, #2dd4bf 40%, #3b82f6 75%, #b80fde 100%) !important;
+    opacity: 0.40 !important;
+    border-radius: 10px !important;
+}
+
+.information-widget-resource:nth-of-type(1) svg { color: #4ade80 !important; }
+.information-widget-resource:nth-of-type(2) svg { color: #22d3ee !important; }
+.information-widget-resource:nth-of-type(3) svg { color: #ef4444 !important; }
+.information-widget-resource:nth-of-type(4) svg { color: #3b82f6 !important; }
+
+/* --- GENERAL TYPOGRAPHY --- */
+.service-group-name,
+.bookmark-group-name {
+    color: #555555 !important;
+    font-weight: 700 !important;
+}
+
+.service-name,
+.service-description {
+    color: #f5f5f583 !important;
+}
+
+/* Desktop and Tablet */
+@media (min-width: 768px) {
+    .widget-container,
+    .information-widget-logo,
+    [class*="information-widget-glances"] {
+        background-color: rgba(58, 58, 58, 0.2) !important;
+        border-radius: 50px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        height: 42px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 16px !important;
+        margin-top: 10px !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+    .widget-container,
+    .information-widget-logo,
+    [class*="information-widget-glances"] {
+        background-color: rgba(58, 58, 58, 0.2) !important;
+        border-radius: 25px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        height: auto !important;
+        min-height: 40px !important;
+        padding: 8px 12px !important;
+        margin: 5px 0 !important;
+        width: 100% !important;
+    }
+
+    .information-widget-inner,
+    [class*="information-widget-glances"] > div {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 8px !important;
+    }
+}
+
+/* Global Alignment for Widgets */
+.information-widget-logo img {
+    margin: 0 !important;
+    max-height: 24px !important;
+}
+
+.information-widget-resource,
+.widget-inner-text,
+.resource-icon {
+    display: flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+}
+
+.information-widget-resource {
+    margin-right: 12px !important;
+}
+
+/* ============================================================================
+ * END OF MANAGED BLOCK: HOMEPAGE BROWSER EDITOR CUSTOM EXTRAS
+ * ========================================================================== */
+/* <<< HOMEPAGE-EDITOR CUSTOM EXTRAS CSS END <<< */

@@ -1,0 +1,72 @@
+/* >>> HOMEPAGE-EDITOR COLOR CARDS CSS START >>> */
+/* ============================================================================
+ * MANAGED BLOCK: HOMEPAGE BROWSER EDITOR COLOR CARDS
+ * ----------------------------------------------------------------------------
+ * Этот блок обновляется install.sh.
+ * Не правьте правила внутри блока руками: при следующей установке/обновлении
+ * install.sh заменит весь блок между START и END.
+ *
+ * Для ручных правок добавляйте свои CSS-правила ниже END-маркера.
+ * ============================================================================
+ */
+
+.service-card,
+.bookmark-card,
+.service-card > div,
+.bookmark-card > div,
+[id$="-card"],
+[id$="-card"] > div {
+    border-radius: 25px !important;
+    overflow: hidden !important;
+}
+
+[id$="-card"] {
+    position: relative !important;
+    background-color: transparent !important;
+}
+
+[id$="-card"]::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    right: 2px;
+    bottom: 6px;
+    z-index: 0;
+    border-radius: 23px !important;
+    opacity: 0.35;
+}
+
+.service-card > button[aria-label^="Edit "] {
+    inset: 2px !important;
+    border-radius: inherit !important;
+}
+
+/* --- SERVICE COLOR ASSIGNMENTS --- */
+[id^="color-sky-"]::before          { background-color: #25C1FF !important; }
+[id^="color-yellow-"]::before       { background-color: #FFC230 !important; }
+[id^="color-green-"]::before        { background-color: #00C655 !important; }
+[id^="color-purple-"]::before       { background-color: #AA5CC3 !important; }
+[id^="color-lime-"]::before         { background-color: #39BA5D !important; }
+[id^="color-emerald-"]::before      { background-color: #4ade80 !important; }
+[id^="color-cyan-"]::before         { background-color: #22d3ee !important; }
+[id^="color-blue-"]::before         { background-color: #3eadff !important; }
+[id^="color-mint-"]::before         { background-color: #61efad !important; }
+[id^="color-orange-"]::before       { background-color: #ff7b00 !important; }
+[id^="color-bright-green-"]::before { background-color: #33cc33 !important; }
+[id^="color-dark-red-"]::before     { background-color: #96060c !important; }
+[id^="color-red-"]::before          { background-color: #ea2222 !important; }
+[id^="color-red-orange-"]::before   { background-color: #ff3d00 !important; }
+[id^="color-teal-"]::before         { background-color: #3fb1db !important; }
+[id^="color-amber-"]::before        { background-color: #ff7700 !important; }
+[id^="color-indigo-"]::before       { background-color: #2a2978 !important; }
+
+.service-card > div {
+    position: relative;
+    z-index: 1;
+}
+
+/* ============================================================================
+ * END OF MANAGED BLOCK: HOMEPAGE BROWSER EDITOR COLOR CARDS
+ * ========================================================================== */
+/* <<< HOMEPAGE-EDITOR COLOR CARDS CSS END <<< */
