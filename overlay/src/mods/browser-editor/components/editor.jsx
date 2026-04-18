@@ -1733,7 +1733,7 @@ function useServiceRowHeightBalancer() {
   }, []);
 }
 
-export function EditorGroupToolbar({ type, groupName, layout, allowInside = false }) {
+export function EditorGroupToolbar({ type, groupName, layout }) {
   const { editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
 
   if (!editMode) {
@@ -1767,42 +1767,42 @@ export function EditorGroupToolbar({ type, groupName, layout, allowInside = fals
           moveGroup(type, dragged.groupName, groupName, "before");
         }
       }}
+      onClick={() => openGroup(type, groupName, layout)}
       data-editor-group-drop-target="true"
-      className="relative z-[61] mb-2 flex cursor-move items-center justify-between gap-2 rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 dark:border-white/25 dark:bg-white/5 dark:text-theme-100"
+      className="relative z-[61] mb-2 flex cursor-grab items-center justify-between gap-2 rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 active:cursor-grabbing dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10"
     >
       <span className="truncate font-medium">{groupName}</span>
-      <div className="flex shrink-0 gap-1">
-        {allowInside && (
-          <button
-            type="button"
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const dragged = readGroupDragPayload(event);
-              if (dragged?.scope === "group" && dragged.type === type) {
-                moveGroup(type, dragged.groupName, groupName, "inside");
-              }
-            }}
-            data-editor-group-drop-target="true"
-            className="rounded-md border border-theme-400/70 px-2 py-1 text-xs dark:border-white/25"
-          >
-            Вложить
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => openGroup(type, groupName, layout)}
-          className="rounded-md border border-theme-400/70 bg-theme-200/60 px-2 py-1 text-xs text-theme-900 dark:border-white/25 dark:bg-white/10 dark:text-theme-100"
-        >
-          Разметка
-        </button>
-      </div>
     </div>
   );
+}
+
+export function useGroupInsideDropTarget(type, groupName, enabled = true) {
+  const { draggedGroup, editMode, moveGroup } = useConfigEditor();
+
+  if (!enabled || !editMode) {
+    return {};
+  }
+
+  return {
+    onDragOver: (event) => {
+      if (!isGroupDragOver(event, draggedGroup)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    onDrop: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const dragged = readGroupDragPayload(event, draggedGroup);
+      if (dragged?.scope === "group" && dragged.type === type) {
+        moveGroup(type, dragged.groupName, groupName, "inside");
+      }
+    },
+    "data-editor-group-drop-target": "true",
+  };
 }
 
 export function RootGroupDropZone({ children }) {
