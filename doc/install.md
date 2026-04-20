@@ -19,7 +19,7 @@
 Установка target-проекта Homepage:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install-update-homepage.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
 ```
 
 Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, nginx, внешние каталоги конфигов и картинок.
@@ -29,7 +29,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 Установка мода:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
 
 `install.sh` поддерживает действия:
@@ -97,7 +97,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 Если нужно подтянуть актуальную версию мода с GitHub и переустановить её в target-проект, достаточно снова запустить:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
 
 и выбрать `Обновить мод из GitHub`.
@@ -111,7 +111,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/ma
 Либо можно явно указать локальный checkout:
 
 ```bash
-HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-browser-editor-mod bash ./install.sh --action update-target
+HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action update-target
 ```
 
 Это действие использует только локальные файлы мода и завершится ошибкой, если не сможет найти `install.mjs`, `browser-editor.patch` и `overlay/` в текущем каталоге или в `HOMEPAGE_EDITOR_MOD_DIR`.
@@ -129,7 +129,7 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-browser-editor-mod bash ./install.sh --act
 Если нужно накатить только managed-блоки custom-дополнений из этого репозитория во внешнюю папку config Homepage, запустите:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
 
 и выберите нужное действие:

@@ -1,4 +1,4 @@
-# Homepage Browser Editor Mod
+# Homepage configurator
 
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
@@ -14,13 +14,13 @@
 Установка target-проекта Homepage:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install-update-homepage.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
 ```
 
 Установка мода:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
 
 Повторный запуск `install.sh` поддерживает разные сценарии обновления:

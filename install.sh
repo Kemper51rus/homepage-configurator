@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO_URL="${HOMEPAGE_EDITOR_REPO:-https://github.com/Kemper51rus/homepage-editor.git}"
+REPO_URL="${HOMEPAGE_EDITOR_REPO:-https://github.com/Kemper51rus/homepage-configurator.git}"
 BRANCH="${HOMEPAGE_EDITOR_BRANCH:-main}"
 SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 
@@ -18,7 +18,7 @@ MOD_SOURCE_MODE="auto"
 
 usage() {
   cat <<'EOF'
-Установщик Homepage Browser Editor Mod
+Установщик Homepage configurator
 
 Использование:
   bash install.sh [options]
@@ -48,11 +48,11 @@ EOF
 }
 
 log() {
-  printf '[homepage-editor] %s\n' "$*"
+  printf '[homepage-configurator] %s\n' "$*"
 }
 
 die() {
-  printf '[homepage-editor] ERROR: %s\n' "$*" >&2
+  printf '[homepage-configurator] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -144,7 +144,7 @@ prompt_action() {
 
   local choice=""
   cat <<'EOF'
-Homepage Browser Editor Mod
+Homepage configurator
 
 Выберите действие:
   1) Установить
@@ -419,7 +419,7 @@ download_mod() {
   fi
 
   TMP_DIR="$(mktemp -d)"
-  MOD_DIR="$TMP_DIR/homepage-editor"
+  MOD_DIR="$TMP_DIR/homepage-configurator"
 
   if command -v git >/dev/null 2>&1; then
     log "Downloading mod from $REPO_URL#$BRANCH"
@@ -435,7 +435,7 @@ download_mod() {
   command -v tar >/dev/null 2>&1 || die "tar is required when git is not available"
 
   mkdir -p "$MOD_DIR"
-  curl -fsSL "https://github.com/Kemper51rus/homepage-editor/archive/refs/heads/${BRANCH}.tar.gz" \
+  curl -fsSL "https://github.com/Kemper51rus/homepage-configurator/archive/refs/heads/${BRANCH}.tar.gz" \
     | tar -xz -C "$MOD_DIR" --strip-components=1
   log "Using mod source: $MOD_DIR (downloaded from GitHub tarball)"
 }
@@ -590,6 +590,87 @@ remove_legacy_custom_extras_css() {
   rm -f "$tmp"
 }
 
+remove_legacy_particles_fragment() {
+  local target="$1"
+  local tmp=""
+
+  [[ -f "$target" ]] || return 0
+  grep -Fq "HOMEPAGE-EDITOR PARTICLES" "$target" && return 0
+  grep -Fq "START OF OLD /srv/start TRANSFER: INTERACTIVE BACKGROUND + FPS BUTTON" "$target" || return 0
+
+  tmp="$(mktemp)"
+
+  if awk '
+    BEGIN {
+      skip = 0
+      removed = 0
+    }
+    !skip && $0 ~ /START OF OLD \/srv\/start TRANSFER: INTERACTIVE BACKGROUND \+ FPS BUTTON/ {
+      skip = 1
+      removed = 1
+      next
+    }
+    skip && $0 ~ /END OF OLD \/srv\/start TRANSFER: INTERACTIVE BACKGROUND \+ FPS BUTTON/ {
+      skip = 0
+      next
+    }
+    !skip {
+      print
+    }
+    END {
+      if (skip || !removed) {
+        exit 1
+      }
+    }
+  ' "$target" > "$tmp"; then
+    backup_file_once "$target"
+    cp -f "$tmp" "$target"
+    log "Legacy unmarked particles/FPS block migrated in $target"
+  fi
+
+  rm -f "$tmp"
+}
+
+remove_legacy_radio_js() {
+  local target="$1"
+  local tmp=""
+
+  [[ -f "$target" ]] || return 0
+  head -n 1 "$target" | grep -Fq "(function homepageRadioWidget() {" || return 0
+
+  tmp="$(mktemp)"
+
+  if awk '
+    BEGIN {
+      skip = 0
+      removed = 0
+    }
+    NR == 1 && $0 ~ /^\(function homepageRadioWidget\(\) \{/ {
+      skip = 1
+      removed = 1
+      next
+    }
+    skip && $0 == "})();" {
+      skip = 0
+      next
+    }
+    !skip {
+      print
+    }
+    END {
+      if (skip || !removed) {
+        exit 1
+      }
+    }
+  ' "$target" > "$tmp"; then
+    backup_file_once "$target"
+    cp -f "$tmp" "$target"
+    log "Legacy unmarked radio JS block migrated in $target"
+  fi
+
+  rm -f "$tmp"
+}
+
 upsert_fragment() {
   local source="$1"
   local target="$2"
@@ -662,6 +743,11 @@ install_custom_fragment_set() {
   mkdir -p "$CONFIG_DIR"
 
   if [[ -f "$source_dir/custom.js" ]]; then
+    if [[ "$preset" == "particles" ]]; then
+      remove_legacy_particles_fragment "$CONFIG_DIR/custom.js"
+    elif [[ "$preset" == "radio" ]]; then
+      remove_legacy_radio_js "$CONFIG_DIR/custom.js"
+    fi
     upsert_fragment "$source_dir/custom.js" "$CONFIG_DIR/custom.js"
     installed=1
   fi
@@ -671,6 +757,8 @@ install_custom_fragment_set() {
       remove_legacy_color_cards_css "$CONFIG_DIR/custom.css"
     elif [[ "$preset" == "extras" ]]; then
       remove_legacy_custom_extras_css "$CONFIG_DIR/custom.css"
+    elif [[ "$preset" == "particles" ]]; then
+      remove_legacy_particles_fragment "$CONFIG_DIR/custom.css"
     fi
     upsert_fragment "$source_dir/custom.css" "$CONFIG_DIR/custom.css"
     installed=1
@@ -879,15 +967,15 @@ explain_docker_limit() {
   local containers="$1"
 
   cat >&2 <<EOF
-[homepage-editor] Detected Docker Homepage container:
+[homepage-configurator] Detected Docker Homepage container:
 $containers
 
-[homepage-editor] Standard gethomepage/homepage Docker containers do not contain a persistent writable source checkout.
-[homepage-editor] This mod patches Homepage source files, so install it into a local gethomepage/homepage checkout or custom image source:
+[homepage-configurator] Standard gethomepage/homepage Docker containers do not contain a persistent writable source checkout.
+[homepage-configurator] This mod patches Homepage source files, so install it into a local gethomepage/homepage checkout or custom image source:
 
-  HOMEPAGE_TARGET_DIR=/path/to/homepage bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-editor/main/install.sh)
+  HOMEPAGE_TARGET_DIR=/path/to/homepage bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 
-[homepage-editor] After that, rebuild/restart your custom Docker image/container.
+[homepage-configurator] After that, rebuild/restart your custom Docker image/container.
 EOF
   exit 1
 }

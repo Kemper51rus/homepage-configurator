@@ -57,6 +57,8 @@
 
   const stations = parseStations(stationList);
   const defaultStation = stations.find((station) => station.isDefault) ?? stations[0] ?? null;
+  const stationByKey = new Map(stations.map((station) => [station.key, station]));
+  const PLAYER_SESSION_KEY = "homepage-radio-player-state";
 
   function ready(callback) {
     if (document.readyState === "loading") {
@@ -73,6 +75,37 @@
 
   function formatVolume(volume) {
     return String(Math.round(volume * 10));
+  }
+
+  function loadPlayerState() {
+    try {
+      const stored = window.sessionStorage.getItem(PLAYER_SESSION_KEY);
+      if (!stored) {
+        return null;
+      }
+
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== "object") {
+        return null;
+      }
+
+      return {
+        stationKey: stationByKey.has(parsed.stationKey) ? parsed.stationKey : defaultStation?.key ?? null,
+        shouldPlay: parsed.shouldPlay === true,
+        volume: Number.isFinite(parsed.volume) ? clampVolume(parsed.volume) : 1,
+        muted: parsed.muted === true,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function savePlayerState(payload) {
+    try {
+      window.sessionStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage failures in private sessions.
+    }
   }
 
   function copyTextToClipboard(text) {
@@ -319,17 +352,24 @@
     const stationButtons = new Map(
       stations.map((station) => [station.key, radioRoot.querySelector(`#${station.key}`)]),
     );
+    const savedPlayerState = loadPlayerState();
+    const savedStation = savedPlayerState?.stationKey ? stationByKey.get(savedPlayerState.stationKey) : null;
 
     const state = {
-      activeStation: null,
+      activeStation: savedStation?.key ?? null,
       pendingStationKey: null,
-      muted: false,
+      lastStationKey: savedStation?.key ?? defaultStation?.key ?? null,
+      restoringStationKey: null,
+      muted: savedPlayerState?.muted === true,
     };
     let currentIpAddress = "";
     let placementFrameId = 0;
     let delayedPlacementTimeoutId = 0;
+    let restorePlaybackTimeoutId = 0;
     let startRequestId = 0;
     let ipCopyFeedbackTimeoutId = 0;
+    let isPageLeaving = false;
+    let shouldRestoreAfterPageLeave = false;
     let isDisposed = false;
     const cleanupFns = [];
 
@@ -349,6 +389,11 @@
       if (delayedPlacementTimeoutId) {
         window.clearTimeout(delayedPlacementTimeoutId);
         delayedPlacementTimeoutId = 0;
+      }
+
+      if (restorePlaybackTimeoutId) {
+        window.clearTimeout(restorePlaybackTimeoutId);
+        restorePlaybackTimeoutId = 0;
       }
 
       if (ipCopyFeedbackTimeoutId) {
@@ -422,7 +467,11 @@
       }
     }
 
-    audio.volume = 1;
+    audio.volume = savedPlayerState?.volume ?? 1;
+    audio.muted = state.muted;
+    if (savedStation) {
+      audio.src = savedStation.url;
+    }
 
     function updateVolumeLabel() {
       volumeButton.textContent = state.muted ? "0" : formatVolume(audio.volume);
@@ -439,16 +488,39 @@
       });
     }
 
-    function pausePlayback() {
+    function saveCurrentPlayerState(shouldPlayOverride = null) {
+      const stationKey = state.activeStation || state.pendingStationKey || state.lastStationKey || defaultStation?.key || null;
+      savePlayerState({
+        stationKey,
+        shouldPlay: typeof shouldPlayOverride === "boolean"
+          ? shouldPlayOverride
+          : Boolean(stationKey && !audio.paused && !audio.ended),
+        volume: audio.volume,
+        muted: state.muted || audio.muted,
+      });
+    }
+
+    function rememberPlaybackBeforePageLeave() {
+      const stationKey = state.activeStation || state.pendingStationKey || state.lastStationKey;
+      shouldRestoreAfterPageLeave = Boolean(stationKey && !audio.paused && !audio.ended);
+      isPageLeaving = true;
+      saveCurrentPlayerState(shouldRestoreAfterPageLeave);
+    }
+
+    function pausePlayback({ persist = true } = {}) {
       startRequestId += 1;
       state.pendingStationKey = null;
       audio.pause();
       updatePlaybackIcons(false);
+      if (persist) {
+        saveCurrentPlayerState(false);
+      }
     }
 
     function resetPlaybackState({ clearSource = true } = {}) {
       state.activeStation = null;
       state.pendingStationKey = null;
+      state.restoringStationKey = null;
 
       if (!audio.paused) {
         audio.pause();
@@ -466,14 +538,18 @@
     function stopPlayback() {
       startRequestId += 1;
       resetPlaybackState({ clearSource: true });
+      saveCurrentPlayerState(false);
     }
 
-    function handlePlaybackFailure() {
+    function handlePlaybackFailure({ persist = true } = {}) {
       startRequestId += 1;
       resetPlaybackState({ clearSource: true });
+      if (persist) {
+        saveCurrentPlayerState(false);
+      }
     }
 
-    async function resumePlayback() {
+    async function resumePlayback({ persistOnFailure = true } = {}) {
       const requestId = ++startRequestId;
       state.pendingStationKey = null;
 
@@ -485,23 +561,31 @@
         }
 
         updatePlaybackIcons(true);
+        saveCurrentPlayerState(true);
         return true;
       } catch {
         if (isDisposed || requestId !== startRequestId) {
           return false;
         }
 
-        handlePlaybackFailure();
+        if (persistOnFailure) {
+          handlePlaybackFailure({ persist: true });
+        } else {
+          updatePlaybackIcons(false);
+          saveCurrentPlayerState(true);
+        }
         return false;
       }
     }
 
-    async function startStation(station) {
+    async function startStation(station, { persistOnFailure = true } = {}) {
       if (!station || isDisposed) {
         return false;
       }
 
       const requestId = ++startRequestId;
+      state.lastStationKey = station.key;
+      state.restoringStationKey = persistOnFailure ? null : station.key;
       state.pendingStationKey = station.key;
       state.activeStation = null;
       updateActiveStationClasses();
@@ -520,15 +604,26 @@
 
         state.pendingStationKey = null;
         state.activeStation = station.key;
+        state.restoringStationKey = null;
         updateActiveStationClasses();
         updatePlaybackIcons(true);
+        saveCurrentPlayerState(true);
         return true;
       } catch {
         if (isDisposed || requestId !== startRequestId) {
           return false;
         }
 
-        handlePlaybackFailure();
+        if (persistOnFailure) {
+          handlePlaybackFailure({ persist: true });
+        } else {
+          state.pendingStationKey = null;
+          state.activeStation = station.key;
+          state.restoringStationKey = null;
+          updateActiveStationClasses();
+          updatePlaybackIcons(false);
+          saveCurrentPlayerState(true);
+        }
         return false;
       }
     }
@@ -566,6 +661,23 @@
         return;
       }
 
+      if (state.restoringStationKey) {
+        const station = stationByKey.get(state.restoringStationKey);
+        if (station) {
+          state.pendingStationKey = null;
+          state.activeStation = station.key;
+          state.lastStationKey = station.key;
+          state.restoringStationKey = null;
+          if (audio.getAttribute("src") !== station.url) {
+            audio.src = station.url;
+          }
+          updateActiveStationClasses();
+          updatePlaybackIcons(false);
+          saveCurrentPlayerState(true);
+          return;
+        }
+      }
+
       handlePlaybackFailure();
     }
 
@@ -575,6 +687,7 @@
       }
 
       updatePlaybackIcons(true);
+      saveCurrentPlayerState(true);
     }
 
     function handleAudioPause() {
@@ -583,6 +696,12 @@
       }
 
       updatePlaybackIcons(false);
+      if (isPageLeaving) {
+        saveCurrentPlayerState(shouldRestoreAfterPageLeave);
+        return;
+      }
+
+      saveCurrentPlayerState(false);
     }
 
     function handleAudioEnded() {
@@ -644,6 +763,7 @@
         state.muted = false;
       }
       updateVolumeLabel();
+      saveCurrentPlayerState();
     });
 
     addManagedListener(volumeUpButton, "click", () => {
@@ -653,12 +773,14 @@
         state.muted = false;
       }
       updateVolumeLabel();
+      saveCurrentPlayerState();
     });
 
     addManagedListener(volumeButton, "click", () => {
       state.muted = !state.muted;
       audio.muted = state.muted;
       updateVolumeLabel();
+      saveCurrentPlayerState();
     });
 
     addManagedListener(audio, "play", handleAudioPlay);
@@ -666,10 +788,20 @@
     addManagedListener(audio, "ended", handleAudioEnded);
     addManagedListener(audio, "error", handleAudioError);
     addManagedListener(audio, "volumechange", updateVolumeLabel);
+    addManagedListener(window, "pagehide", rememberPlaybackBeforePageLeave);
+    addManagedListener(window, "beforeunload", rememberPlaybackBeforePageLeave);
 
     updateVolumeLabel();
     updatePlaybackIcons(false);
     updateActiveStationClasses();
+    if (savedStation && savedPlayerState?.shouldPlay) {
+      restorePlaybackTimeoutId = window.setTimeout(() => {
+        restorePlaybackTimeoutId = 0;
+        if (!isDisposed) {
+          startStation(savedStation, { persistOnFailure: false });
+        }
+      }, 0);
+    }
     ensureTopRootsPlacement();
     scheduleEnsureTopRootsPlacement();
     delayedPlacementTimeoutId = window.setTimeout(() => {
