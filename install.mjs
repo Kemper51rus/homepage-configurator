@@ -6,6 +6,10 @@ import { fileURLToPath } from "url";
 const root = dirname(fileURLToPath(import.meta.url));
 const patchPath = join(root, "browser-editor.patch");
 const overlayPath = join(root, "overlay");
+const managedDependencies = {
+  prismjs: "^1.29.0",
+  "react-simple-code-editor": "^0.14.1",
+};
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -81,6 +85,30 @@ function ensureTarget(target) {
   }
 }
 
+function syncManagedDependencies(target) {
+  const packageJsonPath = join(target, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  const nextDependencies = { ...(packageJson.dependencies ?? {}) };
+  let changed = false;
+
+  Object.entries(managedDependencies).forEach(([name, version]) => {
+    if (nextDependencies[name] === version) {
+      return;
+    }
+
+    nextDependencies[name] = version;
+    changed = true;
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  packageJson.dependencies = nextDependencies;
+  writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  console.log(`Updated managed dependencies in ${packageJsonPath}`);
+}
+
 function envPath(target) {
   return join(target, ".env.local");
 }
@@ -117,6 +145,7 @@ function status(target) {
 
 function install(target) {
   ensureTarget(target);
+  syncManagedDependencies(target);
   installOverlay(target);
   applyPatch(target);
   console.log(`Browser editor installed into ${target}`);

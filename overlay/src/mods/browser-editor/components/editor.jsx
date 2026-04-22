@@ -1,5 +1,9 @@
 import classNames from "classnames";
 import yaml from "js-yaml";
+import Prism from "prismjs";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-yaml";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
@@ -1510,6 +1514,323 @@ function Field({ label, value, onChange }) {
   );
 }
 
+function CodeEditorTheme() {
+  return (
+    <style jsx global>{`
+      .homepage-editor-code .token.comment,
+      .homepage-editor-code .token.prolog,
+      .homepage-editor-code .token.doctype,
+      .homepage-editor-code .token.cdata {
+        color: #7c8798;
+      }
+
+      .dark .homepage-editor-code .token.comment,
+      .dark .homepage-editor-code .token.prolog,
+      .dark .homepage-editor-code .token.doctype,
+      .dark .homepage-editor-code .token.cdata {
+        color: #7f8ea3;
+      }
+
+      .homepage-editor-code .token.punctuation {
+        color: #67758a;
+      }
+
+      .dark .homepage-editor-code .token.punctuation {
+        color: #94a3b8;
+      }
+
+      .homepage-editor-code .token.property,
+      .homepage-editor-code .token.tag,
+      .homepage-editor-code .token.constant,
+      .homepage-editor-code .token.symbol,
+      .homepage-editor-code .token.deleted {
+        color: #9f2d56;
+      }
+
+      .dark .homepage-editor-code .token.property,
+      .dark .homepage-editor-code .token.tag,
+      .dark .homepage-editor-code .token.constant,
+      .dark .homepage-editor-code .token.symbol,
+      .dark .homepage-editor-code .token.deleted {
+        color: #f472b6;
+      }
+
+      .homepage-editor-code .token.boolean,
+      .homepage-editor-code .token.number {
+        color: #b45309;
+      }
+
+      .dark .homepage-editor-code .token.boolean,
+      .dark .homepage-editor-code .token.number {
+        color: #fbbf24;
+      }
+
+      .homepage-editor-code .token.selector,
+      .homepage-editor-code .token.attr-name,
+      .homepage-editor-code .token.string,
+      .homepage-editor-code .token.char,
+      .homepage-editor-code .token.builtin,
+      .homepage-editor-code .token.inserted {
+        color: #0f766e;
+      }
+
+      .dark .homepage-editor-code .token.selector,
+      .dark .homepage-editor-code .token.attr-name,
+      .dark .homepage-editor-code .token.string,
+      .dark .homepage-editor-code .token.char,
+      .dark .homepage-editor-code .token.builtin,
+      .dark .homepage-editor-code .token.inserted {
+        color: #5eead4;
+      }
+
+      .homepage-editor-code .token.operator,
+      .homepage-editor-code .token.entity,
+      .homepage-editor-code .token.url,
+      .homepage-editor-code .language-css .token.string,
+      .homepage-editor-code .style .token.string {
+        color: #2563eb;
+      }
+
+      .dark .homepage-editor-code .token.operator,
+      .dark .homepage-editor-code .token.entity,
+      .dark .homepage-editor-code .token.url,
+      .dark .homepage-editor-code .language-css .token.string,
+      .dark .homepage-editor-code .style .token.string {
+        color: #7dd3fc;
+      }
+
+      .homepage-editor-code .token.atrule,
+      .homepage-editor-code .token.attr-value,
+      .homepage-editor-code .token.keyword {
+        color: #7c3aed;
+      }
+
+      .dark .homepage-editor-code .token.atrule,
+      .dark .homepage-editor-code .token.attr-value,
+      .dark .homepage-editor-code .token.keyword {
+        color: #c4b5fd;
+      }
+
+      .homepage-editor-code .token.function,
+      .homepage-editor-code .token.class-name {
+        color: #c2410c;
+      }
+
+      .dark .homepage-editor-code .token.function,
+      .dark .homepage-editor-code .token.class-name {
+        color: #fdba74;
+      }
+
+      .homepage-editor-scroll {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .homepage-editor-scroll::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+      }
+
+      .homepage-editor-highlight,
+      .homepage-editor-textarea {
+        margin: 0;
+        border: 0;
+        box-sizing: border-box;
+        font-family: inherit;
+        font-size: inherit;
+        font-style: inherit;
+        font-variant-ligatures: inherit;
+        font-weight: inherit;
+        letter-spacing: inherit;
+        line-height: inherit;
+        tab-size: 2;
+        text-indent: inherit;
+        text-rendering: inherit;
+        text-transform: inherit;
+      }
+
+      .homepage-editor-highlight {
+        pointer-events: none;
+      }
+
+      .homepage-editor-highlight,
+      .homepage-editor-highlight code {
+        white-space: pre;
+        overflow-wrap: normal;
+        word-break: normal;
+      }
+
+      .homepage-editor-textarea {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        resize: none;
+        background: transparent;
+        overflow: auto;
+        color: transparent !important;
+        -webkit-text-fill-color: transparent !important;
+        text-shadow: none !important;
+        caret-color: #111827 !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .homepage-editor-textarea::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+      }
+
+      .dark .homepage-editor-textarea {
+        caret-color: #f8fafc !important;
+      }
+
+      .homepage-editor-textarea:focus {
+        outline: none;
+      }
+    `}</style>
+  );
+}
+
+function escapeCodeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function detectEditorLanguage(format, fileName = "") {
+  if (format === "yaml") {
+    return "yaml";
+  }
+
+  const normalizedName = fileName.toLowerCase();
+  if (normalizedName.endsWith(".css")) {
+    return "css";
+  }
+
+  if (normalizedName.endsWith(".js") || normalizedName.endsWith(".json")) {
+    return "javascript";
+  }
+
+  return "plain";
+}
+
+function highlightEditorCode(value, language) {
+  if (!value) {
+    return "";
+  }
+
+  if (language === "plain" || !Prism.languages[language]) {
+    return escapeCodeHtml(value);
+  }
+
+  try {
+    return Prism.highlight(value, Prism.languages[language], language);
+  } catch {
+    return escapeCodeHtml(value);
+  }
+}
+
+function CodeEditor({
+  label,
+  value,
+  onChange,
+  language = "plain",
+  placeholder = "",
+  minHeightClassName = "min-h-[16rem]",
+  fillAvailableHeight = false,
+}) {
+  const textareaRef = useRef(null);
+  const highlightRef = useRef(null);
+  const highlightedCode = useMemo(() => highlightEditorCode(value, language), [language, value]);
+
+  const syncScrollPosition = useCallback((source) => {
+    if (!highlightRef.current) {
+      return;
+    }
+
+    highlightRef.current.scrollTop = source.scrollTop;
+    highlightRef.current.scrollLeft = source.scrollLeft;
+  }, []);
+
+  const handleScroll = useCallback(
+    (event) => {
+      syncScrollPosition(event.currentTarget);
+    },
+    [syncScrollPosition],
+  );
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      syncScrollPosition(textareaRef.current);
+    }
+  }, [syncScrollPosition, value]);
+
+  return (
+    <label
+      className={classNames(
+        "min-h-0 text-xs text-theme-600 dark:text-theme-300",
+        fillAvailableHeight ? "flex flex-1 flex-col" : "block",
+      )}
+    >
+      {label}
+      <CodeEditorTheme />
+      <div
+        className={classNames(
+          "homepage-editor-surface mt-1 overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 shadow-sm dark:border-white/10 dark:bg-theme-800",
+          fillAvailableHeight && "flex min-h-0 flex-1 flex-col",
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
+          <span className="font-medium uppercase tracking-[0.18em] opacity-70">{language === "plain" ? "text" : language}</span>
+          <span className="opacity-60">{value.length} симв.</span>
+        </div>
+        <div
+          className={classNames(
+            "homepage-editor-scroll relative overflow-hidden overscroll-contain",
+            fillAvailableHeight ? "min-h-0 flex-1" : "max-h-[min(70vh,42rem)]",
+            minHeightClassName,
+          )}
+          style={{
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            fontSize: 13,
+            lineHeight: "1.5rem",
+          }}
+        >
+          <pre
+            ref={highlightRef}
+            aria-hidden="true"
+            className="homepage-editor-highlight absolute inset-0 overflow-hidden px-3 py-3 text-theme-900 dark:text-theme-100"
+          >
+            {value ? (
+              <code className="homepage-editor-code" dangerouslySetInnerHTML={{ __html: `${highlightedCode}\n` }} />
+            ) : (
+              <code className="homepage-editor-code opacity-40">{placeholder || " "}</code>
+            )}
+          </pre>
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onScroll={handleScroll}
+            className="homepage-editor-textarea selection:bg-theme-300/30 px-3 py-3 dark:selection:bg-white/20"
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            data-gramm="false"
+            placeholder={placeholder}
+          />
+        </div>
+      </div>
+    </label>
+  );
+}
+
 function ServiceCardColorField({ value, itemName, onChange }) {
   const selectedColor = getServiceCardColor(value);
 
@@ -1555,6 +1876,308 @@ async function refreshConfigData(mutate, keys = ["/api/config/editor", "/api/ser
     }
     await mutate("/api/hash", hashData, false);
   }
+}
+
+const EDITOR_WINDOW_MARGIN = 16;
+
+function readStoredEditorWindow(storageKey) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (
+      Number.isFinite(parsed?.left) &&
+      Number.isFinite(parsed?.top) &&
+      Number.isFinite(parsed?.width) &&
+      Number.isFinite(parsed?.height)
+    ) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function writeStoredEditorWindow(storageKey, rect) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(storageKey, JSON.stringify(rect));
+}
+
+function viewportBounds() {
+  if (typeof window === "undefined") {
+    return { width: 1440, height: 900 };
+  }
+
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+function clampEditorWindow(rect, minWidth, minHeight) {
+  const viewport = viewportBounds();
+  const maxWidth = Math.max(minWidth, viewport.width - EDITOR_WINDOW_MARGIN * 2);
+  const maxHeight = Math.max(minHeight, viewport.height - EDITOR_WINDOW_MARGIN * 2);
+  const width = clamp(rect.width, minWidth, maxWidth);
+  const height = clamp(rect.height, minHeight, maxHeight);
+  const left = clamp(rect.left, EDITOR_WINDOW_MARGIN, viewport.width - width - EDITOR_WINDOW_MARGIN);
+  const top = clamp(rect.top, EDITOR_WINDOW_MARGIN, viewport.height - height - EDITOR_WINDOW_MARGIN);
+
+  return { left, top, width, height };
+}
+
+function centeredEditorWindow(defaultWidth, defaultHeight, minWidth, minHeight) {
+  const viewport = viewportBounds();
+  const width = Math.min(defaultWidth, viewport.width - EDITOR_WINDOW_MARGIN * 2);
+  const height = Math.min(defaultHeight, viewport.height - EDITOR_WINDOW_MARGIN * 2);
+
+  return clampEditorWindow(
+    {
+      left: Math.round((viewport.width - width) / 2),
+      top: Math.round((viewport.height - height) / 2),
+      width,
+      height,
+    },
+    minWidth,
+    minHeight,
+  );
+}
+
+function anchoredEditorWindow(anchorRef, defaultWidth, defaultHeight, minWidth, minHeight) {
+  const anchorRect = anchorRef?.current?.getBoundingClientRect?.();
+  if (!anchorRect) {
+    return centeredEditorWindow(defaultWidth, defaultHeight, minWidth, minHeight);
+  }
+
+  return clampEditorWindow(
+    {
+      left: anchorRect.left,
+      top: Math.max(EDITOR_WINDOW_MARGIN, anchorRect.bottom + 12),
+      width: defaultWidth,
+      height: defaultHeight,
+    },
+    minWidth,
+    minHeight,
+  );
+}
+
+function useEditorWindow({
+  storageKey,
+  defaultWidth,
+  defaultHeight,
+  minWidth = 360,
+  minHeight = 240,
+  anchorRef = null,
+}) {
+  const panelRef = useRef(null);
+  const dragRef = useRef(null);
+  const [windowRect, setWindowRect] = useState(null);
+
+  const getInitialRect = useCallback(() => {
+    const stored = readStoredEditorWindow(storageKey);
+    if (stored) {
+      return clampEditorWindow(stored, minWidth, minHeight);
+    }
+
+    return anchorRef
+      ? anchoredEditorWindow(anchorRef, defaultWidth, defaultHeight, minWidth, minHeight)
+      : centeredEditorWindow(defaultWidth, defaultHeight, minWidth, minHeight);
+  }, [anchorRef, defaultHeight, defaultWidth, minHeight, minWidth, storageKey]);
+
+  useLayoutEffect(() => {
+    setWindowRect(getInitialRect());
+  }, [getInitialRect]);
+
+  useEffect(() => {
+    if (!windowRect) {
+      return;
+    }
+
+    writeStoredEditorWindow(storageKey, windowRect);
+  }, [storageKey, windowRect]);
+
+  useEffect(() => {
+    if (!windowRect || typeof window === "undefined") {
+      return;
+    }
+
+    function handleViewportResize() {
+      setWindowRect((current) => (current ? clampEditorWindow(current, minWidth, minHeight) : current));
+    }
+
+    window.addEventListener("resize", handleViewportResize);
+    return () => window.removeEventListener("resize", handleViewportResize);
+  }, [minHeight, minWidth, windowRect]);
+
+  useEffect(() => {
+    if (!panelRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = Math.round(entry.contentRect.width);
+      const nextHeight = Math.round(entry.contentRect.height);
+
+      setWindowRect((current) => {
+        if (!current) {
+          return current;
+        }
+
+        if (current.width === nextWidth && current.height === nextHeight) {
+          return current;
+        }
+
+        return clampEditorWindow(
+          {
+            ...current,
+            width: nextWidth,
+            height: nextHeight,
+          },
+          minWidth,
+          minHeight,
+        );
+      });
+    });
+
+    observer.observe(panelRef.current);
+    return () => observer.disconnect();
+  }, [minHeight, minWidth]);
+
+  useEffect(() => {
+    if (!windowRect || typeof window === "undefined") {
+      return;
+    }
+
+    function handlePointerMove(event) {
+      if (!dragRef.current) {
+        return;
+      }
+
+      setWindowRect((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return clampEditorWindow(
+          {
+            ...current,
+            left: dragRef.current.left + event.clientX - dragRef.current.startX,
+            top: dragRef.current.top + event.clientY - dragRef.current.startY,
+          },
+          minWidth,
+          minHeight,
+        );
+      });
+    }
+
+    function handlePointerUp() {
+      dragRef.current = null;
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [minHeight, minWidth, windowRect]);
+
+  const handleDragStart = useCallback(
+    (event) => {
+      if (event.button !== 0 || !windowRect) {
+        return;
+      }
+
+      if (event.target.closest("button, input, textarea, select, label, a, [data-no-drag='true']")) {
+        return;
+      }
+
+      dragRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        left: windowRect.left,
+        top: windowRect.top,
+      };
+    },
+    [windowRect],
+  );
+
+  return {
+    panelRef,
+    windowRect,
+    handleDragStart,
+  };
+}
+
+function EditorWindow({
+  storageKey,
+  title,
+  onClose,
+  children,
+  headerActions = null,
+  defaultWidth,
+  defaultHeight,
+  minWidth = 360,
+  minHeight = 240,
+  anchorRef = null,
+  bodyClassName = "",
+}) {
+  const { panelRef, windowRect, handleDragStart } = useEditorWindow({
+    storageKey,
+    defaultWidth,
+    defaultHeight,
+    minWidth,
+    minHeight,
+    anchorRef,
+  });
+
+  if (!windowRect) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <div
+        ref={panelRef}
+        style={{
+          left: `${windowRect.left}px`,
+          top: `${windowRect.top}px`,
+          width: `${windowRect.width}px`,
+          height: `${windowRect.height}px`,
+        }}
+        className="fixed z-[61] flex resize overflow-auto rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            onPointerDown={handleDragStart}
+            className="flex cursor-move select-none items-center justify-between gap-3 border-b border-theme-300/40 px-4 py-3 dark:border-white/10"
+          >
+            <h2 className="text-lg font-semibold">{title}</h2>
+            <div className="flex items-center gap-2" data-no-drag="true">
+              {headerActions}
+              <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
+                Закрыть
+              </button>
+            </div>
+          </div>
+          <div className={classNames("flex min-h-0 flex-1 flex-col p-4", bodyClassName)}>{children}</div>
+        </div>
+        <div className="pointer-events-none absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-theme-400/70 opacity-40 dark:border-white/30" />
+      </div>
+    </div>
+  );
 }
 
 function ItemModal({ modal, data, onClose, onSaved }) {
@@ -1688,109 +2311,104 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
-      <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}</h2>
-          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Закрыть
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <Field label="Имя" value={name} onChange={setName} />
-          {modal.type === "services" && (
-            <ServiceCardColorField
-              value={form.fields.id ?? ""}
-              itemName={name}
+    <EditorWindow
+      storageKey={`homepage-browser-editor-window-item-${modal.type}`}
+      title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
+      onClose={onClose}
+      defaultWidth={840}
+      defaultHeight={760}
+      minWidth={620}
+      minHeight={420}
+    >
+      <div className="space-y-3">
+        <Field label="Имя" value={name} onChange={setName} />
+        {modal.type === "services" && (
+          <ServiceCardColorField
+            value={form.fields.id ?? ""}
+            itemName={name}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  id: value,
+                },
+              }))
+            }
+          />
+        )}
+        <div className="grid gap-3 md:grid-cols-2">
+          {typeFields.map(([key, label]) => (
+            <Field
+              key={key}
+              label={label}
+              value={form.fields[key] ?? ""}
               onChange={(value) =>
                 setForm((current) => ({
                   ...current,
                   fields: {
                     ...current.fields,
-                    id: value,
+                    [key]: value,
                   },
                 }))
               }
             />
-          )}
-          <div className="grid gap-3 md:grid-cols-2">
-            {typeFields.map(([key, label]) => (
-              <Field
-                key={key}
-                label={label}
-                value={form.fields[key] ?? ""}
-                onChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    fields: {
-                      ...current.fields,
-                      [key]: value,
-                    },
-                  }))
-                }
-              />
-            ))}
-          </div>
-          <label className="block text-xs text-theme-600 dark:text-theme-300">
-            Расширенный YAML
-            <textarea
-              value={form.extraYaml}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  extraYaml: event.target.value,
-                }))
-              }
-              rows={modal.type === "services" ? 9 : 4}
-              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 font-mono text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-              placeholder={modal.type === "services" ? "widget:\n  type: customapi\n  url: http://example.local" : ""}
-            />
-          </label>
+          ))}
         </div>
-
-        {error && (
-          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-wrap justify-between gap-2">
-          <div>
-            {modal.mode === "edit" && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={saving}
-                className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
-              >
-                Удалить
-              </button>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-          >
-            {saving ? "Сохранение..." : "Сохранить"}
-          </button>
-        </div>
+        <CodeEditor
+          label="Расширенный YAML"
+          language="yaml"
+          value={form.extraYaml}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              extraYaml: value,
+            }))
+          }
+          minHeightClassName={modal.type === "services" ? "min-h-[16rem]" : "min-h-[10rem]"}
+          placeholder={modal.type === "services" ? "widget:\n  type: customapi\n  url: http://example.local" : ""}
+        />
       </div>
-    </div>
+
+      {error && (
+        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap justify-between gap-2">
+        <div>
+          {modal.mode === "edit" && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={saving}
+              className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
+            >
+              Удалить
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        >
+          {saving ? "Сохранение..." : "Сохранить"}
+        </button>
+      </div>
+    </EditorWindow>
   );
 }
 
 function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const fileInputRef = useRef(null);
-  const panelRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [backgroundValue, setBackgroundValue] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
-  const [position, setPosition] = useState(null);
   const currentBackground =
     typeof settings?.background === "string" ? settings.background : settings?.background?.image;
 
@@ -1872,138 +2490,233 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
     saveUploadedFile(nextFile);
   }
 
-  useEffect(() => {
-    function handlePointerDown(event) {
-      if (!panelRef.current?.contains(event.target)) {
-        onClose();
-      }
-    }
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [onClose]);
-
-  useLayoutEffect(() => {
-    function updatePosition() {
-      const panel = panelRef.current;
-      if (!panel || typeof window === "undefined") {
-        return;
-      }
-
-      const margin = 12;
-      const gap = 10;
-      const panelRect = panel.getBoundingClientRect();
-      const panelWidth = panelRect.width || panel.offsetWidth || 416;
-      const panelHeight = panelRect.height || panel.offsetHeight || 220;
-      const maxLeft = Math.max(margin, window.innerWidth - panelWidth - margin);
-      const maxTop = Math.max(margin, window.innerHeight - panelHeight - margin);
-      const anchorRect = anchorRef?.current?.getBoundingClientRect?.() ?? null;
-
-      if (!anchorRect) {
-        setPosition({
-          left: clamp(20, margin, maxLeft),
-          top: clamp(window.innerHeight - panelHeight - 76, margin, maxTop),
-        });
-        return;
-      }
-
-      const preferredLeft = clamp(anchorRect.left, margin, maxLeft);
-      const aboveTop = anchorRect.top - panelHeight - gap;
-      const belowTop = anchorRect.bottom + gap;
-      const preferredTop = aboveTop >= margin ? aboveTop : belowTop;
-
-      setPosition({
-        left: preferredLeft,
-        top: clamp(preferredTop, margin, maxTop),
-      });
-    }
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [anchorRef]);
-
-  const modalStyle = position
-    ? {
-        left: `${position.left}px`,
-        top: `${position.top}px`,
-      }
-    : {
-        left: "20px",
-        bottom: "76px",
-      };
-
   return (
-    <div className="fixed inset-0 z-[60] pointer-events-none">
-      <div
-        ref={panelRef}
-        style={modalStyle}
-        className="pointer-events-auto fixed z-[61] w-[min(26rem,calc(100vw-1.5rem))] rounded-md border border-theme-300/50 bg-theme-50/95 p-4 text-theme-900 shadow-xl backdrop-blur-sm dark:border-white/10 dark:bg-theme-800/95 dark:text-theme-100"
-      >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Фон</h2>
-          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Закрыть
-          </button>
-        </div>
-        <label className="mb-3 block text-xs text-theme-600 dark:text-theme-300">
-          Путь или URL фона
-          <div className="mt-1 flex items-center gap-3">
-            <input
-              type="text"
-              value={backgroundValue}
-              onChange={(event) => setBackgroundValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  saveBackgroundPath();
-                }
-              }}
-              placeholder={currentBackground || "/images/background.jpg"}
-              disabled={saving}
-              className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-            />
-            <button
-              type="button"
-              onClick={saveBackgroundPath}
-              disabled={saving}
-              className="shrink-0 rounded-md border border-theme-400/60 px-3 py-2 text-sm disabled:opacity-60"
-            >
-              Применить
-            </button>
-          </div>
-        </label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <div className="flex items-center justify-between gap-3">
+    <EditorWindow
+      storageKey="homepage-browser-editor-window-background"
+      title="Фон"
+      onClose={onClose}
+      defaultWidth={460}
+      defaultHeight={340}
+      minWidth={420}
+      minHeight={260}
+      anchorRef={anchorRef}
+    >
+      <label className="mb-3 block text-xs text-theme-600 dark:text-theme-300">
+        Путь или URL фона
+        <div className="mt-1 flex items-center gap-3">
+          <input
+            type="text"
+            value={backgroundValue}
+            onChange={(event) => setBackgroundValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveBackgroundPath();
+              }
+            }}
+            placeholder={currentBackground || "/images/background.jpg"}
+            disabled={saving}
+            className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+          />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={saveBackgroundPath}
             disabled={saving}
-            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+            className="shrink-0 rounded-md border border-theme-400/60 px-3 py-2 text-sm disabled:opacity-60"
           >
-            Выбрать
+            Применить
           </button>
-          <div className="min-w-0 flex-1 text-right text-sm text-theme-700 dark:text-theme-200">
-            {saving ? (selectedFileName ? `Загрузка ${selectedFileName}...` : "Загрузка...") : selectedFileName || " "}
-          </div>
         </div>
+      </label>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        >
+          Выбрать
+        </button>
+        <div className="min-w-0 flex-1 text-right text-sm text-theme-700 dark:text-theme-200">
+          {saving ? (selectedFileName ? `Загрузка ${selectedFileName}...` : "Загрузка...") : selectedFileName || " "}
+        </div>
+      </div>
+      {error && (
+        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+          {error}
+        </div>
+      )}
+    </EditorWindow>
+  );
+}
+
+function ConfigFilesModal({ tabs, onClose, onSaved }) {
+  const { mutate } = useSWRConfig();
+  const { setSettings } = useContext(SettingsContext);
+  const [activeFileName, setActiveFileName] = useState(tabs?.[0]?.fileName ?? "");
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]));
+    setDrafts(nextDrafts);
+  }, [tabs]);
+
+  useEffect(() => {
+    if (!tabs?.some((tab) => tab.fileName === activeFileName)) {
+      setActiveFileName(tabs?.[0]?.fileName ?? "");
+    }
+  }, [activeFileName, tabs]);
+
+  const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? tabs?.[0] ?? null;
+  const activeContent = activeTab ? drafts[activeTab.fileName] ?? activeTab.content ?? "" : "";
+  const activeLanguage = detectEditorLanguage(activeTab?.format, activeTab?.fileName);
+
+  async function handleSave() {
+    if (!activeTab) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/config/editor", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: activeTab.fileName,
+          content: activeContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const nextData = await response.json();
+      if (nextData?.settings) {
+        setSettings(nextData.settings);
+      }
+
+      setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
+      await refreshConfigData(mutate, ["/api/config/editor"]);
+      onSaved(`Сохранено: ${activeTab.label}`);
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <EditorWindow
+      storageKey="homepage-browser-editor-window-settings"
+      title="Настройки"
+      onClose={onClose}
+      defaultWidth={1120}
+      defaultHeight={780}
+      minWidth={760}
+      minHeight={520}
+      headerActions={
+        activeTab ? (
+          <div className="rounded-full border border-theme-300/50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-theme-700 dark:border-white/10 dark:text-theme-200">
+            {activeLanguage === "plain" ? "TEXT" : activeLanguage}
+          </div>
+        ) : null
+      }
+    >
+      <p className="mb-4 text-sm text-theme-600 dark:text-theme-300">
+        Файлы из `config`-папки, для которых пока нет отдельной формы в редакторе.
+      </p>
+
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max gap-2 pb-1">
+          {(tabs ?? []).map((tab) => (
+            <button
+              key={tab.fileName}
+              type="button"
+              onClick={() => setActiveFileName(tab.fileName)}
+              className={classNames(
+                "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+                activeTab?.fileName === tab.fileName
+                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+              )}
+            >
+              <div className="truncate text-sm font-semibold leading-5">{tab.label}</div>
+              <div className="truncate opacity-70">{tab.fileName}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border border-theme-300/40 p-4 dark:border-white/10">
+        {activeTab ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">{activeTab.label}</div>
+                <div className="text-xs text-theme-600 dark:text-theme-300">{activeTab.fileName}</div>
+              </div>
+              <div className="rounded-full border border-theme-300/50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-theme-700 dark:border-white/10 dark:text-theme-200">
+                {activeTab.format === "yaml" ? "YAML" : "Текст"}
+              </div>
+            </div>
+
+            <CodeEditor
+              label="Содержимое файла"
+              language={activeLanguage}
+              value={activeContent}
+              onChange={(value) =>
+                setDrafts((current) => ({
+                  ...current,
+                  [activeTab.fileName]: value,
+                }))
+              }
+              minHeightClassName="min-h-0"
+              fillAvailableHeight
+              placeholder={activeTab.fileName}
+            />
+
+            <p className="mt-3 shrink-0 text-xs text-theme-600 dark:text-theme-300">
+              Для YAML сохраняется исходный текст файла. Ошибки синтаксиса блокируют сохранение.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
+            В config-папке пока нет дополнительных файлов для редактирования.
+          </div>
+        )}
+
         {error && (
           <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
             {error}
           </div>
         )}
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!activeTab || saving}
+            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+          >
+            {saving ? "Сохранение..." : "Сохранить"}
+          </button>
+        </div>
       </div>
-    </div>
+    </EditorWindow>
   );
 }
 
@@ -2083,191 +2796,190 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-3 sm:p-6">
-      <div className="mx-auto max-w-2xl rounded-md bg-theme-50 p-4 text-theme-900 shadow-xl dark:bg-theme-800 dark:text-theme-100">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">{modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}</h2>
-          <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
-            Закрыть
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {modal.mode === "new" && (
-            <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-              <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setGroupType("services")}
-                  aria-pressed={groupType === "services"}
-                  className={quickLayoutButtonClass(groupType === "services")}
-                >
-                  Сервисы
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGroupType("bookmarks")}
-                  aria-pressed={groupType === "bookmarks"}
-                  className={quickLayoutButtonClass(groupType === "bookmarks")}
-                >
-                  Закладки
-                </button>
-              </div>
-            </div>
-          )}
-          <Field label="Имя группы" value={name} onChange={setName} />
+    <EditorWindow
+      storageKey={`homepage-browser-editor-window-group-${modal.mode === "edit" ? "edit" : "new"}`}
+      title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
+      onClose={onClose}
+      defaultWidth={900}
+      defaultHeight={780}
+      minWidth={660}
+      minHeight={460}
+    >
+      <div className="space-y-3">
+        {modal.mode === "new" && (
           <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
+            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    columns: "",
-                    style: "",
-                  }))
-                }
-                aria-pressed={isVertical}
-                className={quickLayoutButtonClass(isVertical)}
+                onClick={() => setGroupType("services")}
+                aria-pressed={groupType === "services"}
+                className={quickLayoutButtonClass(groupType === "services")}
               >
-                Вертикально
+                Сервисы
               </button>
               <button
+                type="button"
+                onClick={() => setGroupType("bookmarks")}
+                aria-pressed={groupType === "bookmarks"}
+                className={quickLayoutButtonClass(groupType === "bookmarks")}
+              >
+                Закладки
+              </button>
+            </div>
+          </div>
+        )}
+        <Field label="Имя группы" value={name} onChange={setName} />
+        <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
+          <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setForm((current) => ({
+                  ...current,
+                  columns: "",
+                  style: "",
+                }))
+              }
+              aria-pressed={isVertical}
+              className={quickLayoutButtonClass(isVertical)}
+            >
+              Вертикально
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setForm((current) => ({
+                  ...current,
+                  columns: current.columns || "3",
+                  style: "row",
+                }))
+              }
+              aria-pressed={!isVertical}
+              className={quickLayoutButtonClass(!isVertical)}
+            >
+              Горизонтально
+            </button>
+            {[2, 3, 4, 5].map((columns) => (
+              <button
+                key={columns}
                 type="button"
                 onClick={() =>
                   setForm((current) => ({
                     ...current,
-                    columns: current.columns || "3",
+                    columns: String(columns),
                     style: "row",
                   }))
                 }
-                aria-pressed={!isVertical}
-                className={quickLayoutButtonClass(!isVertical)}
+                aria-pressed={!isVertical && currentColumns === String(columns)}
+                className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
               >
-                Горизонтально
+                {columns} колонки
               </button>
-              {[2, 3, 4, 5].map((columns) => (
-                <button
-                  key={columns}
-                  type="button"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      columns: String(columns),
-                      style: "row",
-                    }))
-                  }
-                  aria-pressed={!isVertical && currentColumns === String(columns)}
-                  className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
-                >
-                  {columns} колонки
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    header: current.header === "false" ? "true" : "false",
-                  }))
-                }
-                aria-pressed={headerHidden}
-                className={quickLayoutButtonClass(headerHidden)}
-              >
-                Переключить заголовок
-              </button>
-            </div>
-            {groupType === "services" && (
-              <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
-                <input
-                  type="checkbox"
-                  checked={alignRowHeights}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      alignRowHeights: event.target.checked ? "true" : "false",
-                    }))
-                  }
-                  className="h-4 w-4"
-                />
-                Выравнивать высоту карточек в одной строке
-              </label>
-            )}
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field
-              label="Стиль"
-              value={form.style}
-              onChange={(value) => setForm((current) => ({ ...current, style: value }))}
-            />
-            <Field
-              label="Колонки"
-              value={form.columns}
-              onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
-            />
-            <Field
-              label="Заголовок"
-              value={form.header}
-              onChange={(value) => setForm((current) => ({ ...current, header: value }))}
-            />
-            <Field
-              label="Вкладка"
-              value={form.tab}
-              onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
-            />
-            <Field
-              label="Иконка"
-              value={form.icon}
-              onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
-            />
-            <Field
-              label="Свернута изначально"
-              value={form.initiallyCollapsed}
-              onChange={(value) =>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
                 setForm((current) => ({
                   ...current,
-                  initiallyCollapsed: value,
+                  header: current.header === "false" ? "true" : "false",
                 }))
               }
-            />
+              aria-pressed={headerHidden}
+              className={quickLayoutButtonClass(headerHidden)}
+            >
+              Переключить заголовок
+            </button>
           </div>
-          <p className="text-xs text-theme-600 dark:text-theme-300">
-            Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
-          </p>
+          {groupType === "services" && (
+            <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
+              <input
+                type="checkbox"
+                checked={alignRowHeights}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    alignRowHeights: event.target.checked ? "true" : "false",
+                  }))
+                }
+                className="h-4 w-4"
+              />
+              Выравнивать высоту карточек в одной строке
+            </label>
+          )}
         </div>
-
-        {error && (
-          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-wrap justify-between gap-2">
-          <div>
-            {modal.mode === "edit" && (
-              <button
-                type="button"
-                onClick={() => saveGroup("delete")}
-                disabled={saving}
-                className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
-              >
-                Удалить группу
-              </button>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => saveGroup()}
-            disabled={saving}
-            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-          >
-            {saving ? "Сохранение..." : "Сохранить"}
-          </button>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field
+            label="Стиль"
+            value={form.style}
+            onChange={(value) => setForm((current) => ({ ...current, style: value }))}
+          />
+          <Field
+            label="Колонки"
+            value={form.columns}
+            onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
+          />
+          <Field
+            label="Заголовок"
+            value={form.header}
+            onChange={(value) => setForm((current) => ({ ...current, header: value }))}
+          />
+          <Field
+            label="Вкладка"
+            value={form.tab}
+            onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
+          />
+          <Field
+            label="Иконка"
+            value={form.icon}
+            onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
+          />
+          <Field
+            label="Свернута изначально"
+            value={form.initiallyCollapsed}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                initiallyCollapsed: value,
+              }))
+            }
+          />
         </div>
+        <p className="text-xs text-theme-600 dark:text-theme-300">
+          Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
+        </p>
       </div>
-    </div>
+
+      {error && (
+        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap justify-between gap-2">
+        <div>
+          {modal.mode === "edit" && (
+            <button
+              type="button"
+              onClick={() => saveGroup("delete")}
+              disabled={saving}
+              className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
+            >
+              Удалить группу
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => saveGroup()}
+          disabled={saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        >
+          {saving ? "Сохранение..." : "Сохранить"}
+        </button>
+      </div>
+    </EditorWindow>
   );
 }
 
@@ -2946,6 +3658,9 @@ export function ConfigEditorProvider({ children }) {
           <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
             Группа
           </button>
+          <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
+            Настройки
+          </button>
         </div>
       ) : (
         <div className="fixed bottom-0 left-0 z-50 h-36 w-36">
@@ -2988,10 +3703,13 @@ export function ConfigEditorProvider({ children }) {
           onSaved={handleSaved}
         />
       )}
+      {modal?.type === "settings-tabs" && (
+        <ConfigFilesModal tabs={data?.settingsTabs ?? []} onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
-      {modal?.type !== "background" && modal?.scope !== "group" && modal && data && (
+      {modal?.type !== "background" && modal?.type !== "settings-tabs" && modal?.scope !== "group" && modal && data && (
         <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
     </ConfigEditorContext.Provider>

@@ -893,6 +893,10 @@ fix_target_ownership() {
   paths=(
     "$TARGET/.env.local"
     "$TARGET/.next"
+    "$TARGET/package.json"
+    "$TARGET/pnpm-lock.yaml"
+    "$TARGET/package-lock.json"
+    "$TARGET/yarn.lock"
     "$TARGET/src/mods/browser-editor"
     "$TARGET/src/pages/api/config/background.js"
     "$TARGET/src/pages/api/config/editor.js"
@@ -909,6 +913,51 @@ fix_target_ownership() {
       chown -R "$owner:$group" "$path"
     fi
   done
+}
+
+ensure_target_dependencies() {
+  [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]] || return 0
+  [[ -f "$TARGET/package.json" ]] || return 0
+  local dependency="" missing=0
+
+  for dependency in prismjs react-simple-code-editor; do
+    grep -Fq "\"$dependency\"" "$TARGET/package.json" || continue
+    if ! run_in_target node -e "require.resolve('$dependency/package.json')" >/dev/null 2>&1; then
+      missing=1
+      break
+    fi
+  done
+
+  [[ "$missing" -eq 1 ]] || return 0
+
+  log "Installing missing target dependencies in $TARGET"
+
+  if [[ -f "$TARGET/pnpm-lock.yaml" && "$(command -v pnpm || true)" ]]; then
+    run_in_target pnpm install --no-frozen-lockfile
+    return 0
+  fi
+
+  if [[ -f "$TARGET/package-lock.json" && "$(command -v npm || true)" ]]; then
+    run_in_target npm install
+    return 0
+  fi
+
+  if [[ -f "$TARGET/yarn.lock" && "$(command -v yarn || true)" ]]; then
+    run_in_target yarn install
+    return 0
+  fi
+
+  if command -v pnpm >/dev/null 2>&1; then
+    run_in_target pnpm install --no-frozen-lockfile
+    return 0
+  fi
+
+  if command -v npm >/dev/null 2>&1; then
+    run_in_target npm install
+    return 0
+  fi
+
+  die "No supported package manager found to install missing target dependencies."
 }
 
 build_target() {
@@ -1069,6 +1118,7 @@ main() {
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
   fi
+  ensure_target_dependencies
   build_target
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
