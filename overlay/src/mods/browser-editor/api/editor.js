@@ -15,13 +15,15 @@ const editableFiles = {
 };
 
 const settingsTabFiles = [
-  { id: "widgets", fileName: "widgets.yaml", format: "yaml", label: "Настройка виджетов" },
   { id: "settings", fileName: "settings.yaml", format: "yaml", label: "Настройки" },
+  { id: "widgets", fileName: "widgets.yaml", format: "yaml", label: "Виджеты" },
   { id: "docker", fileName: "docker.yaml", format: "yaml", label: "Докеры" },
   { id: "kubernetes", fileName: "kubernetes.yaml", format: "yaml", label: "Kubernetes" },
   { id: "proxmox", fileName: "proxmox.yaml", format: "yaml", label: "Proxmox" },
   { id: "custom-css", fileName: "custom.css", format: "text", label: "CSS" },
   { id: "custom-js", fileName: "custom.js", format: "text", label: "JavaScript" },
+  { id: "services", fileName: "services.yaml", format: "yaml", label: "Сервисы" },
+  { id: "bookmarks", fileName: "bookmarks.yaml", format: "yaml", label: "Закладки" },
 ];
 
 const settingsTabFilesByName = new Map(settingsTabFiles.map((file) => [file.fileName, file]));

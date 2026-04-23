@@ -41,6 +41,9 @@ const toolbarPrimaryButtonClassName =
 const JSON_DRAG_TYPE = "application/json";
 const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
 const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
+const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
+const CODE_EDITOR_MIN_ZOOM = 1;
+const CODE_EDITOR_MAX_ZOOM = 500;
 
 let activeDragPayload = null;
 
@@ -60,7 +63,12 @@ const serviceFields = [
   ["proxmoxType", "Тип Proxmox"],
 ];
 
+const collapsedServiceFieldKeys = new Set(["id", "description", "abbr", "target", "weight", "ping", "siteMonitor", "showStats"]);
+const collapsedBookmarkFieldKeys = new Set(["id", "description", "abbr", "target"]);
+const BOOKMARK_YAML_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom-item-bookmarks";
+
 const bookmarkFields = [
+  ["id", "ID"],
   ["href", "URL"],
   ["icon", "Иконка"],
   ["description", "Описание"],
@@ -1500,15 +1508,18 @@ function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, pl
   };
 }
 
-function Field({ label, value, onChange }) {
+function Field({ label, value, onChange, compact = false }) {
   return (
-    <label className="block text-xs text-theme-600 dark:text-theme-300">
+    <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
       {label}
       <input
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+        className={classNames(
+          "mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100",
+          compact ? "px-2 py-1 text-[13px]" : "px-2 py-1 text-sm",
+        )}
       />
     </label>
   );
@@ -1690,6 +1701,7 @@ function CodeEditorTheme() {
       .homepage-editor-textarea:focus {
         outline: none;
       }
+
     `}</style>
   );
 }
@@ -1742,10 +1754,23 @@ function CodeEditor({
   placeholder = "",
   minHeightClassName = "min-h-[16rem]",
   fillAvailableHeight = false,
+  zoomStorageKey = CODE_EDITOR_ZOOM_STORAGE_KEY,
 }) {
   const textareaRef = useRef(null);
   const highlightRef = useRef(null);
+  const [zoom, setZoom] = useState(() => {
+    if (typeof window === "undefined" || !zoomStorageKey) {
+      return 100;
+    }
+
+    const stored = Number.parseInt(window.localStorage.getItem(zoomStorageKey) ?? "", 10);
+    return Number.isFinite(stored) ? Math.min(CODE_EDITOR_MAX_ZOOM, Math.max(CODE_EDITOR_MIN_ZOOM, stored)) : 100;
+  });
   const highlightedCode = useMemo(() => highlightEditorCode(value, language), [language, value]);
+  const editorFontSize = Math.round((13 * zoom) / 100 * 100) / 100;
+  const editorLineHeight = `${Math.round((24 * zoom) / 100 * 100) / 100}px`;
+  const zoomDecreaseStep = zoom <= 10 ? 1 : 10;
+  const zoomIncreaseStep = zoom < 10 ? 1 : 10;
 
   const syncScrollPosition = useCallback((source) => {
     if (!highlightRef.current) {
@@ -1769,6 +1794,14 @@ function CodeEditor({
     }
   }, [syncScrollPosition, value]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !zoomStorageKey) {
+      return;
+    }
+
+    window.localStorage.setItem(zoomStorageKey, String(zoom));
+  }, [zoom, zoomStorageKey]);
+
   return (
     <label
       className={classNames(
@@ -1784,21 +1817,44 @@ function CodeEditor({
           fillAvailableHeight && "flex min-h-0 flex-1 flex-col",
         )}
       >
-        <div className="flex items-center justify-between border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
+        <div className="flex items-center justify-between gap-3 border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
           <span className="font-medium uppercase tracking-[0.18em] opacity-70">{language === "plain" ? "text" : language}</span>
-          <span className="opacity-60">{value.length} симв.</span>
+          <div className="flex items-center gap-2">
+            <span className="opacity-60">{value.length} симв.</span>
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.max(CODE_EDITOR_MIN_ZOOM, current - zoomDecreaseStep))}
+              className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10"
+            >
+              A-
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(100)}
+              className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10"
+            >
+              {zoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.min(CODE_EDITOR_MAX_ZOOM, current + zoomIncreaseStep))}
+              className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10"
+            >
+              A+
+            </button>
+          </div>
         </div>
         <div
           className={classNames(
             "homepage-editor-scroll relative overflow-hidden overscroll-contain",
-            fillAvailableHeight ? "min-h-0 flex-1" : "max-h-[min(70vh,42rem)]",
+            fillAvailableHeight ? "flex-1" : "max-h-[min(70vh,42rem)]",
             minHeightClassName,
           )}
           style={{
             fontFamily:
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            fontSize: 13,
-            lineHeight: "1.5rem",
+            fontSize: editorFontSize,
+            lineHeight: editorLineHeight,
           }}
         >
           <pre
@@ -1851,7 +1907,8 @@ function ServiceCardColorField({ value, itemName, onChange }) {
               onClick={() => onChange(buildServiceCardId(value, itemName, colorValue))}
               className={classNames(
                 "flex h-7 w-7 items-center justify-center rounded border border-theme-400/50 bg-theme-200/40 shadow-sm transition-[transform,box-shadow,border-color] hover:scale-110 hover:border-theme-700 hover:shadow-md focus:outline-hidden focus:ring-2 focus:ring-theme-600 dark:border-white/20 dark:bg-white/5 dark:hover:border-white/50 dark:focus:ring-theme-200",
-                selected && "scale-105 border-theme-800 ring-2 ring-theme-700 dark:border-white dark:ring-theme-100",
+                selected &&
+                  "scale-110 border-theme-950 shadow-lg ring-2 ring-theme-700 ring-offset-2 ring-offset-theme-50 dark:border-white dark:ring-theme-100 dark:ring-offset-theme-900",
               )}
               style={optionSwatch ? { backgroundColor: optionSwatch } : undefined}
             >
@@ -1938,6 +1995,73 @@ function clampEditorWindow(rect, minWidth, minHeight) {
   return { left, top, width, height };
 }
 
+function resizeEditorWindow(rect, deltaX, deltaY, directions, minWidth, minHeight) {
+  const viewport = viewportBounds();
+  const startLeft = rect.left;
+  const startTop = rect.top;
+  const startRight = rect.left + rect.width;
+  const startBottom = rect.top + rect.height;
+
+  let nextLeft = startLeft;
+  let nextTop = startTop;
+  let nextRight = startRight;
+  let nextBottom = startBottom;
+
+  if (directions.includes("left")) {
+    nextLeft = clamp(startLeft + deltaX, EDITOR_WINDOW_MARGIN, startRight - minWidth);
+  }
+
+  if (directions.includes("right")) {
+    nextRight = clamp(startRight + deltaX, startLeft + minWidth, viewport.width - EDITOR_WINDOW_MARGIN);
+  }
+
+  if (directions.includes("top")) {
+    nextTop = clamp(startTop + deltaY, EDITOR_WINDOW_MARGIN, startBottom - minHeight);
+  }
+
+  if (directions.includes("bottom")) {
+    nextBottom = clamp(startBottom + deltaY, startTop + minHeight, viewport.height - EDITOR_WINDOW_MARGIN);
+  }
+
+  return clampEditorWindow(
+    {
+      left: nextLeft,
+      top: nextTop,
+      width: nextRight - nextLeft,
+      height: nextBottom - nextTop,
+    },
+    minWidth,
+    minHeight,
+  );
+}
+
+function resizeCursorForDirections(directions) {
+  const hasLeftOrRight = directions.includes("left") || directions.includes("right");
+  const hasTopOrBottom = directions.includes("top") || directions.includes("bottom");
+
+  if (hasLeftOrRight && hasTopOrBottom) {
+    return directions.includes("left") ? "nesw-resize" : "nwse-resize";
+  }
+
+  if (hasLeftOrRight) {
+    return "ew-resize";
+  }
+
+  if (hasTopOrBottom) {
+    return "ns-resize";
+  }
+
+  return "";
+}
+
+function setGlobalResizeCursor(cursor) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.body.style.cursor = cursor || "";
+}
+
 function centeredEditorWindow(defaultWidth, defaultHeight, minWidth, minHeight) {
   const viewport = viewportBounds();
   const width = Math.min(defaultWidth, viewport.width - EDITOR_WINDOW_MARGIN * 2);
@@ -1983,6 +2107,7 @@ function useEditorWindow({
 }) {
   const panelRef = useRef(null);
   const dragRef = useRef(null);
+  const resizeRef = useRef(null);
   const [windowRect, setWindowRect] = useState(null);
 
   const getInitialRect = useCallback(() => {
@@ -2009,6 +2134,10 @@ function useEditorWindow({
   }, [storageKey, windowRect]);
 
   useEffect(() => {
+    setWindowRect((current) => (current ? clampEditorWindow(current, minWidth, minHeight) : current));
+  }, [minHeight, minWidth]);
+
+  useEffect(() => {
     if (!windowRect || typeof window === "undefined") {
       return;
     }
@@ -2022,59 +2151,32 @@ function useEditorWindow({
   }, [minHeight, minWidth, windowRect]);
 
   useEffect(() => {
-    if (!panelRef.current || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(([entry]) => {
-      const nextWidth = Math.round(entry.contentRect.width);
-      const nextHeight = Math.round(entry.contentRect.height);
-
-      setWindowRect((current) => {
-        if (!current) {
-          return current;
-        }
-
-        if (current.width === nextWidth && current.height === nextHeight) {
-          return current;
-        }
-
-        return clampEditorWindow(
-          {
-            ...current,
-            width: nextWidth,
-            height: nextHeight,
-          },
-          minWidth,
-          minHeight,
-        );
-      });
-    });
-
-    observer.observe(panelRef.current);
-    return () => observer.disconnect();
-  }, [minHeight, minWidth]);
-
-  useEffect(() => {
     if (!windowRect || typeof window === "undefined") {
       return;
     }
 
     function handlePointerMove(event) {
+      if (resizeRef.current) {
+        const { directions, rect, startX, startY } = resizeRef.current;
+        setWindowRect(resizeEditorWindow(rect, event.clientX - startX, event.clientY - startY, directions, minWidth, minHeight));
+        return;
+      }
+
       if (!dragRef.current) {
         return;
       }
 
+      const dragState = dragRef.current;
       setWindowRect((current) => {
-        if (!current) {
+        if (!current || !dragState) {
           return current;
         }
 
         return clampEditorWindow(
           {
             ...current,
-            left: dragRef.current.left + event.clientX - dragRef.current.startX,
-            top: dragRef.current.top + event.clientY - dragRef.current.startY,
+            left: dragState.left + event.clientX - dragState.startX,
+            top: dragState.top + event.clientY - dragState.startY,
           },
           minWidth,
           minHeight,
@@ -2084,6 +2186,8 @@ function useEditorWindow({
 
     function handlePointerUp() {
       dragRef.current = null;
+      resizeRef.current = null;
+      setGlobalResizeCursor("");
     }
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -2114,10 +2218,31 @@ function useEditorWindow({
     [windowRect],
   );
 
+  const handleResizeStart = useCallback(
+    (event, directions) => {
+      if (event.button !== 0 || !windowRect) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setGlobalResizeCursor(resizeCursorForDirections(directions));
+      resizeRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        rect: windowRect,
+        directions,
+      };
+    },
+    [windowRect],
+  );
+
   return {
     panelRef,
     windowRect,
+    setWindowRect,
     handleDragStart,
+    handleResizeStart,
   };
 }
 
@@ -2133,8 +2258,13 @@ function EditorWindow({
   minHeight = 240,
   anchorRef = null,
   bodyClassName = "",
+  autoFitContent = false,
+  autoFitTargetRef = null,
+  windowApiRef = null,
+  resizeDirections = ["left", "right", "bottom", "bottom-left", "bottom-right"],
 }) {
-  const { panelRef, windowRect, handleDragStart } = useEditorWindow({
+  const bodyRef = useRef(null);
+  const { panelRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
     storageKey,
     defaultWidth,
     defaultHeight,
@@ -2143,9 +2273,77 @@ function EditorWindow({
     anchorRef,
   });
 
+  useLayoutEffect(() => {
+    if (!windowRect || !autoFitContent || !bodyRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const bodyElement = bodyRef.current;
+    const targetElement = autoFitTargetRef?.current ?? bodyElement;
+
+    const fitToContent = () => {
+      const heightDelta = targetElement.scrollHeight - bodyElement.clientHeight;
+      if (Math.abs(heightDelta) <= 8) {
+        return;
+      }
+
+      setWindowRect((current) =>
+        current
+          ? clampEditorWindow(
+              {
+                ...current,
+                height: current.height + heightDelta + (heightDelta > 0 ? 8 : 0),
+              },
+              minWidth,
+              minHeight,
+            )
+          : current,
+      );
+    };
+
+    fitToContent();
+
+    const observer = new ResizeObserver(() => {
+      fitToContent();
+    });
+
+    observer.observe(targetElement);
+    return () => observer.disconnect();
+  }, [autoFitContent, autoFitTargetRef, minHeight, minWidth, setWindowRect, windowRect]);
+
+  useEffect(() => {
+    if (!windowApiRef) {
+      return undefined;
+    }
+
+    windowApiRef.current = {
+      panelRef,
+      bodyRef,
+      windowRect,
+      setWindowRect,
+    };
+
+    return () => {
+      if (windowApiRef.current?.panelRef === panelRef) {
+        windowApiRef.current = null;
+      }
+    };
+  }, [panelRef, setWindowRect, windowApiRef, windowRect]);
+
   if (!windowRect) {
     return null;
   }
+
+  const leftResizeCursor = resizeCursorForDirections(["left"]);
+  const rightResizeCursor = resizeCursorForDirections(["right"]);
+  const bottomResizeCursor = resizeCursorForDirections(["bottom"]);
+  const bottomLeftResizeCursor = resizeCursorForDirections(["bottom", "left"]);
+  const bottomRightResizeCursor = resizeCursorForDirections(["bottom", "right"]);
+  const canResizeLeft = resizeDirections.includes("left");
+  const canResizeRight = resizeDirections.includes("right");
+  const canResizeBottom = resizeDirections.includes("bottom");
+  const canResizeBottomLeft = resizeDirections.includes("bottom-left");
+  const canResizeBottomRight = resizeDirections.includes("bottom-right");
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -2156,25 +2354,75 @@ function EditorWindow({
           top: `${windowRect.top}px`,
           width: `${windowRect.width}px`,
           height: `${windowRect.height}px`,
+          minWidth: `${minWidth}px`,
+          minHeight: `${minHeight}px`,
         }}
-        className="fixed z-[61] flex resize overflow-auto rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
+        className="fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
       >
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div
             onPointerDown={handleDragStart}
-            className="flex cursor-move select-none items-center justify-between gap-3 border-b border-theme-300/40 px-4 py-3 dark:border-white/10"
+            className="flex min-w-0 cursor-move select-none flex-wrap items-center justify-between gap-3 border-b border-theme-300/40 px-4 py-3 dark:border-white/10"
           >
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <div className="flex items-center gap-2" data-no-drag="true">
+            <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
+            <div className="relative z-[70] flex min-w-0 flex-wrap items-center justify-end gap-2 pr-3" data-no-drag="true">
               {headerActions}
               <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
                 Закрыть
               </button>
             </div>
           </div>
-          <div className={classNames("flex min-h-0 flex-1 flex-col p-4", bodyClassName)}>{children}</div>
+          <div ref={bodyRef} className={classNames("flex min-h-0 min-w-0 flex-1 flex-col p-4", bodyClassName)}>
+            {children}
+          </div>
         </div>
-        <div className="pointer-events-none absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-theme-400/70 opacity-40 dark:border-white/30" />
+        {canResizeLeft && (
+          <div
+            data-window-resize-handle="true"
+            onPointerDown={(event) => handleResizeStart(event, ["left"])}
+            onMouseEnter={() => setGlobalResizeCursor(leftResizeCursor)}
+            onMouseLeave={() => setGlobalResizeCursor("")}
+            className="absolute inset-y-0 left-0 z-[62] w-5 cursor-ew-resize"
+          />
+        )}
+        {canResizeRight && (
+          <div
+            data-window-resize-handle="true"
+            onPointerDown={(event) => handleResizeStart(event, ["right"])}
+            onMouseEnter={() => setGlobalResizeCursor(rightResizeCursor)}
+            onMouseLeave={() => setGlobalResizeCursor("")}
+            className="absolute inset-y-0 right-0 z-[62] w-5 cursor-ew-resize"
+          />
+        )}
+        {canResizeBottom && (
+          <div
+            data-window-resize-handle="true"
+            onPointerDown={(event) => handleResizeStart(event, ["bottom"])}
+            onMouseEnter={() => setGlobalResizeCursor(bottomResizeCursor)}
+            onMouseLeave={() => setGlobalResizeCursor("")}
+            className="absolute right-2 bottom-0 left-2 z-[62] h-5 cursor-ns-resize"
+          />
+        )}
+        {canResizeBottomLeft && (
+          <div
+            data-window-resize-handle="true"
+            onPointerDown={(event) => handleResizeStart(event, ["bottom", "left"])}
+            onMouseEnter={() => setGlobalResizeCursor(bottomLeftResizeCursor)}
+            onMouseLeave={() => setGlobalResizeCursor("")}
+            className="absolute bottom-0 left-0 z-[63] h-8 w-8 cursor-nesw-resize"
+          />
+        )}
+        {canResizeBottomRight && (
+          <div
+            data-window-resize-handle="true"
+            onPointerDown={(event) => handleResizeStart(event, ["bottom", "right"])}
+            onMouseEnter={() => setGlobalResizeCursor(bottomRightResizeCursor)}
+            onMouseLeave={() => setGlobalResizeCursor("")}
+            className="absolute bottom-0 right-0 z-[63] h-8 w-8 cursor-nwse-resize"
+          />
+        )}
+        {canResizeLeft && <div className="pointer-events-none absolute inset-y-8 left-2 z-[64] w-[2px] rounded-full bg-theme-500/35 dark:bg-white/25" />}
+        {canResizeRight && <div className="pointer-events-none absolute inset-y-8 right-2 z-[64] w-[2px] rounded-full bg-theme-500/35 dark:bg-white/25" />}
       </div>
     </div>
   );
@@ -2182,6 +2430,9 @@ function EditorWindow({
 
 function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
+  const isServiceModal = modal.type === "services";
+  const isBookmarkModal = modal.type === "bookmarks";
+  const bookmarkWindowApiRef = useRef(null);
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawEntryConfig =
     modal.mode === "edit"
@@ -2203,7 +2454,29 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title = modal.type === "services" ? "сервис" : "закладка";
+  const [showAdvancedServiceFields, setShowAdvancedServiceFields] = useState(false);
+  const [showAdvancedBookmarkFields, setShowAdvancedBookmarkFields] = useState(false);
+  const title = isServiceModal ? "сервис" : "закладка";
+  const bookmarkWindowWidth = 648;
+  const bookmarkCollapsedHeight = 379;
+  const bookmarkExpandedHeight = 760;
+  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v9";
+  const itemModalDefaultHeight = isServiceModal ? 840 : showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight;
+  const itemModalMinHeight = isServiceModal ? 780 : showAdvancedBookmarkFields ? 620 : 360;
+  const primaryTypeFields =
+    isServiceModal
+      ? typeFields.filter(([key]) => !collapsedServiceFieldKeys.has(key))
+      : isBookmarkModal
+        ? typeFields.filter(([key]) => !collapsedBookmarkFieldKeys.has(key))
+      : typeFields;
+  const advancedServiceFields =
+    isServiceModal
+      ? typeFields.filter(([key]) => collapsedServiceFieldKeys.has(key))
+      : [];
+  const advancedBookmarkFields =
+    isBookmarkModal
+      ? typeFields.filter(([key]) => collapsedBookmarkFieldKeys.has(key))
+      : [];
 
   async function save(nextData) {
     const response = await fetch("/api/config/editor", {
@@ -2310,94 +2583,241 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     }
   }
 
-  return (
-    <EditorWindow
-      storageKey={`homepage-browser-editor-window-item-${modal.type}`}
-      title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
-      onClose={onClose}
-      defaultWidth={840}
-      defaultHeight={760}
-      minWidth={620}
-      minHeight={420}
-    >
-      <div className="space-y-3">
-        <Field label="Имя" value={name} onChange={setName} />
-        {modal.type === "services" && (
-          <ServiceCardColorField
-            value={form.fields.id ?? ""}
-            itemName={name}
+  const handleAdvancedBookmarkToggle = useCallback(
+    (expanded) => {
+      if (!isBookmarkModal) {
+        setShowAdvancedBookmarkFields(expanded);
+        return;
+      }
+
+      const currentRect = bookmarkWindowApiRef.current?.windowRect;
+      if (currentRect) {
+        const targetHeight = expanded ? Math.max(currentRect.height, bookmarkExpandedHeight) : bookmarkCollapsedHeight;
+        bookmarkWindowApiRef.current?.setWindowRect((current) =>
+          current
+            ? clampEditorWindow(
+                {
+                  ...current,
+                  height: targetHeight,
+                },
+                620,
+                expanded ? 520 : 360,
+              )
+            : current,
+        );
+      }
+
+      if (expanded && typeof window !== "undefined") {
+        const currentZoom = Number.parseInt(window.localStorage.getItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY) ?? "", 10);
+        if (!Number.isFinite(currentZoom) || currentZoom < 50) {
+          window.localStorage.setItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY, "100");
+        }
+      }
+
+      setShowAdvancedBookmarkFields(expanded);
+    },
+    [bookmarkCollapsedHeight, bookmarkExpandedHeight, isBookmarkModal],
+  );
+
+  const fieldsBlock = (
+    <div className="space-y-3">
+      <Field label="Имя" value={name} onChange={setName} compact={isServiceModal} />
+      {(isServiceModal || isBookmarkModal) && (
+        <ServiceCardColorField
+          value={form.fields.id ?? ""}
+          itemName={name}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              fields: {
+                ...current.fields,
+                id: value,
+              },
+            }))
+          }
+        />
+      )}
+      <div className={classNames("grid min-w-0 gap-2", isServiceModal ? "grid-cols-3" : "md:grid-cols-2")}>
+        {primaryTypeFields.map(([key, label]) => (
+          <Field
+            key={key}
+            label={label}
+            value={form.fields[key] ?? ""}
+            compact={isServiceModal}
             onChange={(value) =>
               setForm((current) => ({
                 ...current,
                 fields: {
                   ...current.fields,
-                  id: value,
+                  [key]: value,
                 },
               }))
             }
           />
-        )}
-        <div className="grid gap-3 md:grid-cols-2">
-          {typeFields.map(([key, label]) => (
-            <Field
-              key={key}
-              label={label}
-              value={form.fields[key] ?? ""}
-              onChange={(value) =>
-                setForm((current) => ({
-                  ...current,
-                  fields: {
-                    ...current.fields,
-                    [key]: value,
-                  },
-                }))
-              }
-            />
-          ))}
-        </div>
-        <CodeEditor
-          label="Расширенный YAML"
-          language="yaml"
-          value={form.extraYaml}
-          onChange={(value) =>
-            setForm((current) => ({
-              ...current,
-              extraYaml: value,
-            }))
-          }
-          minHeightClassName={modal.type === "services" ? "min-h-[16rem]" : "min-h-[10rem]"}
-          placeholder={modal.type === "services" ? "widget:\n  type: customapi\n  url: http://example.local" : ""}
-        />
+        ))}
       </div>
-
-      {error && (
-        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-          {error}
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap justify-between gap-2">
-        <div>
-          {modal.mode === "edit" && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={saving}
-              className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
-            >
-              Удалить
-            </button>
+      {isServiceModal && (
+        <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200">
+            <input
+              type="checkbox"
+              checked={showAdvancedServiceFields}
+              onChange={(event) => setShowAdvancedServiceFields(event.target.checked)}
+              className="h-4 w-4"
+            />
+            Дополнительные поля
+          </label>
+          {showAdvancedServiceFields && (
+            <div className="mt-3 grid min-w-0 gap-2 grid-cols-3">
+              {advancedServiceFields.map(([key, label]) => (
+                <Field
+                  key={key}
+                  label={label}
+                  value={form.fields[key] ?? ""}
+                  compact
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      fields: {
+                        ...current.fields,
+                        [key]: value,
+                      },
+                    }))
+                  }
+                />
+              ))}
+            </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-        >
-          {saving ? "Сохранение..." : "Сохранить"}
-        </button>
+      )}
+      {isBookmarkModal && (
+        <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200">
+            <input
+              type="checkbox"
+              checked={showAdvancedBookmarkFields}
+              onChange={(event) => handleAdvancedBookmarkToggle(event.target.checked)}
+              className="h-4 w-4"
+            />
+            Дополнительные поля
+          </label>
+          {showAdvancedBookmarkFields && (
+            <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2">
+              {advancedBookmarkFields.map(([key, label]) => (
+                <Field
+                  key={key}
+                  label={label}
+                  value={form.fields[key] ?? ""}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      fields: {
+                        ...current.fields,
+                        [key]: value,
+                      },
+                    }))
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const errorBlock = error && (
+    <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>
+  );
+
+  const footerBlock = (
+    <div className="flex flex-wrap justify-between gap-2">
+      <div>
+        {modal.mode === "edit" && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving}
+            className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
+          >
+            Удалить
+          </button>
+        )}
       </div>
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+      >
+        {saving ? "Сохранение..." : "Сохранить"}
+      </button>
+    </div>
+  );
+
+  return (
+    <EditorWindow
+      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}`}
+      title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
+      onClose={onClose}
+      defaultWidth={isServiceModal ? 1040 : bookmarkWindowWidth}
+      defaultHeight={itemModalDefaultHeight}
+      minWidth={isServiceModal ? 760 : 620}
+      minHeight={itemModalMinHeight}
+      windowApiRef={isBookmarkModal ? bookmarkWindowApiRef : null}
+    >
+      {isBookmarkModal ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            {fieldsBlock}
+            {showAdvancedBookmarkFields && (
+              <div className="mt-3 flex min-h-0 min-w-0 flex-col">
+                <CodeEditor
+                  label="Другие YAML-ключи"
+                  language="yaml"
+                  value={form.extraYaml}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      extraYaml: value,
+                    }))
+                  }
+                  minHeightClassName="h-[20rem] min-h-[20rem]"
+                  zoomStorageKey={BOOKMARK_YAML_ZOOM_STORAGE_KEY}
+                  placeholder="custom:\n  key: value"
+                />
+              </div>
+            )}
+            {errorBlock && <div className="mt-4">{errorBlock}</div>}
+          </div>
+          <div className="mt-4 shrink-0">{footerBlock}</div>
+        </div>
+      ) : (
+        <>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {fieldsBlock}
+            <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
+              <CodeEditor
+                label="Расширенный YAML"
+                language="yaml"
+                value={form.extraYaml}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    extraYaml: value,
+                  }))
+                }
+                minHeightClassName="min-h-[20rem]"
+                fillAvailableHeight
+                zoomStorageKey="homepage-browser-editor-code-zoom-item-services"
+                placeholder="widget:\n  type: customapi\n  url: http://example.local"
+              />
+            </div>
+          </div>
+          {errorBlock && <div className="mt-4">{errorBlock}</div>}
+          <div className="mt-4">{footerBlock}</div>
+        </>
+      )}
     </EditorWindow>
   );
 }
@@ -2622,26 +3042,15 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
   return (
     <EditorWindow
       storageKey="homepage-browser-editor-window-settings"
-      title="Настройки"
+      title="Ручная правка"
       onClose={onClose}
       defaultWidth={1120}
       defaultHeight={780}
       minWidth={760}
       minHeight={520}
-      headerActions={
-        activeTab ? (
-          <div className="rounded-full border border-theme-300/50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-theme-700 dark:border-white/10 dark:text-theme-200">
-            {activeLanguage === "plain" ? "TEXT" : activeLanguage}
-          </div>
-        ) : null
-      }
     >
-      <p className="mb-4 text-sm text-theme-600 dark:text-theme-300">
-        Файлы из `config`-папки, для которых пока нет отдельной формы в редакторе.
-      </p>
-
-      <div className="overflow-x-auto">
-        <div className="flex min-w-max gap-2 pb-1">
+      <div>
+        <div className="flex flex-wrap gap-2 pb-1">
           {(tabs ?? []).map((tab) => (
             <button
               key={tab.fileName}
@@ -2661,19 +3070,9 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
         </div>
       </div>
 
-      <div className="mt-4 min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border border-theme-300/40 p-4 dark:border-white/10">
+      <div className="mt-4 min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
         {activeTab ? (
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold">{activeTab.label}</div>
-                <div className="text-xs text-theme-600 dark:text-theme-300">{activeTab.fileName}</div>
-              </div>
-              <div className="rounded-full border border-theme-300/50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-theme-700 dark:border-white/10 dark:text-theme-200">
-                {activeTab.format === "yaml" ? "YAML" : "Текст"}
-              </div>
-            </div>
-
+          <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
             <CodeEditor
               label="Содержимое файла"
               language={activeLanguage}
@@ -2684,14 +3083,12 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
                   [activeTab.fileName]: value,
                 }))
               }
-              minHeightClassName="min-h-0"
-              fillAvailableHeight
-              placeholder={activeTab.fileName}
-            />
+            minHeightClassName="min-h-0"
+            fillAvailableHeight
+            zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+            placeholder={activeTab.fileName}
+          />
 
-            <p className="mt-3 shrink-0 text-xs text-theme-600 dark:text-theme-300">
-              Для YAML сохраняется исходный текст файла. Ошибки синтаксиса блокируют сохранение.
-            </p>
           </div>
         ) : (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
@@ -2700,17 +3097,20 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
         )}
 
         {error && (
-          <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+          <div className="mt-4 shrink-0 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
             {error}
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
+        <div
+          className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
+          style={{ paddingRight: "5px", paddingBottom: "5px" }}
+        >
           <button
             type="button"
             onClick={handleSave}
             disabled={!activeTab || saving}
-            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+            className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
             {saving ? "Сохранение..." : "Сохранить"}
           </button>
@@ -2733,6 +3133,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
   const headerHidden = form.header === "false";
+  const groupModalMinHeight =
+    groupType === "services" ? (modal.mode === "new" ? 720 : 660) : (modal.mode === "new" ? 680 : 620);
 
   const quickLayoutButtonClass = (active = false) =>
     classNames(
@@ -2803,181 +3205,183 @@ function GroupModal({ modal, data, onClose, onSaved }) {
       defaultWidth={900}
       defaultHeight={780}
       minWidth={660}
-      minHeight={460}
+      minHeight={groupModalMinHeight}
     >
-      <div className="space-y-3">
-        {modal.mode === "new" && (
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="space-y-3">
+          {modal.mode === "new" && (
+            <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
+              <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGroupType("services")}
+                  aria-pressed={groupType === "services"}
+                  className={quickLayoutButtonClass(groupType === "services")}
+                >
+                  Сервисы
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupType("bookmarks")}
+                  aria-pressed={groupType === "bookmarks"}
+                  className={quickLayoutButtonClass(groupType === "bookmarks")}
+                >
+                  Закладки
+                </button>
+              </div>
+            </div>
+          )}
+          <Field label="Имя группы" value={name} onChange={setName} />
           <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
+            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
             <div className="flex flex-wrap gap-2">
               <button
-                type="button"
-                onClick={() => setGroupType("services")}
-                aria-pressed={groupType === "services"}
-                className={quickLayoutButtonClass(groupType === "services")}
-              >
-                Сервисы
-              </button>
-              <button
-                type="button"
-                onClick={() => setGroupType("bookmarks")}
-                aria-pressed={groupType === "bookmarks"}
-                className={quickLayoutButtonClass(groupType === "bookmarks")}
-              >
-                Закладки
-              </button>
-            </div>
-          </div>
-        )}
-        <Field label="Имя группы" value={name} onChange={setName} />
-        <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-          <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  columns: "",
-                  style: "",
-                }))
-              }
-              aria-pressed={isVertical}
-              className={quickLayoutButtonClass(isVertical)}
-            >
-              Вертикально
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  columns: current.columns || "3",
-                  style: "row",
-                }))
-              }
-              aria-pressed={!isVertical}
-              className={quickLayoutButtonClass(!isVertical)}
-            >
-              Горизонтально
-            </button>
-            {[2, 3, 4, 5].map((columns) => (
-              <button
-                key={columns}
                 type="button"
                 onClick={() =>
                   setForm((current) => ({
                     ...current,
-                    columns: String(columns),
+                    columns: "",
+                    style: "",
+                  }))
+                }
+                aria-pressed={isVertical}
+                className={quickLayoutButtonClass(isVertical)}
+              >
+                Вертикально
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    columns: current.columns || "3",
                     style: "row",
                   }))
                 }
-                aria-pressed={!isVertical && currentColumns === String(columns)}
-                className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
+                aria-pressed={!isVertical}
+                className={quickLayoutButtonClass(!isVertical)}
               >
-                {columns} колонки
+                Горизонтально
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  header: current.header === "false" ? "true" : "false",
-                }))
-              }
-              aria-pressed={headerHidden}
-              className={quickLayoutButtonClass(headerHidden)}
-            >
-              Переключить заголовок
-            </button>
-          </div>
-          {groupType === "services" && (
-            <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
-              <input
-                type="checkbox"
-                checked={alignRowHeights}
-                onChange={(event) =>
+              {[2, 3, 4, 5].map((columns) => (
+                <button
+                  key={columns}
+                  type="button"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      columns: String(columns),
+                      style: "row",
+                    }))
+                  }
+                  aria-pressed={!isVertical && currentColumns === String(columns)}
+                  className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
+                >
+                  {columns} колонки
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
                   setForm((current) => ({
                     ...current,
-                    alignRowHeights: event.target.checked ? "true" : "false",
+                    header: current.header === "false" ? "true" : "false",
                   }))
                 }
-                className="h-4 w-4"
-              />
-              Выравнивать высоту карточек в одной строке
-            </label>
-          )}
+                aria-pressed={headerHidden}
+                className={quickLayoutButtonClass(headerHidden)}
+              >
+                Переключить заголовок
+              </button>
+            </div>
+            {groupType === "services" && (
+              <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-md border border-theme-400/60 px-3 py-2 text-sm transition-colors hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10">
+                <input
+                  type="checkbox"
+                  checked={alignRowHeights}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      alignRowHeights: event.target.checked ? "true" : "false",
+                    }))
+                  }
+                  className="h-4 w-4"
+                />
+                Выравнивать высоту карточек в одной строке
+              </label>
+            )}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field
+              label="Стиль"
+              value={form.style}
+              onChange={(value) => setForm((current) => ({ ...current, style: value }))}
+            />
+            <Field
+              label="Колонки"
+              value={form.columns}
+              onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
+            />
+            <Field
+              label="Заголовок"
+              value={form.header}
+              onChange={(value) => setForm((current) => ({ ...current, header: value }))}
+            />
+            <Field
+              label="Вкладка"
+              value={form.tab}
+              onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
+            />
+            <Field
+              label="Иконка"
+              value={form.icon}
+              onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
+            />
+            <Field
+              label="Свернута изначально"
+              value={form.initiallyCollapsed}
+              onChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  initiallyCollapsed: value,
+                }))
+              }
+            />
+          </div>
+          <p className="text-xs text-theme-600 dark:text-theme-300">
+            Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
+          </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field
-            label="Стиль"
-            value={form.style}
-            onChange={(value) => setForm((current) => ({ ...current, style: value }))}
-          />
-          <Field
-            label="Колонки"
-            value={form.columns}
-            onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
-          />
-          <Field
-            label="Заголовок"
-            value={form.header}
-            onChange={(value) => setForm((current) => ({ ...current, header: value }))}
-          />
-          <Field
-            label="Вкладка"
-            value={form.tab}
-            onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
-          />
-          <Field
-            label="Иконка"
-            value={form.icon}
-            onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
-          />
-          <Field
-            label="Свернута изначально"
-            value={form.initiallyCollapsed}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                initiallyCollapsed: value,
-              }))
-            }
-          />
-        </div>
-        <p className="text-xs text-theme-600 dark:text-theme-300">
-          Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
-        </p>
-      </div>
 
-      {error && (
-        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="mt-4 shrink-0 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
 
-      <div className="mt-4 flex flex-wrap justify-between gap-2">
-        <div>
-          {modal.mode === "edit" && (
-            <button
-              type="button"
-              onClick={() => saveGroup("delete")}
-              disabled={saving}
-              className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
-            >
-              Удалить группу
-            </button>
-          )}
+        <div className="mt-4 shrink-0 flex flex-wrap justify-between gap-2">
+          <div>
+            {modal.mode === "edit" && (
+              <button
+                type="button"
+                onClick={() => saveGroup("delete")}
+                disabled={saving}
+                className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
+              >
+                Удалить группу
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => saveGroup()}
+            disabled={saving}
+            className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+          >
+            {saving ? "Сохранение..." : "Сохранить"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => saveGroup()}
-          disabled={saving}
-          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-        >
-          {saving ? "Сохранение..." : "Сохранить"}
-        </button>
       </div>
     </EditorWindow>
   );
@@ -3656,10 +4060,10 @@ export function ConfigEditorProvider({ children }) {
             Фон
           </button>
           <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
-            Группа
+            Новая группа
           </button>
           <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
-            Настройки
+            Ручная правка
           </button>
         </div>
       ) : (

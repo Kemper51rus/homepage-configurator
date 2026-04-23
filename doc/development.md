@@ -3,7 +3,7 @@
 Рабочий каталог разработки:
 
 ```bash
-cd /opt/homepage-configurator
+cd /opt/homepage-browser-editor-mod
 ```
 
 Target-проект для проверки:
@@ -68,28 +68,28 @@ http://100.100.0.230:3000/
 - `src/pages/api/config/background.js`
 - `src/pages/api/config/editor.js`
 
-Это runtime-копия мода внутри target-проекта. Источник правды все равно остается в `/opt/homepage-configurator/overlay`.
+Это runtime-копия мода внутри target-проекта. Источник правды все равно остается в `/opt/homepage-browser-editor-mod/overlay`.
 
 ## Быстрые Команды
 
 Установить мод:
 
 ```bash
-cd /opt/homepage-configurator
+cd /opt/homepage-browser-editor-mod
 npm run install:target -- --target /opt/homepage
 ```
 
 Включить мод:
 
 ```bash
-cd /opt/homepage-configurator
+cd /opt/homepage-browser-editor-mod
 npm run enable:target -- --target /opt/homepage
 ```
 
 Проверить статус:
 
 ```bash
-cd /opt/homepage-configurator
+cd /opt/homepage-browser-editor-mod
 npm run status:target -- --target /opt/homepage
 ```
 
