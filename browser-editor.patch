@@ -377,10 +377,10 @@ index 1acf94d6..531ba65d 100644
    );
  }
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index c243c3ff..3a2ad93c 100644
+index c243c3ff..f4e6b535 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
-@@ -4,9 +4,15 @@ import BookmarksGroup from "components/bookmarks/group";
+@@ -4,9 +4,16 @@ import BookmarksGroup from "components/bookmarks/group";
  import ErrorBoundary from "components/errorboundry";
  import QuickLaunch from "components/quicklaunch";
  import ServicesGroup from "components/services/group";
@@ -392,12 +392,13 @@ index c243c3ff..3a2ad93c 100644
 +  ConfigEditorProvider,
 +  EditorPageTab,
 +  RootGroupDropZone,
++  getGroupLayout,
 +  getOrderedTabsForLayout,
 +} from "mods/browser-editor/components/editor";
  import { useTranslation } from "next-i18next";
  import { serverSideTranslations } from "next-i18next/serverSideTranslations";
  import dynamic from "next/dynamic";
-@@ -275,14 +281,8 @@ function Home({ initialSettings }) {
+@@ -275,14 +282,8 @@ function Home({ initialSettings }) {
    });
 
    const tabs = useMemo(
@@ -414,10 +415,22 @@ index c243c3ff..3a2ad93c 100644
    );
 
    useEffect(() => {
-@@ -295,9 +295,26 @@ function Home({ initialSettings }) {
+@@ -293,11 +294,36 @@ function Home({ initialSettings }) {
+   });
+
    const servicesAndBookmarksGroups = useMemo(() => {
-     const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(settings.layout?.[g.name]?.tab));
-     const undefinedGroupFilter = (g) => settings.layout?.[g.name] === undefined;
+-    const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(settings.layout?.[g.name]?.tab));
+-    const undefinedGroupFilter = (g) => settings.layout?.[g.name] === undefined;
++    const getLayoutForGroup = (group) => {
++      if (!group) {
++        return undefined;
++      }
++
++      return getGroupLayout(settings.layout ?? {}, group.services ? "services" : "bookmarks", group.name);
++    };
++
++    const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(getLayoutForGroup(g)?.tab));
++    const undefinedGroupFilter = (g) => getLayoutForGroup(g) === undefined;
 +    const serviceMap = new Map((services ?? []).map((group) => [group.name, group]));
 +    const bookmarkMap = new Map((bookmarks ?? []).map((group) => [group.name, group]));
 +    const layoutEntries = Object.entries(settings.layout ?? {});
@@ -431,19 +444,19 @@ index c243c3ff..3a2ad93c 100644
 +        if (serviceMap.has(groupName)) {
 +          return serviceMap.get(groupName);
 +        }
-
--    const layoutGroups = Object.keys(settings.layout ?? {})
--      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
++
 +        if (bookmarkMap.has(groupName)) {
 +          return bookmarkMap.get(groupName);
 +        }
-+
+
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
 +        return { name: groupName, services: [], groups: [] };
 +      })
        .filter(tabGroupFilter);
 
      if (!settings.layout && JSON.stringify(settings.layout) !== JSON.stringify(initialSettings.layout)) {
-@@ -305,8 +322,14 @@ function Home({ initialSettings }) {
+@@ -305,8 +331,14 @@ function Home({ initialSettings }) {
        return <div />;
      }
 
@@ -460,7 +473,7 @@ index c243c3ff..3a2ad93c 100644
 
      return (
        <>
-@@ -323,7 +346,7 @@ function Home({ initialSettings }) {
+@@ -323,7 +355,7 @@ function Home({ initialSettings }) {
                role="tablist"
              >
                {tabs.map((tab) => (
@@ -469,7 +482,43 @@ index c243c3ff..3a2ad93c 100644
                ))}
              </ul>
            </div>
-@@ -436,12 +459,13 @@ function Home({ initialSettings }) {
+@@ -335,7 +367,7 @@ function Home({ initialSettings }) {
+                 <ServicesGroup
+                   key={group.name}
+                   group={group}
+-                  layout={settings.layout?.[group.name]}
++                  layout={getLayoutForGroup(group)}
+                   maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
+                   disableCollapse={settings.disableCollapse}
+                   useEqualHeights={settings.useEqualHeights}
+@@ -345,7 +377,7 @@ function Home({ initialSettings }) {
+                 <BookmarksGroup
+                   key={group.name}
+                   bookmarks={group}
+-                  layout={settings.layout?.[group.name]}
++                  layout={getLayoutForGroup(group)}
+                   disableCollapse={settings.disableCollapse}
+                   maxGroupColumns={settings.maxBookmarkGroupColumns ?? settings.maxGroupColumns}
+                   groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
+@@ -360,7 +392,7 @@ function Home({ initialSettings }) {
+               <ServicesGroup
+                 key={group.name}
+                 group={group}
+-                layout={settings.layout?.[group.name]}
++                layout={getLayoutForGroup(group)}
+                 maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
+                 disableCollapse={settings.disableCollapse}
+                 groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
+@@ -374,7 +406,7 @@ function Home({ initialSettings }) {
+               <BookmarksGroup
+                 key={group.name}
+                 bookmarks={group}
+-                layout={settings.layout?.[group.name]}
++                layout={getLayoutForGroup(group)}
+                 disableCollapse={settings.disableCollapse}
+                 maxGroupColumns={settings.maxBookmarkGroupColumns ?? settings.maxGroupColumns}
+                 groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
+@@ -436,12 +468,13 @@ function Home({ initialSettings }) {
 
        <Script src="/api/config/custom.js" />
 
@@ -489,7 +538,7 @@ index c243c3ff..3a2ad93c 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -494,7 +518,7 @@ function Home({ initialSettings }) {
+@@ -494,7 +527,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
 
@@ -498,7 +547,7 @@ index c243c3ff..3a2ad93c 100644
 
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -507,7 +531,8 @@ function Home({ initialSettings }) {
+@@ -507,7 +540,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

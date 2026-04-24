@@ -1281,7 +1281,17 @@ function collectLayoutTabs(layoutMap) {
 function collectTopLevelLayoutTabs(layoutMap) {
   const tabs = [];
 
-  Object.values(layoutMap ?? {}).forEach((value) => {
+  Object.entries(layoutMap ?? {}).forEach(([key, value]) => {
+    if (key === "Bookmarks" && value && typeof value === "object" && !Array.isArray(value)) {
+      Object.values(value).forEach((bookmarkLayout) => {
+        const tab = typeof bookmarkLayout?.tab === "string" ? bookmarkLayout.tab.trim() : "";
+        if (tab && !tabs.some((existingTab) => namesEqual(existingTab, tab))) {
+          tabs.push(tab);
+        }
+      });
+      return;
+    }
+
     const tab = typeof value?.tab === "string" ? value.tab.trim() : "";
     if (tab && !tabs.some((existingTab) => namesEqual(existingTab, tab))) {
       tabs.push(tab);
@@ -1289,6 +1299,26 @@ function collectTopLevelLayoutTabs(layoutMap) {
   });
 
   return tabs;
+}
+
+export function getGroupLayout(layoutMap, type, groupName) {
+  const normalizedName = typeof groupName === "string" ? groupName.trim() : "";
+  if (!normalizedName) {
+    return undefined;
+  }
+
+  if (type === "bookmarks") {
+    const bookmarkLayoutMap = layoutMap?.Bookmarks;
+    if (!bookmarkLayoutMap || typeof bookmarkLayoutMap !== "object" || Array.isArray(bookmarkLayoutMap)) {
+      return undefined;
+    }
+
+    const matchedBookmarkEntry = Object.entries(bookmarkLayoutMap).find(([name]) => namesEqual(name, normalizedName));
+    return matchedBookmarkEntry?.[1];
+  }
+
+  const matchedEntry = Object.entries(layoutMap ?? {}).find(([name]) => namesEqual(name, normalizedName));
+  return matchedEntry?.[1];
 }
 
 export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
@@ -1316,8 +1346,35 @@ export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
   return orderedTabs;
 }
 
-function updateSettingsLayout(settings, originalName, nextName, nextLayout, mode) {
+function updateSettingsLayout(settings, type, originalName, nextName, nextLayout, mode) {
   const nextSettings = { ...(settings ?? {}) };
+
+  if (type === "bookmarks") {
+    const nextRootLayout = cloneLayoutValue(settings?.layout ?? {});
+    const nextBookmarkLayout = cloneLayoutValue(nextRootLayout.Bookmarks ?? {});
+    const matchedBookmarkEntry = Object.keys(nextBookmarkLayout).find((name) => namesEqual(name, originalName));
+
+    if (mode === "delete") {
+      if (matchedBookmarkEntry) {
+        delete nextBookmarkLayout[matchedBookmarkEntry];
+      }
+    } else {
+      if (matchedBookmarkEntry && !namesEqual(matchedBookmarkEntry, nextName)) {
+        delete nextBookmarkLayout[matchedBookmarkEntry];
+      }
+      nextBookmarkLayout[nextName] = nextLayout;
+    }
+
+    if (Object.keys(nextBookmarkLayout).length > 0) {
+      nextRootLayout.Bookmarks = nextBookmarkLayout;
+    } else {
+      delete nextRootLayout.Bookmarks;
+    }
+
+    nextSettings.layout = nextRootLayout;
+    return nextSettings;
+  }
+
   let changed = false;
 
   const updateLayout = (layoutMap = {}) => {
@@ -3236,7 +3293,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const existingTabs = useMemo(() => collectLayoutTabs(data.settings?.layout ?? {}), [data.settings]);
   const groupModalMinHeight =
     groupType === "services" ? (modal.mode === "new" ? 720 : 660) : (modal.mode === "new" ? 680 : 620);
-  const groupTabOptionsId = "homepage-browser-editor-group-tab-options";
+  const matchedExistingTab = existingTabs.find((tab) => namesEqual(tab, form.tab));
+  const pageSelectValue = !form.tab.trim() ? "" : matchedExistingTab ? matchedExistingTab : "__custom__";
 
   const quickLayoutButtonClass = (active = false) =>
     classNames(
@@ -3277,13 +3335,13 @@ function GroupModal({ modal, data, onClose, onSaved }) {
 
       if (mode === "delete") {
         nextGroups = deleteRawGroup(data[groupType], modal.groupName);
-        nextSettings = updateSettingsLayout(data.settings, modal.groupName, modal.groupName, {}, "delete");
+        nextSettings = updateSettingsLayout(data.settings, groupType, modal.groupName, modal.groupName, {}, "delete");
       } else if (modal.mode === "new") {
         nextGroups = addRawGroup(data[groupType], trimmedName, groupType);
-        nextSettings = updateSettingsLayout(data.settings, trimmedName, trimmedName, nextLayout, "save");
+        nextSettings = updateSettingsLayout(data.settings, groupType, trimmedName, trimmedName, nextLayout, "save");
       } else {
         nextGroups = renameRawGroup(data[groupType], modal.groupName, trimmedName);
-        nextSettings = updateSettingsLayout(data.settings, modal.groupName, trimmedName, nextLayout, "save");
+        nextSettings = updateSettingsLayout(data.settings, groupType, modal.groupName, trimmedName, nextLayout, "save");
       }
 
       await putConfig(groupType, nextGroups);
@@ -3432,19 +3490,34 @@ function GroupModal({ modal, data, onClose, onSaved }) {
             />
             <label className="block min-w-0 text-xs text-theme-600 dark:text-theme-300">
               Страница
-              <input
-                type="text"
-                list={groupTabOptionsId}
-                value={form.tab}
-                onChange={(event) => setForm((current) => ({ ...current, tab: event.target.value }))}
-                placeholder={existingTabs.length ? "Выберите или введите новую" : "Введите страницу"}
+              <select
+                value={pageSelectValue}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    tab: nextValue === "__custom__" ? current.tab : nextValue,
+                  }));
+                }}
                 className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-              />
-              <datalist id={groupTabOptionsId}>
+              >
+                <option value="">Все страницы</option>
                 {existingTabs.map((tab) => (
-                  <option key={tab} value={tab} />
+                  <option key={tab} value={tab}>
+                    {tab}
+                  </option>
                 ))}
-              </datalist>
+                <option value="__custom__">Новая страница...</option>
+              </select>
+              {pageSelectValue === "__custom__" && (
+                <input
+                  type="text"
+                  value={form.tab}
+                  onChange={(event) => setForm((current) => ({ ...current, tab: event.target.value }))}
+                  placeholder="Введите новую страницу"
+                  className="mt-2 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                />
+              )}
               <span className="mt-1 block text-[11px] opacity-70">
                 Пусто = группа будет видна на всех страницах.
               </span>
