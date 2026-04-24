@@ -39,7 +39,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
 - `Установить/обновить цветные карточки` - встроить managed-блок CSS, который нужен для `id` вида `color-red-name-card`;
 - `Установить/обновить остальные правки custom.css` - встроить managed-блок дополнительных CSS-правок без радио и фона;
-- `Установить радио (custom.css/custom.js)` - встроить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage;
+- `Установить радио (custom.css/custom.js)` - встроить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage; при активном воспроизведении радио ссылки сервисов и закладок открываются в новой вкладке;
 - `Установить эффекты фона particles` - встроить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
 - `Установить все дополнения custom.css/custom.js` - встроить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта;
