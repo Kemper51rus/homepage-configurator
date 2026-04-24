@@ -20,12 +20,12 @@
 
 #bookmarks {
     margin-top: 0;
-    padding-top: 8px;
+    padding-top: 12px;
 }
 
 #services + #bookmarks,
 #layout-groups + #bookmarks {
-    margin-top: -24px;
+    margin-top: -30px;
 }
 
 
