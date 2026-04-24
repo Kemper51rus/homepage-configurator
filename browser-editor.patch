@@ -377,7 +377,7 @@ index 1acf94d6..531ba65d 100644
    );
  }
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index c243c3ff..f4e6b535 100644
+index c243c3ff..a979efe1 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,9 +4,16 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -462,14 +462,14 @@ index c243c3ff..f4e6b535 100644
 
 -    const serviceGroups = services?.filter(tabGroupFilter).filter(undefinedGroupFilter);
 -    const bookmarkGroups = bookmarks.filter(tabGroupFilter).filter(undefinedGroupFilter);
-+    const missingBookmarkGroups = Object.keys(settings.layout?.Bookmarks ?? {})
-+      .filter((groupName) => !bookmarkMap.has(groupName))
-+      .map((groupName) => ({ name: groupName, bookmarks: [] }));
-+
 +    const serviceGroups = [...(services?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? [])];
-+    const bookmarkGroups = [...(bookmarks?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? []), ...missingBookmarkGroups]
-+      .filter(tabGroupFilter)
-+      .filter(undefinedGroupFilter);
++    const bookmarkLayoutGroups = Object.keys(settings.layout?.Bookmarks ?? {})
++      .map((groupName) => bookmarkMap.get(groupName) ?? { name: groupName, bookmarks: [] })
++      .filter(tabGroupFilter);
++    const bookmarkFallbackGroups = [...(bookmarks?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? [])];
++    const bookmarkGroups = [...bookmarkLayoutGroups, ...bookmarkFallbackGroups].filter(
++      (group, index, groups) => groups.findIndex((candidate) => candidate?.name === group?.name) === index,
++    );
 
      return (
        <>
