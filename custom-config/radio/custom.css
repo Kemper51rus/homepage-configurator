@@ -22,7 +22,8 @@
     margin-top: 0;
 }
 
-#services + #bookmarks {
+#services + #bookmarks,
+#layout-groups + #bookmarks {
     margin-top: -42px;
 }
 
