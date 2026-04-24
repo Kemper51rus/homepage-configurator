@@ -712,6 +712,37 @@
       handlePlaybackFailure();
     }
 
+    function handlePlayableLinkClick(event) {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        !state.activeStation ||
+        audio.paused ||
+        audio.ended
+      ) {
+        return;
+      }
+
+      const target = event.target instanceof Element ? event.target : null;
+      const link = target?.closest(".bookmark a[href], .service-card a[href]");
+      if (!link) {
+        return;
+      }
+
+      const href = link.getAttribute("href");
+      if (!href || href === "#") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.open(link.href, "_blank", "noopener,noreferrer");
+    }
+
     stations.forEach((station) => {
       const stationButton = stationButtons.get(station.key);
 
@@ -788,6 +819,7 @@
     addManagedListener(audio, "ended", handleAudioEnded);
     addManagedListener(audio, "error", handleAudioError);
     addManagedListener(audio, "volumechange", updateVolumeLabel);
+    addManagedListener(document, "click", handlePlayableLinkClick, true);
     addManagedListener(window, "pagehide", rememberPlaybackBeforePageLeave);
     addManagedListener(window, "beforeunload", rememberPlaybackBeforePageLeave);
 
