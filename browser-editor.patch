@@ -4,7 +4,7 @@ index ea49bf54..87c163d3 100644
 +++ b/next.config.js
 @@ -1,9 +1,18 @@
  const { i18n } = require("./next-i18next.config");
- 
+
 +const allowedDevOrigins = (process.env.HOMEPAGE_ALLOWED_DEV_ORIGINS ?? "")
 +  .split(",")
 +  .map((origin) => origin.trim())
@@ -30,7 +30,7 @@ index 88d4d7e8..40fde785 100644
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
 +import { EditorGroupToolbar, useConfigEditor } from "mods/browser-editor/components/editor";
- 
+
  export default function BookmarksGroup({
    bookmarks,
 @@ -14,12 +15,16 @@ export default function BookmarksGroup({
@@ -43,7 +43,7 @@ index 88d4d7e8..40fde785 100644
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
- 
+
 +  if (!editMode && (bookmarks.bookmarks?.length ?? 0) === 0) {
 +    return null;
 +  }
@@ -102,7 +102,7 @@ index 7ea16bba..55cca786 100644
  import ResolvedIcon from "components/resolvedicon";
  import { useContext } from "react";
  import { SettingsContext } from "utils/contexts/settings";
- 
+
 +function bookmarkDescription(bookmark) {
 +  if (bookmark.description) {
 +    return bookmark.description;
@@ -126,7 +126,7 @@ index 7ea16bba..55cca786 100644
 +    bookmark.itemIndex,
 +  );
    const { settings } = useContext(SettingsContext);
- 
+
    return (
 @@ -15,11 +35,14 @@ export default function Item({ bookmark, iconOnly = false }) {
        data-name={bookmark.name}
@@ -153,9 +153,9 @@ index f24794db..23c8c3bd 100644
  import classNames from "classnames";
  import Item from "components/bookmarks/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
 -export default function List({ bookmarks, layout, bookmarksStyle }) {
 +export default function List({ groupName, bookmarks, layout, bookmarksStyle }) {
    let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
@@ -196,9 +196,9 @@ index 403f6063..f5fd2635 100644
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
 +import { EditorGroupToolbar, useConfigEditor, useGroupInsideDropTarget } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
 @@ -16,18 +17,49 @@ export default function ServicesGroup({
    groupsInitiallyCollapsed,
    isSubgroup,
@@ -210,7 +210,7 @@ index 403f6063..f5fd2635 100644
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
- 
+
 +  const subgroupsFromApi = group.groups ?? [];
 +  const subgroupNamesFromApi = new Set(subgroupsFromApi.map((subgroup) => subgroup.name));
 +  const layoutSubgroups = Object.entries(layout ?? {})
@@ -239,7 +239,7 @@ index 403f6063..f5fd2635 100644
 +
    let groupPadding = layout?.header === false ? "px-1" : "p-1 pb-0";
    if (isSubgroup) groupPadding = "";
- 
+
    return (
      <div
        key={group.name}
@@ -307,7 +307,7 @@ index c23e16a2..6161c6a6 100644
 @@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
- 
+
 -export default function Item({ service, groupName, useEqualHeights }) {
 +export default function Item({ service, groupName, useEqualHeights, itemIndex }) {
    const hasLink = service.href && service.href !== "#";
@@ -340,9 +340,9 @@ index 1acf94d6..531ba65d 100644
  import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
  export default function List({ groupName, services, layout, useEqualHeights, header }) {
 +  const isRowLayout = layout?.style === "row";
 +
@@ -377,18 +377,44 @@ index 1acf94d6..531ba65d 100644
    );
  }
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index c243c3ff..689eec9c 100644
+index c243c3ff..3a2ad93c 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
-@@ -7,6 +7,7 @@ import ServicesGroup from "components/services/group";
- import Tab, { slugifyAndEncode } from "components/tab";
+@@ -4,9 +4,15 @@ import BookmarksGroup from "components/bookmarks/group";
+ import ErrorBoundary from "components/errorboundry";
+ import QuickLaunch from "components/quicklaunch";
+ import ServicesGroup from "components/services/group";
+-import Tab, { slugifyAndEncode } from "components/tab";
++import { slugifyAndEncode } from "components/tab";
  import Revalidate from "components/toggles/revalidate";
  import Widget from "components/widgets/widget";
-+import { ConfigEditorProvider, RootGroupDropZone } from "mods/browser-editor/components/editor";
++import {
++  ConfigEditorProvider,
++  EditorPageTab,
++  RootGroupDropZone,
++  getOrderedTabsForLayout,
++} from "mods/browser-editor/components/editor";
  import { useTranslation } from "next-i18next";
  import { serverSideTranslations } from "next-i18next/serverSideTranslations";
  import dynamic from "next/dynamic";
-@@ -295,9 +296,26 @@ function Home({ initialSettings }) {
+@@ -275,14 +281,8 @@ function Home({ initialSettings }) {
+   });
+
+   const tabs = useMemo(
+-    () => [
+-      ...new Set(
+-        Object.keys(settings.layout ?? {})
+-          .map((groupName) => settings.layout[groupName]?.tab?.toString())
+-          .filter((group) => group),
+-      ),
+-    ],
+-    [settings.layout],
++    () => getOrderedTabsForLayout(settings.layout ?? {}, settings.__browserEditorTabOrder ?? []),
++    [settings.__browserEditorTabOrder, settings.layout],
+   );
+
+   useEffect(() => {
+@@ -295,9 +295,26 @@ function Home({ initialSettings }) {
    const servicesAndBookmarksGroups = useMemo(() => {
      const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(settings.layout?.[g.name]?.tab));
      const undefinedGroupFilter = (g) => settings.layout?.[g.name] === undefined;
@@ -405,7 +431,7 @@ index c243c3ff..689eec9c 100644
 +        if (serviceMap.has(groupName)) {
 +          return serviceMap.get(groupName);
 +        }
- 
+
 -    const layoutGroups = Object.keys(settings.layout ?? {})
 -      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
 +        if (bookmarkMap.has(groupName)) {
@@ -415,12 +441,12 @@ index c243c3ff..689eec9c 100644
 +        return { name: groupName, services: [], groups: [] };
 +      })
        .filter(tabGroupFilter);
- 
+
      if (!settings.layout && JSON.stringify(settings.layout) !== JSON.stringify(initialSettings.layout)) {
-@@ -305,8 +323,14 @@ function Home({ initialSettings }) {
+@@ -305,8 +322,14 @@ function Home({ initialSettings }) {
        return <div />;
      }
- 
+
 -    const serviceGroups = services?.filter(tabGroupFilter).filter(undefinedGroupFilter);
 -    const bookmarkGroups = bookmarks.filter(tabGroupFilter).filter(undefinedGroupFilter);
 +    const missingBookmarkGroups = Object.keys(settings.layout?.Bookmarks ?? {})
@@ -431,13 +457,22 @@ index c243c3ff..689eec9c 100644
 +    const bookmarkGroups = [...(bookmarks?.filter(tabGroupFilter).filter(undefinedGroupFilter) ?? []), ...missingBookmarkGroups]
 +      .filter(tabGroupFilter)
 +      .filter(undefinedGroupFilter);
- 
+
      return (
        <>
-@@ -436,12 +460,13 @@ function Home({ initialSettings }) {
- 
+@@ -323,7 +346,7 @@ function Home({ initialSettings }) {
+               role="tablist"
+             >
+               {tabs.map((tab) => (
+-                <Tab key={tab} tab={tab} />
++                <EditorPageTab key={tab} tab={tab} />
+               ))}
+             </ul>
+           </div>
+@@ -436,12 +459,13 @@ function Home({ initialSettings }) {
+
        <Script src="/api/config/custom.js" />
- 
+
 -      <div
 -        className={classNames(
 -          settings.fullWidth ? "" : "container",
@@ -454,16 +489,16 @@ index c243c3ff..689eec9c 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -494,7 +519,7 @@ function Home({ initialSettings }) {
+@@ -494,7 +518,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
- 
+
 -        {servicesAndBookmarksGroups}
 +        <RootGroupDropZone>{servicesAndBookmarksGroups}</RootGroupDropZone>
- 
+
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -507,7 +532,8 @@ function Home({ initialSettings }) {
+@@ -507,7 +531,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

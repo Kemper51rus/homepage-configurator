@@ -7,11 +7,13 @@ import "prismjs/components/prism-yaml";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
+import { TabContext } from "utils/contexts/tab";
 
 const ConfigEditorContext = createContext({
   draggedGroup: null,
   setDraggedGroup: () => {},
   editMode: false,
+  moveTab: () => {},
   moveGroup: () => {},
   moveItem: () => {},
   openGroup: () => {},
@@ -24,6 +26,7 @@ const noopEditorContext = {
   draggedGroup: null,
   setDraggedGroup: () => {},
   editMode: false,
+  moveTab: () => {},
   moveGroup: () => {},
   moveItem: () => {},
   openGroup: () => {},
@@ -41,6 +44,7 @@ const toolbarPrimaryButtonClassName =
 const JSON_DRAG_TYPE = "application/json";
 const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
 const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
+const TAB_DRAG_TYPE = "application/x-homepage-browser-editor-tab";
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
@@ -1251,6 +1255,67 @@ function formToGroupLayout(form) {
   return layout;
 }
 
+function collectLayoutTabs(layoutMap) {
+  const tabs = new Set();
+
+  function visit(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) {
+      return;
+    }
+
+    if (typeof node.tab === "string" && node.tab.trim()) {
+      tabs.add(node.tab.trim());
+    }
+
+    Object.values(node).forEach((value) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        visit(value);
+      }
+    });
+  }
+
+  visit(layoutMap);
+  return [...tabs].sort((left, right) => left.localeCompare(right, "ru"));
+}
+
+function collectTopLevelLayoutTabs(layoutMap) {
+  const tabs = [];
+
+  Object.values(layoutMap ?? {}).forEach((value) => {
+    const tab = typeof value?.tab === "string" ? value.tab.trim() : "";
+    if (tab && !tabs.some((existingTab) => namesEqual(existingTab, tab))) {
+      tabs.push(tab);
+    }
+  });
+
+  return tabs;
+}
+
+export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
+  const discoveredTabs = collectTopLevelLayoutTabs(layoutMap);
+  const orderedTabs = [];
+
+  (savedOrder ?? []).forEach((tab) => {
+    const normalizedTab = typeof tab === "string" ? tab.trim() : "";
+    if (!normalizedTab) {
+      return;
+    }
+
+    const matchedTab = discoveredTabs.find((existingTab) => namesEqual(existingTab, normalizedTab));
+    if (matchedTab && !orderedTabs.some((existingTab) => namesEqual(existingTab, matchedTab))) {
+      orderedTabs.push(matchedTab);
+    }
+  });
+
+  discoveredTabs.forEach((tab) => {
+    if (!orderedTabs.some((existingTab) => namesEqual(existingTab, tab))) {
+      orderedTabs.push(tab);
+    }
+  });
+
+  return orderedTabs;
+}
+
 function updateSettingsLayout(settings, originalName, nextName, nextLayout, mode) {
   const nextSettings = { ...(settings ?? {}) };
   let changed = false;
@@ -1504,6 +1569,41 @@ function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, pl
     settings: {
       ...(settings ?? {}),
       layout: nextLayout,
+    },
+  };
+}
+
+function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
+  const normalizedSourceTab = sourceTab?.trim();
+  const normalizedTargetTab = targetTab?.trim();
+
+  if (!normalizedSourceTab || !normalizedTargetTab || namesEqual(normalizedSourceTab, normalizedTargetTab)) {
+    return { moved: false, settings };
+  }
+
+  const currentOrder = getOrderedTabsForLayout(settings?.layout ?? {}, settings?.__browserEditorTabOrder ?? []);
+  const sourceIndex = currentOrder.findIndex((tab) => namesEqual(tab, normalizedSourceTab));
+  const targetIndex = currentOrder.findIndex((tab) => namesEqual(tab, normalizedTargetTab));
+
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return { moved: false, settings };
+  }
+
+  const nextOrder = [...currentOrder];
+  const [movedTab] = nextOrder.splice(sourceIndex, 1);
+  const nextTargetIndex = nextOrder.findIndex((tab) => namesEqual(tab, normalizedTargetTab));
+  nextOrder.splice(nextTargetIndex, 0, movedTab);
+  const unchanged = nextOrder.length === currentOrder.length && nextOrder.every((tab, index) => namesEqual(tab, currentOrder[index]));
+
+  if (unchanged) {
+    return { moved: false, settings };
+  }
+
+  return {
+    moved: true,
+    settings: {
+      ...(settings ?? {}),
+      __browserEditorTabOrder: nextOrder,
     },
   };
 }
@@ -3133,8 +3233,10 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
   const headerHidden = form.header === "false";
+  const existingTabs = useMemo(() => collectLayoutTabs(data.settings?.layout ?? {}), [data.settings]);
   const groupModalMinHeight =
     groupType === "services" ? (modal.mode === "new" ? 720 : 660) : (modal.mode === "new" ? 680 : 620);
+  const groupTabOptionsId = "homepage-browser-editor-group-tab-options";
 
   const quickLayoutButtonClass = (active = false) =>
     classNames(
@@ -3328,11 +3430,25 @@ function GroupModal({ modal, data, onClose, onSaved }) {
               value={form.header}
               onChange={(value) => setForm((current) => ({ ...current, header: value }))}
             />
-            <Field
-              label="Вкладка"
-              value={form.tab}
-              onChange={(value) => setForm((current) => ({ ...current, tab: value }))}
-            />
+            <label className="block min-w-0 text-xs text-theme-600 dark:text-theme-300">
+              Страница
+              <input
+                type="text"
+                list={groupTabOptionsId}
+                value={form.tab}
+                onChange={(event) => setForm((current) => ({ ...current, tab: event.target.value }))}
+                placeholder={existingTabs.length ? "Выберите или введите новую" : "Введите страницу"}
+                className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+              <datalist id={groupTabOptionsId}>
+                {existingTabs.map((tab) => (
+                  <option key={tab} value={tab} />
+                ))}
+              </datalist>
+              <span className="mt-1 block text-[11px] opacity-70">
+                Пусто = группа будет видна на всех страницах.
+              </span>
+            </label>
             <Field
               label="Иконка"
               value={form.icon}
@@ -3440,6 +3556,22 @@ function readGroupDragPayload(event, fallbackPayload = null) {
   return null;
 }
 
+function readTabDragPayload(event, fallbackPayload = null) {
+  const typedPayload = readDragPayload(event, TAB_DRAG_TYPE);
+  const genericPayload = typedPayload ?? readDragPayload(event);
+  const fallback = fallbackPayload ?? activeDragPayload;
+
+  if (genericPayload?.scope === "tab") {
+    return genericPayload;
+  }
+
+  if (fallback?.scope === "tab") {
+    return fallback;
+  }
+
+  return null;
+}
+
 function isGroupDragOver(event, fallbackPayload = null) {
   return (
     hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group"
@@ -3448,6 +3580,86 @@ function isGroupDragOver(event, fallbackPayload = null) {
 
 function isExplicitGroupDropTarget(event) {
   return event.target instanceof Element && event.target.closest("[data-editor-group-drop-target='true']");
+}
+
+export function EditorPageTab({ tab }) {
+  const { activeTab, setActiveTab } = useContext(TabContext);
+  const { editMode, moveTab } = useConfigEditor();
+  const matchesTab = decodeURIComponent(activeTab) === String(tab).replace(/\s+/g, "-").toLowerCase();
+
+  return (
+    <li
+      key={tab}
+      role="presentation"
+      draggable={editMode}
+      onDragStart={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        event.dataTransfer.effectAllowed = "move";
+        writeDragPayload(event, { scope: "tab", tabName: tab }, TAB_DRAG_TYPE);
+      }}
+      onDragEnd={() => {
+        if (!editMode) {
+          return;
+        }
+
+        window.setTimeout(clearDragPayload, 0);
+      }}
+      onDragOver={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        const dragged = readTabDragPayload(event);
+        if (!dragged || namesEqual(dragged.tabName, tab)) {
+          return;
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        if (!editMode) {
+          return;
+        }
+
+        const dragged = readTabDragPayload(event);
+        if (!dragged || namesEqual(dragged.tabName, tab)) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        moveTab(dragged.tabName, tab);
+      }}
+      className={classNames(
+        "text-theme-700 dark:text-theme-200 relative h-10 w-full rounded-md flex",
+        editMode && "cursor-grab",
+      )}
+    >
+      <button
+        id={`${tab}-tab`}
+        type="button"
+        role="tab"
+        aria-controls={`#${tab}`}
+        aria-selected={matchesTab ? "true" : "false"}
+        className={classNames(
+          "w-full rounded-md m-1",
+          matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+          editMode &&
+            "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
+        )}
+        onClick={() => {
+          setActiveTab(encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase()));
+          window.location.hash = `#${encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase())}`;
+        }}
+      >
+        {tab}
+      </button>
+    </li>
+  );
 }
 
 function useServiceRowHeightBalancer() {
@@ -3828,11 +4040,46 @@ export function ConfigEditorProvider({ children }) {
   const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
 
+  function handleSaved(message) {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 3000);
+  }
+
+  const moveTab = useCallback(
+    async (sourceTab, targetTab) => {
+      if (!data || !sourceTab || !targetTab || namesEqual(sourceTab, targetTab)) {
+        return;
+      }
+
+      const nextResult = moveSettingsLayoutTab(data.settings, sourceTab, targetTab);
+      if (!nextResult.moved) {
+        return;
+      }
+
+      const response = await fetch("/api/config/editor", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: "settings", data: nextResult.settings }),
+      });
+
+      if (!response.ok) {
+        handleSaved(await response.text());
+        return;
+      }
+
+      setSettings(nextResult.settings);
+      await refreshConfigData(mutate);
+      handleSaved("Порядок страниц сохранён");
+    },
+    [data, mutate, setSettings],
+  );
+
   const value = useMemo(
     () => ({
       draggedGroup,
       setDraggedGroup,
       editMode,
+      moveTab,
       moveGroup: async (type, sourceName, targetName, placement = "before") => {
         if (!data || (placement !== "root" && namesEqual(sourceName, targetName))) {
           return;
@@ -3962,13 +4209,8 @@ export function ConfigEditorProvider({ children }) {
         }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
     }),
-    [data, draggedGroup, editMode, mutate, setDraggedGroup, setSettings],
+    [data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings],
   );
-
-  function handleSaved(message) {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 3000);
-  }
 
   const showEditButton = useCallback(() => {
     if (editButtonHideTimeoutRef.current) {
