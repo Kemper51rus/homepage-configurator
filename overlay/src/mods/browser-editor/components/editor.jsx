@@ -3294,7 +3294,8 @@ function GroupModal({ modal, data, onClose, onSaved }) {
   const groupModalMinHeight =
     groupType === "services" ? (modal.mode === "new" ? 720 : 660) : (modal.mode === "new" ? 680 : 620);
   const matchedExistingTab = existingTabs.find((tab) => namesEqual(tab, form.tab));
-  const pageSelectValue = !form.tab.trim() ? "" : matchedExistingTab ? matchedExistingTab : "__custom__";
+  const [showCustomPageInput, setShowCustomPageInput] = useState(() => Boolean(form.tab.trim() && !matchedExistingTab));
+  const pageSelectValue = showCustomPageInput ? "__custom__" : matchedExistingTab ? matchedExistingTab : "";
 
   const quickLayoutButtonClass = (active = false) =>
     classNames(
@@ -3494,9 +3495,15 @@ function GroupModal({ modal, data, onClose, onSaved }) {
                 value={pageSelectValue}
                 onChange={(event) => {
                   const nextValue = event.target.value;
+                  if (nextValue === "__custom__") {
+                    setShowCustomPageInput(true);
+                    return;
+                  }
+
+                  setShowCustomPageInput(false);
                   setForm((current) => ({
                     ...current,
-                    tab: nextValue === "__custom__" ? current.tab : nextValue,
+                    tab: nextValue,
                   }));
                 }}
                 className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
