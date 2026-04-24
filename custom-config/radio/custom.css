@@ -19,6 +19,10 @@
  */
 
 #bookmarks {
+    margin-top: 0;
+}
+
+#services + #bookmarks {
     margin-top: -42px;
 }
 
