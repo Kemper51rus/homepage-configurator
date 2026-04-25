@@ -3739,7 +3739,8 @@ export function EditorPageTab({ tab }) {
         }
 
         const draggedItem = readItemDragPayload(event);
-        if (!draggedItem || matchesTab) {
+        const draggedGroup = readGroupDragPayload(event);
+        if ((!draggedItem && !draggedGroup) || matchesTab) {
           clearPageAutoOpen();
           return;
         }
