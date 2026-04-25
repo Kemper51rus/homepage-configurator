@@ -10,6 +10,7 @@ import { SettingsContext } from "utils/contexts/settings";
 import { TabContext } from "utils/contexts/tab";
 
 const ConfigEditorContext = createContext({
+  activePageName: null,
   draggedGroup: null,
   setDraggedGroup: () => {},
   editMode: false,
@@ -23,6 +24,7 @@ const ConfigEditorContext = createContext({
 });
 
 const noopEditorContext = {
+  activePageName: null,
   draggedGroup: null,
   setDraggedGroup: () => {},
   editMode: false,
@@ -1347,6 +1349,24 @@ export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
   });
 
   return orderedTabs;
+}
+
+function encodeTabName(tab) {
+  return encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase());
+}
+
+function applyGroupTabToSettings(settings, type, groupName, tabName) {
+  const nextLayout = {
+    ...(getGroupLayout(settings?.layout ?? {}, type, groupName) ?? {}),
+  };
+
+  if (typeof tabName === "string" && tabName.trim()) {
+    nextLayout.tab = tabName.trim();
+  } else {
+    delete nextLayout.tab;
+  }
+
+  return updateSettingsLayout(settings, type, groupName, groupName, nextLayout, "save");
 }
 
 function updateSettingsLayout(settings, type, originalName, nextName, nextLayout, mode) {
@@ -3691,13 +3711,13 @@ function isExplicitGroupDropTarget(event) {
 
 export function EditorPageTab({ tab }) {
   const { activeTab, setActiveTab } = useContext(TabContext);
-  const { editMode, moveTab } = useConfigEditor();
-  const matchesTab = decodeURIComponent(activeTab) === String(tab).replace(/\s+/g, "-").toLowerCase();
+  const { editMode, moveGroup, moveTab, setDraggedGroup } = useConfigEditor();
+  const encodedTab = encodeTabName(tab);
+  const matchesTab = decodeURIComponent(activeTab) === encodedTab;
   const activateTab = useCallback(() => {
-    const encodedTab = encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase());
     setActiveTab(encodedTab);
     window.location.hash = `#${encodedTab}`;
-  }, [setActiveTab, tab]);
+  }, [encodedTab, setActiveTab]);
 
   return (
     <li
@@ -3740,7 +3760,19 @@ export function EditorPageTab({ tab }) {
 
         const draggedItem = readItemDragPayload(event);
         const draggedGroup = readGroupDragPayload(event);
-        if ((!draggedItem && !draggedGroup) || matchesTab) {
+        if (!draggedItem && !draggedGroup) {
+          clearPageAutoOpen();
+          return;
+        }
+
+        if (draggedGroup && matchesTab) {
+          clearPageAutoOpen();
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          return;
+        }
+
+        if (matchesTab) {
           clearPageAutoOpen();
           return;
         }
@@ -3768,15 +3800,26 @@ export function EditorPageTab({ tab }) {
           return;
         }
 
-        const dragged = readTabDragPayload(event);
         clearPageAutoOpen();
-        if (!dragged || namesEqual(dragged.tabName, tab)) {
+        const draggedGroup = readGroupDragPayload(event);
+        if (draggedGroup) {
+          event.preventDefault();
+          event.stopPropagation();
+          activateTab();
+          moveGroup(draggedGroup.type, draggedGroup.groupName, null, "root", tab);
+          clearDragPayload();
+          setDraggedGroup(null);
+          return;
+        }
+
+        const draggedTab = readTabDragPayload(event);
+        if (!draggedTab || namesEqual(draggedTab.tabName, tab)) {
           return;
         }
 
         event.preventDefault();
         event.stopPropagation();
-        moveTab(dragged.tabName, tab);
+        moveTab(draggedTab.tabName, tab);
       }}
       className={classNames(
         "text-theme-700 dark:text-theme-200 relative h-10 w-full rounded-md flex",
@@ -3982,7 +4025,7 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
 }
 
 export function RootGroupDropZone({ children }) {
-  const { draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
+  const { activePageName, draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
 
   const dropGroupToRoot = useCallback(
     (event) => {
@@ -3992,12 +4035,12 @@ export function RootGroupDropZone({ children }) {
       }
 
       event.preventDefault();
-      moveGroup(dragged.type, dragged.groupName, null, "root");
+      moveGroup(dragged.type, dragged.groupName, null, "root", activePageName);
       clearDragPayload();
       setDraggedGroup(null);
       return true;
     },
-    [draggedGroup, moveGroup, setDraggedGroup],
+    [activePageName, draggedGroup, moveGroup, setDraggedGroup],
   );
 
   useEffect(() => {
@@ -4173,6 +4216,7 @@ export function ConfigEditorProvider({ children }) {
   const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
   const { mutate } = useSWRConfig();
   const { setSettings } = useContext(SettingsContext);
+  const { activeTab } = useContext(TabContext);
   const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editButtonVisible, setEditButtonVisible] = useState(false);
@@ -4187,6 +4231,16 @@ export function ConfigEditorProvider({ children }) {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3000);
   }
+
+  const activePageName = useMemo(() => {
+    const normalizedActiveTab = typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
+    if (!normalizedActiveTab) {
+      return null;
+    }
+
+    const orderedTabs = getOrderedTabsForLayout(data?.settings?.layout ?? {}, data?.settings?.__browserEditorTabOrder ?? []);
+    return orderedTabs.find((tab) => namesEqual(encodeTabName(tab), normalizedActiveTab)) ?? null;
+  }, [activeTab, data]);
 
   const moveTab = useCallback(
     async (sourceTab, targetTab) => {
@@ -4219,11 +4273,12 @@ export function ConfigEditorProvider({ children }) {
 
   const value = useMemo(
     () => ({
+      activePageName,
       draggedGroup,
       setDraggedGroup,
       editMode,
       moveTab,
-      moveGroup: async (type, sourceName, targetName, placement = "before") => {
+      moveGroup: async (type, sourceName, targetName, placement = "before", targetTab = null) => {
         if (!data || (placement !== "root" && namesEqual(sourceName, targetName))) {
           return;
         }
@@ -4233,10 +4288,17 @@ export function ConfigEditorProvider({ children }) {
             ? moveRawServiceGroup(data[type], sourceName, targetName, placement)
             : moveRawBookmarkGroup(data[type], sourceName, targetName, placement);
 
-        const layoutResult =
+        let layoutResult =
           type === "services"
             ? moveSettingsLayoutGroup(data.settings, rawResult.nextGroups, sourceName, targetName, placement)
             : { moved: true, settings: data.settings };
+
+        if (layoutResult.moved && placement === "root" && typeof targetTab === "string" && targetTab.trim()) {
+          layoutResult = {
+            ...layoutResult,
+            settings: applyGroupTabToSettings(layoutResult.settings, type, sourceName, targetTab),
+          };
+        }
 
         if (!rawResult.moved || !layoutResult.moved) {
           handleSaved("Группу нельзя переместить сюда");
@@ -4254,7 +4316,7 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        if (type === "services") {
+        if (layoutResult.settings !== data.settings) {
           const settingsResponse = await fetch("/api/config/editor", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -4352,7 +4414,7 @@ export function ConfigEditorProvider({ children }) {
         }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
     }),
-    [data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings],
+    [activePageName, data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings],
   );
 
   const showEditButton = useCallback(() => {
