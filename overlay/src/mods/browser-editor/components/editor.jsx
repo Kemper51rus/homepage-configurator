@@ -45,11 +45,14 @@ const JSON_DRAG_TYPE = "application/json";
 const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
 const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
 const TAB_DRAG_TYPE = "application/x-homepage-browser-editor-tab";
+const PAGE_AUTO_OPEN_DELAY_MS = 450;
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
 
 let activeDragPayload = null;
+let pageAutoOpenTimeoutId = 0;
+let pageAutoOpenTabName = null;
 
 const serviceFields = [
   ["id", "ID"],
@@ -3609,6 +3612,14 @@ function clearDragPayload() {
   activeDragPayload = null;
 }
 
+function clearPageAutoOpen() {
+  if (pageAutoOpenTimeoutId) {
+    window.clearTimeout(pageAutoOpenTimeoutId);
+    pageAutoOpenTimeoutId = 0;
+  }
+  pageAutoOpenTabName = null;
+}
+
 function readDragPayload(event, preferredType = JSON_DRAG_TYPE) {
   const raw = event.dataTransfer.getData(preferredType) || event.dataTransfer.getData(JSON_DRAG_TYPE);
   if (!raw) return null;
@@ -3652,6 +3663,22 @@ function readTabDragPayload(event, fallbackPayload = null) {
   return null;
 }
 
+function readItemDragPayload(event, fallbackPayload = null) {
+  const typedPayload = readDragPayload(event, ITEM_DRAG_TYPE);
+  const genericPayload = typedPayload ?? readDragPayload(event);
+  const fallback = fallbackPayload ?? activeDragPayload;
+
+  if (genericPayload?.type === "services" || genericPayload?.type === "bookmarks") {
+    return genericPayload;
+  }
+
+  if (fallback?.type === "services" || fallback?.type === "bookmarks") {
+    return fallback;
+  }
+
+  return null;
+}
+
 function isGroupDragOver(event, fallbackPayload = null) {
   return (
     hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group"
@@ -3666,6 +3693,11 @@ export function EditorPageTab({ tab }) {
   const { activeTab, setActiveTab } = useContext(TabContext);
   const { editMode, moveTab } = useConfigEditor();
   const matchesTab = decodeURIComponent(activeTab) === String(tab).replace(/\s+/g, "-").toLowerCase();
+  const activateTab = useCallback(() => {
+    const encodedTab = encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase());
+    setActiveTab(encodedTab);
+    window.location.hash = `#${encodedTab}`;
+  }, [setActiveTab, tab]);
 
   return (
     <li
@@ -3685,6 +3717,7 @@ export function EditorPageTab({ tab }) {
           return;
         }
 
+        clearPageAutoOpen();
         window.setTimeout(clearDragPayload, 0);
       }}
       onDragOver={(event) => {
@@ -3692,13 +3725,42 @@ export function EditorPageTab({ tab }) {
           return;
         }
 
-        const dragged = readTabDragPayload(event);
-        if (!dragged || namesEqual(dragged.tabName, tab)) {
+        const draggedTab = readTabDragPayload(event);
+        if (draggedTab) {
+          if (namesEqual(draggedTab.tabName, tab)) {
+            clearPageAutoOpen();
+            return;
+          }
+
+          clearPageAutoOpen();
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          return;
+        }
+
+        const draggedItem = readItemDragPayload(event);
+        if (!draggedItem || matchesTab) {
+          clearPageAutoOpen();
           return;
         }
 
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
+
+        if (!namesEqual(pageAutoOpenTabName, tab)) {
+          clearPageAutoOpen();
+          pageAutoOpenTabName = tab;
+          pageAutoOpenTimeoutId = window.setTimeout(() => {
+            pageAutoOpenTimeoutId = 0;
+            pageAutoOpenTabName = null;
+            activateTab();
+          }, PAGE_AUTO_OPEN_DELAY_MS);
+        }
+      }}
+      onDragLeave={() => {
+        if (namesEqual(pageAutoOpenTabName, tab)) {
+          clearPageAutoOpen();
+        }
       }}
       onDrop={(event) => {
         if (!editMode) {
@@ -3706,6 +3768,7 @@ export function EditorPageTab({ tab }) {
         }
 
         const dragged = readTabDragPayload(event);
+        clearPageAutoOpen();
         if (!dragged || namesEqual(dragged.tabName, tab)) {
           return;
         }
@@ -3732,8 +3795,7 @@ export function EditorPageTab({ tab }) {
             "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
         )}
         onClick={() => {
-          setActiveTab(encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase()));
-          window.location.hash = `#${encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase())}`;
+          activateTab();
         }}
       >
         {tab}
