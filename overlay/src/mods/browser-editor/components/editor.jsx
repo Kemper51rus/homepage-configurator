@@ -51,6 +51,8 @@ const PAGE_AUTO_OPEN_DELAY_MS = 450;
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
+const GROUP_ORDER_SETTINGS_KEY = "__browserEditorGroupOrderByPage";
+const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
 
 let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
@@ -1351,6 +1353,159 @@ export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
   return orderedTabs;
 }
 
+function normalizeGroupOrderPageName(pageName) {
+  const normalizedPageName = typeof pageName === "string" ? pageName.trim() : "";
+  return normalizedPageName || DEFAULT_GROUP_ORDER_PAGE_KEY;
+}
+
+function createGroupOrderEntry(type, groupName) {
+  return {
+    type,
+    groupName: String(groupName ?? "").trim(),
+  };
+}
+
+function normalizeGroupOrderEntry(entry) {
+  const normalizedType = entry?.type;
+  const normalizedGroupName = typeof entry?.groupName === "string" ? entry.groupName.trim() : "";
+
+  if ((normalizedType !== "services" && normalizedType !== "bookmarks") || !normalizedGroupName) {
+    return null;
+  }
+
+  return createGroupOrderEntry(normalizedType, normalizedGroupName);
+}
+
+function groupOrderEntryKey(entry) {
+  return `${entry.type}\u0000${entry.groupName}`;
+}
+
+function readGroupOrderMap(settings) {
+  const groupOrderMap = settings?.[GROUP_ORDER_SETTINGS_KEY];
+  return groupOrderMap && typeof groupOrderMap === "object" && !Array.isArray(groupOrderMap) ? groupOrderMap : {};
+}
+
+function getGroupPageName(settings, type, groupName) {
+  const groupLayout = getGroupLayout(settings?.layout ?? {}, type, groupName);
+  const normalizedPageName = typeof groupLayout?.tab === "string" ? groupLayout.tab.trim() : "";
+  return normalizedPageName || null;
+}
+
+function groupMatchesPage(settings, type, groupName, pageName) {
+  const normalizedPageName = typeof pageName === "string" ? pageName.trim() : "";
+  const groupPageName = getGroupPageName(settings, type, groupName);
+
+  if (!groupPageName) {
+    return !normalizedPageName;
+  }
+
+  return namesEqual(groupPageName, normalizedPageName);
+}
+
+function dedupeTopLevelGroupEntries(groups = []) {
+  const seen = new Set();
+
+  return groups.filter((entry) => {
+    const normalizedType = entry?.type;
+    const normalizedGroupName = typeof entry?.group?.name === "string" ? entry.group.name.trim() : "";
+    if ((normalizedType !== "services" && normalizedType !== "bookmarks") || !normalizedGroupName) {
+      return false;
+    }
+
+    const key = `${normalizedType}\u0000${normalizedGroupName}`;
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, pageName) {
+  const serviceMap = new Map((rawServices ?? []).map((group) => [group.name, group]));
+  const bookmarkMap = new Map((rawBookmarks ?? []).map((group) => [group.name, group]));
+  const layoutEntries = Object.entries(settings?.layout ?? {});
+
+  const layoutGroups = layoutEntries
+    .map(([groupName]) => {
+      if (groupName === "Bookmarks") {
+        return null;
+      }
+
+      if (serviceMap.has(groupName)) {
+        return { type: "services", group: serviceMap.get(groupName) };
+      }
+
+      if (bookmarkMap.has(groupName)) {
+        return { type: "bookmarks", group: bookmarkMap.get(groupName) };
+      }
+
+      return {
+        type: "services",
+        group: { name: groupName, services: [], groups: [] },
+      };
+    })
+    .filter((entry) => entry && groupMatchesPage(settings, entry.type, entry.group.name, pageName));
+
+  const serviceFallbackGroups = (rawServices ?? [])
+    .filter((group) => groupMatchesPage(settings, "services", group.name, pageName))
+    .filter((group) => getGroupLayout(settings?.layout ?? {}, "services", group.name) === undefined)
+    .map((group) => ({ type: "services", group }));
+
+  const bookmarkLayoutGroups = Object.keys(settings?.layout?.Bookmarks ?? {})
+    .map((groupName) => ({
+      type: "bookmarks",
+      group: bookmarkMap.get(groupName) ?? { name: groupName, bookmarks: [] },
+    }))
+    .filter((entry) => groupMatchesPage(settings, "bookmarks", entry.group.name, pageName));
+
+  const bookmarkFallbackGroups = (rawBookmarks ?? [])
+    .filter((group) => groupMatchesPage(settings, "bookmarks", group.name, pageName))
+    .filter((group) => getGroupLayout(settings?.layout ?? {}, "bookmarks", group.name) === undefined)
+    .map((group) => ({ type: "bookmarks", group }));
+
+  return dedupeTopLevelGroupEntries([...layoutGroups, ...serviceFallbackGroups, ...bookmarkLayoutGroups, ...bookmarkFallbackGroups]);
+}
+
+export function getOrderedTopLevelGroupsForPage(settings, pageName, groups = []) {
+  const fallbackGroups = dedupeTopLevelGroupEntries(groups);
+  const persistedOrder = (readGroupOrderMap(settings)[normalizeGroupOrderPageName(pageName)] ?? [])
+    .map(normalizeGroupOrderEntry)
+    .filter(Boolean);
+  const orderedGroups = [];
+  const seen = new Set();
+
+  persistedOrder.forEach((entry) => {
+    const matchedGroup = fallbackGroups.find(
+      (candidate) => candidate.type === entry.type && namesEqual(candidate.group?.name, entry.groupName),
+    );
+    if (!matchedGroup) {
+      return;
+    }
+
+    const key = `${entry.type}\u0000${entry.groupName}`;
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    orderedGroups.push(matchedGroup);
+  });
+
+  fallbackGroups.forEach((entry) => {
+    const key = `${entry.type}\u0000${String(entry.group?.name ?? "").trim()}`;
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    orderedGroups.push(entry);
+  });
+
+  return orderedGroups;
+}
+
 function encodeTabName(tab) {
   return encodeURIComponent(String(tab).replace(/\s+/g, "-").toLowerCase());
 }
@@ -1367,6 +1522,148 @@ function applyGroupTabToSettings(settings, type, groupName, tabName) {
   }
 
   return updateSettingsLayout(settings, type, groupName, groupName, nextLayout, "save");
+}
+
+function isTopLevelRawGroup(rawGroups, groupName) {
+  return (rawGroups ?? []).some((group) => namesEqual(getEntryName(group), groupName));
+}
+
+function setGroupOrderEntriesForPage(settings, pageName, entries) {
+  const nextEntries = entries.map(normalizeGroupOrderEntry).filter(Boolean);
+  const normalizedPageName = normalizeGroupOrderPageName(pageName);
+  const nextGroupOrderMap = { ...readGroupOrderMap(settings) };
+
+  if (nextEntries.length > 0) {
+    nextGroupOrderMap[normalizedPageName] = nextEntries;
+  } else {
+    delete nextGroupOrderMap[normalizedPageName];
+  }
+
+  const nextSettings = { ...(settings ?? {}) };
+  if (Object.keys(nextGroupOrderMap).length > 0) {
+    nextSettings[GROUP_ORDER_SETTINGS_KEY] = nextGroupOrderMap;
+  } else {
+    delete nextSettings[GROUP_ORDER_SETTINGS_KEY];
+  }
+
+  return nextSettings;
+}
+
+function updateGroupOrderSettings(
+  settingsBefore,
+  settingsAfter,
+  rawServicesBefore,
+  rawBookmarksBefore,
+  rawServicesAfter,
+  rawBookmarksAfter,
+  type,
+  sourceName,
+  targetName,
+  placement,
+) {
+  const beforeRawGroups = type === "services" ? rawServicesBefore : rawBookmarksBefore;
+  const afterRawGroups = type === "services" ? rawServicesAfter : rawBookmarksAfter;
+  const sourceWasTopLevel = isTopLevelRawGroup(beforeRawGroups, sourceName);
+  const sourceIsTopLevel = isTopLevelRawGroup(afterRawGroups, sourceName);
+  const targetIsTopLevel = placement === "before" && targetName ? isTopLevelRawGroup(afterRawGroups, targetName) : false;
+
+  if (!sourceWasTopLevel && !sourceIsTopLevel && !targetIsTopLevel) {
+    return settingsAfter;
+  }
+
+  const sourcePageBefore = sourceWasTopLevel ? getGroupPageName(settingsBefore, type, sourceName) : undefined;
+  const sourcePageAfter = sourceIsTopLevel ? getGroupPageName(settingsAfter, type, sourceName) : undefined;
+  const targetPageAfter = targetIsTopLevel ? getGroupPageName(settingsAfter, type, targetName) : undefined;
+  const sourceEntry = createGroupOrderEntry(type, sourceName);
+  const baseOrders = new Map();
+  const affectedPages = new Map();
+
+  [sourcePageBefore, sourcePageAfter, targetPageAfter].forEach((pageName) => {
+    if (pageName === undefined) {
+      return;
+    }
+
+    const pageKey = normalizeGroupOrderPageName(pageName);
+    if (affectedPages.has(pageKey)) {
+      return;
+    }
+
+    affectedPages.set(pageKey, pageName);
+  });
+
+  affectedPages.forEach((rawPageName, pageKey) => {
+    const currentPageGroups = getOrderedTopLevelGroupsForPage(
+      settingsBefore,
+      rawPageName,
+      collectCurrentPageTopLevelGroups(settingsBefore, rawServicesBefore, rawBookmarksBefore, rawPageName),
+    );
+    baseOrders.set(
+      pageKey,
+      currentPageGroups.map((entry) => createGroupOrderEntry(entry.type, entry.group.name)),
+    );
+  });
+
+  baseOrders.forEach((entries, pageKey) => {
+    baseOrders.set(
+      pageKey,
+      entries.filter((entry) => groupOrderEntryKey(entry) !== groupOrderEntryKey(sourceEntry)),
+    );
+  });
+
+  if (sourceIsTopLevel) {
+    const destinationPageKey = normalizeGroupOrderPageName(sourcePageAfter);
+    const destinationEntries = [...(baseOrders.get(destinationPageKey) ?? [])];
+
+    if (placement === "before" && targetIsTopLevel && namesEqual(sourcePageAfter, targetPageAfter)) {
+      const targetEntry = createGroupOrderEntry(type, targetName);
+      const targetIndex = destinationEntries.findIndex((entry) => groupOrderEntryKey(entry) === groupOrderEntryKey(targetEntry));
+
+      if (targetIndex >= 0) {
+        destinationEntries.splice(targetIndex, 0, sourceEntry);
+      } else {
+        destinationEntries.push(sourceEntry);
+      }
+    } else {
+      destinationEntries.push(sourceEntry);
+    }
+
+    baseOrders.set(destinationPageKey, destinationEntries);
+  }
+
+  let nextSettings = settingsAfter;
+
+  affectedPages.forEach((rawPageName, pageKey) => {
+    const fallbackGroups = collectCurrentPageTopLevelGroups(nextSettings, rawServicesAfter, rawBookmarksAfter, rawPageName);
+    const orderedEntries = [...(baseOrders.get(pageKey) ?? [])];
+    const actualEntries = fallbackGroups.map((entry) => createGroupOrderEntry(entry.type, entry.group.name));
+    const actualEntryKeys = new Set(actualEntries.map(groupOrderEntryKey));
+    const seen = new Set();
+    const sanitizedEntries = [];
+
+    orderedEntries.forEach((entry) => {
+      const key = groupOrderEntryKey(entry);
+      if (!actualEntryKeys.has(key) || seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      sanitizedEntries.push(entry);
+    });
+
+    actualEntries.forEach((entry) => {
+      const key = groupOrderEntryKey(entry);
+      if (seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      sanitizedEntries.push(entry);
+    });
+
+    nextSettings = setGroupOrderEntriesForPage(nextSettings, rawPageName, sanitizedEntries);
+  });
+
+  return nextSettings;
 }
 
 function updateSettingsLayout(settings, type, originalName, nextName, nextLayout, mode) {
@@ -4297,6 +4594,24 @@ export function ConfigEditorProvider({ children }) {
           layoutResult = {
             ...layoutResult,
             settings: applyGroupTabToSettings(layoutResult.settings, type, sourceName, targetTab),
+          };
+        }
+
+        if (layoutResult.moved) {
+          layoutResult = {
+            ...layoutResult,
+            settings: updateGroupOrderSettings(
+              data.settings,
+              layoutResult.settings,
+              data.services,
+              data.bookmarks,
+              type === "services" ? rawResult.nextGroups : data.services,
+              type === "bookmarks" ? rawResult.nextGroups : data.bookmarks,
+              type,
+              sourceName,
+              targetName,
+              placement,
+            ),
           };
         }
 
