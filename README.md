@@ -1,4 +1,7 @@
-# Homepage configurator
+<h1>
+  <img src="logo.png" alt="Homepage configurator logo" width="36" height="36">
+  Homepage configurator
+</h1>
 
 Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
 
