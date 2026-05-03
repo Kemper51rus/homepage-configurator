@@ -1,5 +1,5 @@
 <h1>
-  <img src="logo.png" alt="Homepage configurator logo" width="36" height="36">
+  <img src="logo.png" alt="Homepage configurator logo" width="36" height="36" align="absmiddle" style="vertical-align: -6px;">
   Homepage configurator
 </h1>
 
