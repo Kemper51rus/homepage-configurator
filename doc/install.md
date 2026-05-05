@@ -13,6 +13,7 @@
 - пакетный менеджер для сборки Homepage: обычно `pnpm`, реже `npm` или `yarn`;
 - права на запись в директорию Homepage;
 - для автоматического перезапуска - доступ к `systemctl restart homepage.service`.
+- для runtime-деплоя без `.git` - `rsync` и SSH-доступ к runtime-серверу.
 
 ## Quick install
 
@@ -22,7 +23,7 @@
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
 ```
 
-Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, nginx, внешние каталоги конфигов и картинок.
+Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, внешние каталоги конфигов и картинок. По умолчанию сервис слушает `0.0.0.0:3000`; внешний reverse proxy настраивается отдельно. Если нужен локальный nginx внутри LXC, запустите установщик с `HOMEPAGE_INSTALL_NGINX=1`.
 
 Для установки target-проекта запускайте его от `root`.
 
@@ -44,6 +45,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Установить все дополнения custom.css/custom.js` - встроить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта;
 - `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в `.env.local`.
+
+Если задан `HOMEPAGE_EDITOR_TOKEN`, операции записи из браузера (`PUT/POST /api/config/editor`) требуют этот токен.
+Клиент редактора попросит токен при первой ошибке `401` и сохранит его в `localStorage` браузера.
+Для systemd-инсталляции токен удобно хранить в `/etc/default/homepage`; `install-update-homepage.sh` сохраняет существующее значение при обновлении.
 
 Скрипт сам ищет target-проект в таком порядке:
 
@@ -211,6 +216,66 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 systemctl status homepage.service
 curl -I -H 'Host: 100.100.0.230:3000' http://127.0.0.1:3000/
 ```
+
+## Runtime-Деплой Без `.git`
+
+Рабочая схема после разделения проекта и runtime-сервера:
+
+1. полный git-проект мода хранится локально в `/projects/homepage-configurator`;
+2. target checkout `gethomepage/homepage` собирается локально или на staging-хосте;
+3. на LXC/runtime-сервер доставляются только production-файлы;
+4. `/srv/homepage-config` и `/srv/homepage-images` остаются runtime-data и не затираются деплоем.
+
+Перед `pnpm build` в staging checkout должен быть актуальный `config` из runtime-сервера. Homepage prerender-ит главную страницу на build-time; если собрать без live `settings.yaml`, после деплоя пропадут build-time элементы вроде `title`, `background`, страниц-вкладок и порядка групп, хотя runtime API будет читать правильный `/srv/homepage-config`.
+
+Пример подготовки staging build:
+
+```bash
+cd /projects/homepage-configurator
+./install.sh --action update-target --target /projects/homepage-runtime-build --custom skip --no-restart
+
+rm -rf /projects/homepage-runtime-build/config
+mkdir -p /projects/homepage-runtime-build/config
+rsync -a --delete root@100.100.0.230:/srv/homepage-config/ /projects/homepage-runtime-build/config/
+
+cd /projects/homepage-runtime-build
+pnpm run build
+```
+
+Dry-run:
+
+```bash
+cd /projects/homepage-configurator
+scripts/deploy-runtime.sh --source /path/to/built/homepage
+```
+
+Применить и перезапустить сервис:
+
+```bash
+scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --restart
+```
+
+Перевести systemd на standalone runtime:
+
+```bash
+scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --install-service --restart
+```
+
+По умолчанию скрипт деплоит на `root@100.100.0.230` в `/opt/homepage`. Это можно переопределить:
+
+```bash
+scripts/deploy-runtime.sh \
+  --source /path/to/built/homepage \
+  --remote root@100.100.0.230 \
+  --app-dir /opt/homepage \
+  --config-dir /srv/homepage-config \
+  --images-dir /srv/homepage-images \
+  --install-service \
+  --apply
+```
+
+Скрипт ожидает production-сборку с `.next/standalone/server.js`, `.next/static` и `public`.
+При `--install-service` systemd unit запускает standalone server напрямую из `.next/standalone` через `node server.js` и задаёт `HOSTNAME=0.0.0.0`, чтобы внешний прокси мог ходить на `runtime-host:3000`.
 
 Если используется доступ по IP или домену и появляется `Host validation failed`, добавьте нужный host в настройки запуска Homepage. Например:
 

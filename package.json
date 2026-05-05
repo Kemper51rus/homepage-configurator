@@ -6,6 +6,11 @@
   "author": "Kemper51rus <Kemper51rus@users.noreply.github.com>",
   "type": "module",
   "scripts": {
+    "check": "npm run check:shell && npm run check:node && npm run check:managed-blocks",
+    "check:shell": "bash -n install.sh install-update-homepage.sh scripts/deploy-runtime.sh",
+    "check:node": "node --check install.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/smoke-install.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js",
+    "check:managed-blocks": "node scripts/check-managed-blocks.mjs",
+    "smoke:install": "node scripts/smoke-install.mjs",
     "install:target": "node install.mjs",
     "enable:target": "node install.mjs --enable",
     "disable:target": "node install.mjs --disable",

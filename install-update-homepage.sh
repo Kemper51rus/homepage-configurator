@@ -5,9 +5,10 @@ APP_DIR="/opt/homepage"
 APP_USER="homepage"
 APP_GROUP="homepage"
 APP_PORT="3000"
-APP_HOST="127.0.0.1"
+APP_HOST="${HOMEPAGE_HOST:-0.0.0.0}"
 SERVICE_NAME="homepage"
 NGINX_SITE_NAME="homepage"
+INSTALL_NGINX="${HOMEPAGE_INSTALL_NGINX:-0}"
 DEFAULT_REPO="https://github.com/gethomepage/homepage.git"
 ENV_FILE="/etc/default/homepage"
 SELF_INSTALL_PATH="/bin/update"
@@ -179,9 +180,12 @@ ensure_packages() {
     build-essential \
     nodejs \
     npm \
-    nginx \
     sudo \
     python3
+
+  if [ "$INSTALL_NGINX" = "1" ]; then
+    apt install -y nginx
+  fi
 }
 
 ensure_pnpm() {
@@ -335,12 +339,20 @@ build_project() {
 }
 
 write_env_file() {
+  local editor_token
+  editor_token="$(read_env_var "HOMEPAGE_EDITOR_TOKEN")"
+
   log "Сохраняю переменные окружения"
   cat > "$ENV_FILE" <<EOF
 HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
 CONFIG_REAL_DIR=${CONFIG_REAL_DIR}
 IMAGES_REAL_DIR=${IMAGES_REAL_DIR}
 EOF
+
+  if [ -n "$editor_token" ]; then
+    printf 'HOMEPAGE_EDITOR_TOKEN=%s\n' "$editor_token" >> "$ENV_FILE"
+  fi
+
   chmod 600 "$ENV_FILE"
 }
 
@@ -377,6 +389,8 @@ EOF
 }
 
 write_nginx_config() {
+  [ "$INSTALL_NGINX" = "1" ] || return 0
+
   local primary_host
   primary_host="$(get_primary_host "$HOMEPAGE_ALLOWED_HOSTS")"
   [ -n "$primary_host" ] || fail "Не удалось определить основной host"
@@ -412,9 +426,12 @@ EOF
 }
 
 start_services() {
-  log "Запускаю сервисы"
+  log "Запускаю Homepage"
   systemctl restart "$SERVICE_NAME"
-  systemctl restart nginx
+
+  if [ "$INSTALL_NGINX" = "1" ]; then
+    systemctl restart nginx
+  fi
 }
 
 install_homepage() {
@@ -441,6 +458,7 @@ install_homepage() {
   echo
   echo "Готово."
   echo "Сайт:           http://${primary_host}"
+  echo "Порт:           ${APP_HOST}:${APP_PORT}"
   echo "Конфиги:        ${CONFIG_REAL_DIR}"
   echo "Картинки:       ${IMAGES_REAL_DIR}"
   echo "Сервис:         systemctl status ${SERVICE_NAME}"
@@ -477,6 +495,7 @@ update_homepage() {
   echo
   echo "Обновление завершено."
   echo "Сайт:           http://${primary_host}"
+  echo "Порт:           ${APP_HOST}:${APP_PORT}"
   echo "Конфиги:        ${CONFIG_REAL_DIR}"
   echo "Картинки:       ${IMAGES_REAL_DIR}"
   echo "Команда:        update"
@@ -491,7 +510,7 @@ remove_homepage() {
   echo "Будет удалено:"
   echo "  - приложение ${APP_DIR}"
   echo "  - systemd сервис ${SERVICE_NAME}"
-  echo "  - nginx-конфиг"
+  echo "  - nginx-конфиг, если он был установлен этим скриптом"
   echo "  - пользователь ${APP_USER}"
   echo "Внешние папки по умолчанию НЕ удаляются:"
   echo "  - ${current_config_dir:-<не задано>}"
@@ -513,11 +532,13 @@ remove_homepage() {
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
   systemctl daemon-reload
 
-  log "Удаляю nginx-конфиг"
-  rm -f "/etc/nginx/sites-enabled/${NGINX_SITE_NAME}"
-  rm -f "/etc/nginx/sites-available/${NGINX_SITE_NAME}"
-  nginx -t 2>/dev/null || true
-  systemctl restart nginx 2>/dev/null || true
+  if command_exists nginx || [ -d /etc/nginx ]; then
+    log "Удаляю nginx-конфиг, если он существует"
+    rm -f "/etc/nginx/sites-enabled/${NGINX_SITE_NAME}"
+    rm -f "/etc/nginx/sites-available/${NGINX_SITE_NAME}"
+    nginx -t 2>/dev/null || true
+    systemctl restart nginx 2>/dev/null || true
+  fi
 
   log "Удаляю переменные окружения"
   rm -f "$ENV_FILE"

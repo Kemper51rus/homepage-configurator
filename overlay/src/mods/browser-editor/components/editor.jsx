@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
 import { TabContext } from "utils/contexts/tab";
+import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 
 const ConfigEditorContext = createContext({
   activePageName: null,
@@ -2956,7 +2957,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
       : [];
 
   async function save(nextData) {
-    const response = await fetch("/api/config/editor", {
+    const response = await editorWriteFetch("/api/config/editor", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file: modal.type, data: nextData }),
@@ -3323,7 +3324,7 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
         reader.readAsDataURL(nextFile);
       });
 
-      const response = await fetch("/api/config/editor", {
+      const response = await editorWriteFetch("/api/config/editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3357,7 +3358,7 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
     setSelectedFileName("");
 
     try {
-      const response = await fetch("/api/config/editor", {
+      const response = await editorWriteFetch("/api/config/editor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ backgroundPath: nextBackground }),
@@ -3488,7 +3489,7 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
     setError("");
 
     try {
-      const response = await fetch("/api/config/editor", {
+      const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3625,7 +3626,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
     );
 
   async function putConfig(file, nextData) {
-    const response = await fetch("/api/config/editor", {
+    const response = await editorWriteFetch("/api/config/editor", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file, data: nextData }),
@@ -4550,7 +4551,7 @@ export function ConfigEditorProvider({ children }) {
         return;
       }
 
-      const response = await fetch("/api/config/editor", {
+      const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file: "settings", data: nextResult.settings }),
@@ -4620,7 +4621,7 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        const groupResponse = await fetch("/api/config/editor", {
+        const groupResponse = await editorWriteFetch("/api/config/editor", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ file: type, data: rawResult.nextGroups }),
@@ -4632,7 +4633,7 @@ export function ConfigEditorProvider({ children }) {
         }
 
         if (layoutResult.settings !== data.settings) {
-          const settingsResponse = await fetch("/api/config/editor", {
+          const settingsResponse = await editorWriteFetch("/api/config/editor", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -4694,7 +4695,7 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        const response = await fetch("/api/config/editor", {
+        const response = await editorWriteFetch("/api/config/editor", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ file: type, data: nextGroups }),

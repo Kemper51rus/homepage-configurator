@@ -3,13 +3,13 @@
 Рабочий каталог разработки:
 
 ```bash
-cd /opt/homepage-browser-editor-mod
+cd /projects/homepage-configurator
 ```
 
-Target-проект для проверки:
+Target-проект для проверки или сборки:
 
 ```text
-/opt/homepage
+/path/to/gethomepage/homepage
 ```
 
 ## Правило
@@ -38,15 +38,19 @@ npm run enable:target -- --target /opt/homepage
 3. Проверяем target:
 
 ```bash
-cd /opt/homepage
+cd /path/to/gethomepage/homepage
+rsync -a --delete root@100.100.0.230:/srv/homepage-config/ ./config/
 pnpm build
-systemctl restart homepage.service
 ```
 
-4. Открываем:
+`config` нужен до `pnpm build`: Homepage prerender-ит `/` и встраивает build-time настройки из `settings.yaml`, включая фон и страницы-вкладки.
 
-```text
-http://100.100.0.230:3000/
+4. Доставляем runtime на сервер, если сборка прошла:
+
+```bash
+cd /projects/homepage-configurator
+scripts/deploy-runtime.sh --source /path/to/gethomepage/homepage
+scripts/deploy-runtime.sh --source /path/to/gethomepage/homepage --apply --restart
 ```
 
 ## Когда Обновлять Patch
@@ -62,34 +66,34 @@ http://100.100.0.230:3000/
 
 ## Что Считается Нормальным
 
-В `/opt/homepage` после установки будут лежать:
+В target checkout после установки будут лежать:
 
 - `src/mods/browser-editor/*`
 - `src/pages/api/config/background.js`
 - `src/pages/api/config/editor.js`
 
-Это runtime-копия мода внутри target-проекта. Источник правды все равно остается в `/opt/homepage-browser-editor-mod/overlay`.
+Это runtime-копия мода внутри target-проекта. Источник правды все равно остается в `/projects/homepage-configurator/overlay`.
 
 ## Быстрые Команды
 
 Установить мод:
 
 ```bash
-cd /opt/homepage-browser-editor-mod
+cd /projects/homepage-configurator
 npm run install:target -- --target /opt/homepage
 ```
 
 Включить мод:
 
 ```bash
-cd /opt/homepage-browser-editor-mod
+cd /projects/homepage-configurator
 npm run enable:target -- --target /opt/homepage
 ```
 
 Проверить статус:
 
 ```bash
-cd /opt/homepage-browser-editor-mod
+cd /projects/homepage-configurator
 npm run status:target -- --target /opt/homepage
 ```
 

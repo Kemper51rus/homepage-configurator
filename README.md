@@ -70,6 +70,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Загруженный фон сохраняется в директорию `config` целевого проекта.
 
+Для write-доступа к API редактора можно задать `HOMEPAGE_EDITOR_TOKEN`; тогда браузер попросит токен при первом сохранении и будет отправлять его в `X-Homepage-Editor-Token`.
+
 Для сервисов при перетаскивании мод автоматически обновляет `weight`, потому что homepage сортирует сервисы внутри группы по этому полю.
 
 Для групп можно редактировать основные параметры из `settings.yaml`:
@@ -95,3 +97,35 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - [Установка и удаление](doc/install.md)
 - [Структура мода](doc/mod-structure.md)
 - [Разработка](doc/development.md)
+
+## Проверки
+
+```bash
+npm run check
+```
+
+Для проверки установки на временный checkout upstream:
+
+```bash
+npm run smoke:install
+```
+
+## Runtime-деплой
+
+После сборки target checkout можно доставить на runtime-сервер только production-файлы:
+
+```bash
+scripts/deploy-runtime.sh --source /path/to/built/homepage
+scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --restart
+scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --install-service --restart
+```
+
+По умолчанию это LXC `homepage` по SSH `root@100.100.0.230`, target `/opt/homepage`.
+
+Перед `pnpm build` staging checkout должен содержать актуальный `config` с runtime-сервера:
+
+```bash
+rsync -a --delete root@100.100.0.230:/srv/homepage-config/ /path/to/built/homepage/config/
+```
+
+Homepage генерирует главную страницу на build-time. Если собрать без live `settings.yaml`, после деплоя могут пропасть фон, title, страницы-вкладки и порядок групп, хотя runtime API будет читать правильный `/srv/homepage-config`.
