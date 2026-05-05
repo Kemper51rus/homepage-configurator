@@ -49,7 +49,7 @@ export const serviceCardColorOptions = [
   ["color-indigo", "Индиго", "#2a2978"],
 ];
 
-const knownFields = {
+export const knownFields = {
   bookmarks: bookmarkFields.map(([key]) => key),
   services: serviceFields.map(([key]) => key),
 };

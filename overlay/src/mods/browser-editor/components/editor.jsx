@@ -15,6 +15,7 @@ import {
   collapsedServiceFieldKeys,
   formToConfig,
   getServiceCardColor,
+  knownFields,
   serviceCardColorOptions,
   serviceFields,
   splitConfig,
