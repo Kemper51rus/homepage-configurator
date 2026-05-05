@@ -137,6 +137,8 @@ fi
 if [[ "$APPLY" -eq 1 ]]; then
   ssh "$REMOTE" "
     set -eu
+    mkdir -p '$IMAGES_DIR/icons'
+    chown homepage:homepage '$IMAGES_DIR' '$IMAGES_DIR/icons' 2>/dev/null || true
     rm -rf '$APP_DIR/config' '$APP_DIR/.next/standalone/config' '$APP_DIR/public/images' '$APP_DIR/.next/standalone/public/images'
     ln -sfn '$CONFIG_DIR' '$APP_DIR/config'
     ln -sfn '$CONFIG_DIR' '$APP_DIR/.next/standalone/config'

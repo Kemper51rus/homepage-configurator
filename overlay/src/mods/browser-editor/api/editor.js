@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { createHash } from "crypto";
 import path from "path";
 
 import yaml from "js-yaml";
@@ -36,6 +37,19 @@ const backgroundTypes = {
   "image/png": ".png",
   "image/webp": ".webp",
 };
+
+const iconTypes = {
+  "image/gif": ".gif",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/svg+xml": ".svg",
+  "image/webp": ".webp",
+  "image/x-icon": ".ico",
+  "image/vnd.microsoft.icon": ".ico",
+};
+
+const iconExtensions = new Set([".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
+const maxIconBytes = 5 * 1024 * 1024;
 
 function isEditorEnabled() {
   return process.env.HOMEPAGE_BROWSER_EDITOR === "true";
@@ -257,6 +271,157 @@ async function saveBackgroundValue(backgroundPath) {
   return settings;
 }
 
+function isRemoteIcon(value) {
+  return typeof value === "string" && /^https?:\/\//i.test(value.trim());
+}
+
+function slugifyIconName(name) {
+  return (
+    String(name ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "icon"
+  );
+}
+
+function getIconExtension(url, contentType) {
+  try {
+    const extension = path.extname(new URL(url).pathname).toLowerCase();
+    if (iconExtensions.has(extension)) {
+      return extension;
+    }
+  } catch {
+    // Fall through to content-type based detection.
+  }
+
+  return iconTypes[contentType?.split(";")[0]?.trim().toLowerCase()] ?? ".png";
+}
+
+function collectRemoteIcons(value, icons, itemName = "") {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectRemoteIcons(entry, icons, itemName));
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (isRemoteIcon(value.icon)) {
+    icons.push({ item: value, itemName, url: value.icon.trim() });
+  }
+
+  Object.entries(value).forEach(([key, child]) => {
+    if (key === "icon") {
+      return;
+    }
+
+    const nextName =
+      child && typeof child === "object" && !Array.isArray(child) && Object.prototype.hasOwnProperty.call(child, "icon")
+        ? key
+        : itemName || key;
+    collectRemoteIcons(child, icons, nextName);
+  });
+}
+
+async function downloadIcon(url, itemName, iconsDir, downloadedByUrl) {
+  if (downloadedByUrl.has(url)) {
+    return { ...downloadedByUrl.get(url), reused: true };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { "User-Agent": "homepage-browser-editor/1.0" },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Не удалось скачать иконку ${url}: HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const extension = getIconExtension(url, contentType);
+  const normalizedContentType = contentType.split(";")[0].trim().toLowerCase();
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+
+  if (contentLength > maxIconBytes) {
+    throw new Error(`Иконка слишком большая: ${url}`);
+  }
+
+  if (
+    !normalizedContentType.startsWith("image/") &&
+    normalizedContentType !== "application/octet-stream" &&
+    !iconExtensions.has(extension)
+  ) {
+    throw new Error(`Неподдерживаемый тип иконки ${contentType || "<empty>"}: ${url}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > maxIconBytes) {
+    throw new Error(`Иконка слишком большая: ${url}`);
+  }
+
+  await fs.mkdir(iconsDir, { recursive: true });
+
+  const hash = createHash("sha256").update(url).digest("hex").slice(0, 10);
+  const fileName = `${slugifyIconName(itemName)}-${hash}${extension}`;
+  const filePath = path.join(iconsDir, fileName);
+  await fs.writeFile(filePath, buffer);
+
+  const result = { fileName, localIcon: `icons/${fileName}` };
+  downloadedByUrl.set(url, result);
+  return { ...result, reused: false };
+}
+
+async function localizeRemoteIcons() {
+  const iconsDir = path.join(process.env.IMAGES_REAL_DIR || path.join(process.cwd(), "public", "images"), "icons");
+  const services = await readYamlFile("services", []);
+  const bookmarks = await readYamlFile("bookmarks", []);
+  const targets = [];
+  const downloadedByUrl = new Map();
+  const result = {
+    downloaded: 0,
+    updated: 0,
+    skipped: 0,
+    iconsDir,
+    files: [],
+  };
+
+  collectRemoteIcons(services, targets, "");
+  collectRemoteIcons(bookmarks, targets, "");
+
+  for (const target of targets) {
+    try {
+      const icon = await downloadIcon(target.url, target.itemName, iconsDir, downloadedByUrl);
+      target.item.icon = icon.localIcon;
+      result.updated += 1;
+      if (!icon.reused) {
+        result.downloaded += 1;
+        result.files.push(icon.fileName);
+      }
+    } catch (error) {
+      result.skipped += 1;
+      logger.error(error);
+    }
+  }
+
+  if (targets.length > 0 && result.updated > 0) {
+    await writeYamlFile("services", services);
+    await writeYamlFile("bookmarks", bookmarks);
+  }
+
+  return result;
+}
+
 async function getEditorConfig() {
   const [services, bookmarks, settings, settingsTabs] = await Promise.all([
     readYamlFile("services", []),
@@ -311,7 +476,12 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { background, backgroundPath } = req.body ?? {};
+      const { action, background, backgroundPath } = req.body ?? {};
+
+      if (action === "localize-icons") {
+        const iconLocalization = await localizeRemoteIcons();
+        return res.status(200).json({ ...(await getEditorConfig()), iconLocalization });
+      }
 
       if (backgroundPath !== undefined) {
         await saveBackgroundValue(backgroundPath);

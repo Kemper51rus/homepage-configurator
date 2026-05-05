@@ -204,6 +204,7 @@ ensure_storage_dirs() {
   log "Создаю внешние каталоги данных"
   mkdir -p "$CONFIG_REAL_DIR"
   mkdir -p "$IMAGES_REAL_DIR"
+  mkdir -p "$IMAGES_REAL_DIR/icons"
   chown -R "${APP_USER}:${APP_GROUP}" "$CONFIG_REAL_DIR" "$IMAGES_REAL_DIR"
 }
 

@@ -4331,6 +4331,7 @@ export function ConfigEditorProvider({ children }) {
   const [editButtonVisible, setEditButtonVisible] = useState(false);
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
+  const [iconsSaving, setIconsSaving] = useState(false);
   const editButtonHideTimeoutRef = useRef(null);
   const backgroundButtonRef = useRef(null);
   const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
@@ -4340,6 +4341,41 @@ export function ConfigEditorProvider({ children }) {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3000);
   }
+
+  const localizeIcons = useCallback(async () => {
+    if (iconsSaving) {
+      return;
+    }
+
+    setIconsSaving(true);
+    try {
+      const response = await editorWriteFetch("/api/config/editor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "localize-icons" }),
+      });
+
+      if (!response.ok) {
+        handleSaved(await response.text());
+        return;
+      }
+
+      const nextData = await response.json();
+      await mutate("/api/config/editor", nextData, false);
+      await refreshConfigData(mutate);
+
+      const result = nextData.iconLocalization;
+      if (!result?.updated) {
+        handleSaved("Иконки со ссылками не найдены");
+        return;
+      }
+
+      const skipped = result.skipped ? `, пропущено ${result.skipped}` : "";
+      handleSaved(`Иконки: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`);
+    } finally {
+      setIconsSaving(false);
+    }
+  }, [iconsSaving, mutate]);
 
   const activePageName = useMemo(() => {
     const normalizedActiveTab = typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
@@ -4635,6 +4671,9 @@ export function ConfigEditorProvider({ children }) {
           </button>
           <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
             Новая группа
+          </button>
+          <button type="button" onClick={localizeIcons} disabled={iconsSaving} className={toolbarButtonClassName}>
+            {iconsSaving ? "Иконки..." : "Иконки"}
           </button>
           <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
             Ручная правка

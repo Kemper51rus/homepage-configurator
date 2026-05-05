@@ -50,6 +50,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 Клиент редактора попросит токен при первой ошибке `401` и сохранит его в `localStorage` браузера.
 Для systemd-инсталляции токен удобно хранить в `/etc/default/homepage`; `install-update-homepage.sh` сохраняет существующее значение при обновлении.
 
+Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на локальные пути `icons/...`. При стандартной установке `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её.
+
 Скрипт сам ищет target-проект в таком порядке:
 
 1. `HOMEPAGE_TARGET_DIR` или `--target`;
