@@ -453,7 +453,7 @@ run_mod_installer() {
   if [[ "$1" == "install" || "$1" == "uninstall" ]]; then
     require_git
   fi
-  node "$MOD_DIR/install.mjs" "$1" --target "$TARGET"
+  node "$MOD_DIR/install.mjs" "$@" --target "$TARGET"
 }
 
 config_owner() {
@@ -1007,7 +1007,7 @@ restart_target() {
 
 run_update() {
   log "Updating browser editor in $TARGET"
-  run_mod_installer uninstall
+  run_mod_installer uninstall --force
   run_mod_installer install
   run_mod_installer enable
 }

@@ -17,6 +17,7 @@ function run(command, args, options = {}) {
 
 try {
   run("git", ["clone", "--depth", "1", "https://github.com/gethomepage/homepage.git", target], { stdio: "inherit" });
+  run("node", ["install.mjs", "--dry-run", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--enable", "--target", target], { stdio: "inherit" });
 
@@ -35,6 +36,12 @@ try {
     throw new Error("Managed dependencies were not added");
   }
 
+  const manifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  if (!manifest.overlayFiles?.includes("src/mods/browser-editor/components/editor.jsx")) {
+    throw new Error("Install manifest does not list overlay files");
+  }
+
+  run("node", ["install.mjs", "--dry-run", "--uninstall", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
 
   console.log("Smoke install/uninstall passed.");

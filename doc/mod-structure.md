@@ -23,7 +23,7 @@ overlay/src/mods/browser-editor/*        -> src/mods/browser-editor/*
 overlay/src/pages/api/config/*.js        -> src/pages/api/config/*.js
 ```
 
-Клиентские helper-файлы, например `overlay/src/mods/browser-editor/client/*`, также копируются внутрь target-проекта и импортируются как `mods/browser-editor/client/*`.
+Клиентские helper-файлы и чистая логика, например `overlay/src/mods/browser-editor/client/*` и `overlay/src/mods/browser-editor/lib/*`, также копируются внутрь target-проекта и импортируются как `mods/browser-editor/client/*` или `mods/browser-editor/lib/*`.
 
 Target-проект `/opt/homepage` больше не считается источником правды для кода мода. Он нужен только для:
 

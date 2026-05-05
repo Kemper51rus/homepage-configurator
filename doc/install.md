@@ -87,6 +87,19 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что `install-update-homepage.sh` создаёт `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
 
+Низкоуровневый установщик `install.mjs` поддерживает safety-режимы:
+
+```bash
+node install.mjs --dry-run --target /path/to/gethomepage/homepage
+node install.mjs --target /path/to/gethomepage/homepage
+node install.mjs --dry-run --uninstall --target /path/to/gethomepage/homepage
+node install.mjs --uninstall --target /path/to/gethomepage/homepage
+```
+
+Перед применением он показывает план, проверяет, что target похож на checkout `gethomepage/homepage`, сохраняет backup затрагиваемых файлов в `.homepage-configurator-backups/` и пишет manifest `.homepage-configurator-manifest.json`. При uninstall удаляются файлы из manifest; если overlay-файл был изменён вручную, uninstall остановится без `--force`.
+
+Интерактивные действия `Обновить мод из GitHub` и `Обновить интеграцию в target из текущего каталога` используют `--force` только для удаления предыдущей версии мода перед установкой новой. Обычное действие `Удалить` остаётся защищённым.
+
 ## Обновление Target-Проекта
 
 Перед обновлением upstream Homepage лучше временно удалить мод:

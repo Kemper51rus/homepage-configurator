@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 const root = dirname(fileURLToPath(import.meta.url));
 const patchPath = join(root, "browser-editor.patch");
 const overlayPath = join(root, "overlay");
+const manifestName = ".homepage-configurator-manifest.json";
+const backupDirName = ".homepage-configurator-backups";
 const managedDependencies = {
   prismjs: "^1.29.0",
   "react-simple-code-editor": "^0.14.1",
@@ -15,6 +17,8 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const parsed = {
     command: "install",
+    dryRun: false,
+    force: false,
     target: process.env.HOMEPAGE_TARGET_DIR || process.cwd(),
   };
 
@@ -29,6 +33,10 @@ function parseArgs() {
       parsed.command = "disable";
     } else if (arg === "--status") {
       parsed.command = "status";
+    } else if (arg === "--dry-run" || arg === "-n") {
+      parsed.dryRun = true;
+    } else if (arg === "--force") {
+      parsed.force = true;
     } else if (arg === "--install") {
       parsed.command = "install";
     } else if (arg === "--uninstall" || arg === "--remove") {
@@ -80,8 +88,84 @@ function unstagePatchFiles(target) {
 }
 
 function ensureTarget(target) {
-  if (!existsSync(join(target, "package.json")) || !existsSync(join(target, "src"))) {
+  const packageJsonPath = join(target, "package.json");
+
+  if (!existsSync(packageJsonPath) || !existsSync(join(target, "src"))) {
     throw new Error(`${target} does not look like a homepage checkout`);
+  }
+
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  if (packageJson.name !== "homepage") {
+    throw new Error(`${target} package name is ${packageJson.name ?? "<missing>"}, expected homepage`);
+  }
+
+  const requiredFiles = [
+    "next.config.js",
+    "src/pages/index.jsx",
+    "src/components/services/group.jsx",
+    "src/components/bookmarks/group.jsx",
+  ];
+
+  const missing = requiredFiles.filter((file) => !existsSync(join(target, file)));
+  if (missing.length) {
+    throw new Error(`${target} is missing expected Homepage files:\n${missing.join("\n")}`);
+  }
+}
+
+function manifestPath(target) {
+  return join(target, manifestName);
+}
+
+function readManifest(target) {
+  const file = manifestPath(target);
+  if (!existsSync(file)) return null;
+  return JSON.parse(readFileSync(file, "utf8"));
+}
+
+function writeManifest(target, manifest) {
+  writeFileSync(manifestPath(target), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function timestamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function readFileIfExists(file) {
+  return existsSync(file) ? readFileSync(file, "utf8") : null;
+}
+
+function overlayFiles() {
+  if (!existsSync(overlayPath) || !statSync(overlayPath).isDirectory()) {
+    throw new Error(`Overlay directory is missing: ${overlayPath}`);
+  }
+
+  return walk(overlayPath).map((sourcePath) => ({
+    sourcePath,
+    relativePath: relative(overlayPath, sourcePath),
+  }));
+}
+
+function backupTargetFiles(target, files) {
+  const backupRoot = join(target, backupDirName, timestamp());
+  const copied = [];
+
+  for (const file of files) {
+    const targetPath = join(target, file);
+    if (!existsSync(targetPath)) continue;
+
+    const backupPath = join(backupRoot, file);
+    mkdirSync(dirname(backupPath), { recursive: true });
+    cpSync(targetPath, backupPath);
+    copied.push(file);
+  }
+
+  return copied.length ? { backupRoot, files: copied } : null;
+}
+
+function printPlan(title, items) {
+  console.log(title);
+  for (const item of items) {
+    console.log(`  - ${item}`);
   }
 }
 
@@ -143,20 +227,73 @@ function status(target) {
   console.log(line ?? `HOMEPAGE_BROWSER_EDITOR is not set in ${envPath(target)}`);
 }
 
-function install(target) {
+function install(target, options = {}) {
   ensureTarget(target);
+
+  const files = overlayFiles().map((file) => file.relativePath);
+  const patchTouchedFiles = patchFiles();
+  const plan = [
+    `validate Homepage checkout: ${target}`,
+    `sync managed dependencies: ${Object.keys(managedDependencies).join(", ")}`,
+    `copy overlay files: ${files.length}`,
+    `apply core patch files: ${patchTouchedFiles.length}`,
+    `write manifest: ${manifestName}`,
+  ];
+  printPlan("Install plan:", plan);
+
+  if (options.dryRun) {
+    printPlan("Overlay files:", files);
+    printPlan("Patch files:", patchTouchedFiles);
+    console.log("Dry-run only. No files changed.");
+    return;
+  }
+
+  const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
+
   syncManagedDependencies(target);
   installOverlay(target);
   applyPatch(target);
+  writeManifest(target, {
+    installedAt: new Date().toISOString(),
+    source: root,
+    overlayFiles: files,
+    patchFiles: patchTouchedFiles,
+    managedDependencies,
+    backup,
+  });
+
+  if (backup) {
+    console.log(`Backup written to ${backup.backupRoot}`);
+  }
   console.log(`Browser editor installed into ${target}`);
   console.log("Run with --enable to set HOMEPAGE_BROWSER_EDITOR=true.");
 }
 
-function uninstall(target) {
+function uninstall(target, options = {}) {
   ensureTarget(target);
+  const manifest = readManifest(target);
+  const files = manifest?.overlayFiles ?? overlayFiles().map((file) => file.relativePath);
+  const plan = [
+    `validate Homepage checkout: ${target}`,
+    `reverse core patch`,
+    `remove overlay files from manifest: ${files.length}`,
+    `set HOMEPAGE_BROWSER_EDITOR=false`,
+    `remove manifest: ${manifestName}`,
+  ];
+  printPlan("Uninstall plan:", plan);
+
+  if (options.dryRun) {
+    printPlan("Overlay files:", files);
+    console.log("Dry-run only. No files changed.");
+    return;
+  }
+
   reversePatch(target);
-  removeOverlay(target);
+  removeOverlay(target, { files, force: options.force });
   setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");
+  if (existsSync(manifestPath(target))) {
+    unlinkSync(manifestPath(target));
+  }
   console.log(`Browser editor removed from ${target}`);
 }
 
@@ -171,34 +308,32 @@ function walk(dir) {
 }
 
 function installOverlay(target) {
-  if (!existsSync(overlayPath) || !statSync(overlayPath).isDirectory()) {
-    throw new Error(`Overlay directory is missing: ${overlayPath}`);
-  }
-
-  for (const sourcePath of walk(overlayPath)) {
-    const relativePath = relative(overlayPath, sourcePath);
+  for (const { sourcePath, relativePath } of overlayFiles()) {
     const targetPath = join(target, relativePath);
     mkdirSync(dirname(targetPath), { recursive: true });
     cpSync(sourcePath, targetPath);
   }
 }
 
-function removeOverlay(target) {
-  if (!existsSync(overlayPath) || !statSync(overlayPath).isDirectory()) {
-    throw new Error(`Overlay directory is missing: ${overlayPath}`);
-  }
-
+function removeOverlay(target, { files = null, force = false } = {}) {
   const directories = new Set();
+  const relativePaths = files ?? overlayFiles().map((file) => file.relativePath);
 
-  for (const sourcePath of walk(overlayPath)) {
-    const relativePath = relative(overlayPath, sourcePath);
+  for (const relativePath of relativePaths) {
     const targetPath = join(target, relativePath);
+    const sourcePath = join(overlayPath, relativePath);
     directories.add(dirname(targetPath));
 
-    if (existsSync(targetPath)) {
-      unlinkSync(targetPath);
-      console.log(`Removed ${relativePath}`);
+    if (!existsSync(targetPath)) {
+      continue;
     }
+
+    if (!force && existsSync(sourcePath) && readFileIfExists(targetPath) !== readFileIfExists(sourcePath)) {
+      throw new Error(`Refusing to remove modified overlay file without --force: ${relativePath}`);
+    }
+
+    unlinkSync(targetPath);
+    console.log(`Removed ${relativePath}`);
   }
 
   [...directories]
@@ -257,11 +392,11 @@ function reversePatch(target) {
   }
 }
 
-const { command, target } = parseArgs();
+const { command, target, dryRun, force } = parseArgs();
 
 try {
-  if (command === "install") install(target);
-  if (command === "uninstall") uninstall(target);
+  if (command === "install") install(target, { dryRun, force });
+  if (command === "uninstall") uninstall(target, { dryRun, force });
   if (command === "enable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "true");
   if (command === "disable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");
   if (command === "status") status(target);
