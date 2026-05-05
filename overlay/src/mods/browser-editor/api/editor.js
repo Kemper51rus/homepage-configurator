@@ -275,6 +275,18 @@ function isRemoteIcon(value) {
   return typeof value === "string" && /^https?:\/\//i.test(value.trim());
 }
 
+function isLegacyLocalIcon(value) {
+  return typeof value === "string" && /^(?:\/images\/)?icons\/[^/].+/i.test(value.trim());
+}
+
+function getLegacyLocalIconFileName(value) {
+  return value.trim().replace(/^(?:\/images\/)?icons\//i, "");
+}
+
+function getIconApiPath(fileName) {
+  return `/api/config/icon/${encodeURIComponent(fileName)}`;
+}
+
 function slugifyIconName(name) {
   return (
     String(name ?? "")
@@ -310,7 +322,9 @@ function collectRemoteIcons(value, icons, itemName = "") {
   }
 
   if (isRemoteIcon(value.icon)) {
-    icons.push({ item: value, itemName, url: value.icon.trim() });
+    icons.push({ item: value, itemName, type: "remote", url: value.icon.trim() });
+  } else if (isLegacyLocalIcon(value.icon)) {
+    icons.push({ item: value, type: "local", fileName: getLegacyLocalIconFileName(value.icon) });
   }
 
   Object.entries(value).forEach(([key, child]) => {
@@ -377,7 +391,7 @@ async function downloadIcon(url, itemName, iconsDir, downloadedByUrl) {
   const filePath = path.join(iconsDir, fileName);
   await fs.writeFile(filePath, buffer);
 
-  const result = { fileName, localIcon: `icons/${fileName}` };
+  const result = { fileName, localIcon: getIconApiPath(fileName) };
   downloadedByUrl.set(url, result);
   return { ...result, reused: false };
 }
@@ -400,6 +414,12 @@ async function localizeRemoteIcons() {
   collectRemoteIcons(bookmarks, targets, "");
 
   for (const target of targets) {
+    if (target.type === "local") {
+      target.item.icon = getIconApiPath(target.fileName);
+      result.updated += 1;
+      continue;
+    }
+
     try {
       const icon = await downloadIcon(target.url, target.itemName, iconsDir, downloadedByUrl);
       target.item.icon = icon.localIcon;

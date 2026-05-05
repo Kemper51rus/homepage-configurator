@@ -59,7 +59,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - service-группу можно перетащить на `Drop inside` другой service-группы, чтобы сделать вложенную структуру как `250/300`;
 - в нижней панели есть кнопка `Новая группа`, а тип новой группы выбирается уже в окне редактора;
 - кнопка `Фон` открывает загрузку фонового изображения;
-- кнопка `Иконки` скачивает URL-иконки из `services.yaml` и `bookmarks.yaml` в каталог `icons` внешней папки изображений и заменяет ссылки в YAML на локальные пути `icons/...`;
+- кнопка `Иконки` скачивает URL-иконки из `services.yaml` и `bookmarks.yaml` в каталог `icons` внешней папки изображений и заменяет ссылки в YAML на API-пути `/api/config/icon/...`;
 - кнопка `Ручная правка` открывает прямое редактирование `settings.yaml`, `widgets.yaml`, `services.yaml`, `bookmarks.yaml`, `custom.css` и `custom.js`;
 - кнопка `Done` выключает режим редактирования.
 - клавиша `Esc` закрывает открытые окна настроек и выходит из режима редактирования.
@@ -71,7 +71,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `config/settings.yaml`
 
 Загруженный фон сохраняется в директорию `config` целевого проекта.
-Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при стандартной установке это `/srv/homepage-images/icons`.
+Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при стандартной установке это `/srv/homepage-images/icons`. Редактор прописывает их через `/api/config/icon/...`, поэтому новые файлы начинают отдаваться сразу и не требуют перезапуска `homepage.service`.
 
 Для write-доступа к API редактора можно задать `HOMEPAGE_EDITOR_TOKEN`; тогда браузер попросит токен при первом сохранении и будет отправлять его в `X-Homepage-Editor-Token`.
 
