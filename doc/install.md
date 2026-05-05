@@ -23,7 +23,7 @@
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
 ```
 
-Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, внешние каталоги конфигов и картинок. По умолчанию сервис слушает `0.0.0.0:3000`; внешний reverse proxy настраивается отдельно. Если нужен локальный nginx внутри LXC, запустите установщик с `HOMEPAGE_INSTALL_NGINX=1`.
+Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, внешние каталоги конфигов и картинок. По умолчанию сервис слушает `0.0.0.0:3000`; внешний reverse proxy настраивается отдельно и не входит в этот проект.
 
 Для установки target-проекта запускайте его от `root`.
 

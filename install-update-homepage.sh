@@ -7,8 +7,6 @@ APP_GROUP="homepage"
 APP_PORT="3000"
 APP_HOST="${HOMEPAGE_HOST:-0.0.0.0}"
 SERVICE_NAME="homepage"
-NGINX_SITE_NAME="homepage"
-INSTALL_NGINX="${HOMEPAGE_INSTALL_NGINX:-0}"
 DEFAULT_REPO="https://github.com/gethomepage/homepage.git"
 ENV_FILE="/etc/default/homepage"
 SELF_INSTALL_PATH="/bin/update"
@@ -182,10 +180,6 @@ ensure_packages() {
     npm \
     sudo \
     python3
-
-  if [ "$INSTALL_NGINX" = "1" ]; then
-    apt install -y nginx
-  fi
 }
 
 ensure_pnpm() {
@@ -388,50 +382,9 @@ EOF
   systemctl enable "$SERVICE_NAME"
 }
 
-write_nginx_config() {
-  [ "$INSTALL_NGINX" = "1" ] || return 0
-
-  local primary_host
-  primary_host="$(get_primary_host "$HOMEPAGE_ALLOWED_HOSTS")"
-  [ -n "$primary_host" ] || fail "Не удалось определить основной host"
-
-  log "Настраиваю nginx для ${primary_host}"
-  rm -f /etc/nginx/sites-enabled/default
-
-  cat > "/etc/nginx/sites-available/${NGINX_SITE_NAME}" <<EOF
-server {
-    listen 80;
-    server_name ${primary_host};
-
-    client_max_body_size 20m;
-
-    location / {
-        proxy_pass http://${APP_HOST}:${APP_PORT};
-        proxy_http_version 1.1;
-
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF
-
-  ln -sf "/etc/nginx/sites-available/${NGINX_SITE_NAME}" "/etc/nginx/sites-enabled/${NGINX_SITE_NAME}"
-  nginx -t
-  systemctl enable nginx
-}
-
 start_services() {
   log "Запускаю Homepage"
   systemctl restart "$SERVICE_NAME"
-
-  if [ "$INSTALL_NGINX" = "1" ]; then
-    systemctl restart nginx
-  fi
 }
 
 install_homepage() {
@@ -449,7 +402,6 @@ install_homepage() {
   build_project
   write_env_file
   write_systemd_service
-  write_nginx_config
   start_services
 
   local primary_host
@@ -486,7 +438,6 @@ update_homepage() {
   build_project
   write_env_file
   write_systemd_service
-  write_nginx_config
   start_services
 
   local primary_host
@@ -510,7 +461,6 @@ remove_homepage() {
   echo "Будет удалено:"
   echo "  - приложение ${APP_DIR}"
   echo "  - systemd сервис ${SERVICE_NAME}"
-  echo "  - nginx-конфиг, если он был установлен этим скриптом"
   echo "  - пользователь ${APP_USER}"
   echo "Внешние папки по умолчанию НЕ удаляются:"
   echo "  - ${current_config_dir:-<не задано>}"
@@ -531,14 +481,6 @@ remove_homepage() {
   systemctl disable "$SERVICE_NAME" 2>/dev/null || true
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
   systemctl daemon-reload
-
-  if command_exists nginx || [ -d /etc/nginx ]; then
-    log "Удаляю nginx-конфиг, если он существует"
-    rm -f "/etc/nginx/sites-enabled/${NGINX_SITE_NAME}"
-    rm -f "/etc/nginx/sites-available/${NGINX_SITE_NAME}"
-    nginx -t 2>/dev/null || true
-    systemctl restart nginx 2>/dev/null || true
-  fi
 
   log "Удаляю переменные окружения"
   rm -f "$ENV_FILE"
