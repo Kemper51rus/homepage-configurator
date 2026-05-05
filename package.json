@@ -8,8 +8,9 @@
   "scripts": {
     "check": "npm run check:shell && npm run check:node && npm run check:managed-blocks",
     "check:shell": "bash -n install.sh install-update-homepage.sh scripts/deploy-runtime.sh",
-    "check:node": "node --check install.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/smoke-install.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js",
+    "check:node": "node --check install.mjs && node --check scripts/browser-smoke.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/smoke-install.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js",
     "check:managed-blocks": "node scripts/check-managed-blocks.mjs",
+    "check:browser": "node scripts/browser-smoke.mjs",
     "check:patch": "node scripts/check-patch.mjs",
     "smoke:install": "node scripts/smoke-install.mjs",
     "install:target": "node install.mjs",
@@ -24,5 +25,8 @@
     "mod",
     "browser-editor"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
 }

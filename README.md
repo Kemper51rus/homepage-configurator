@@ -103,6 +103,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 ```bash
 npm run check
 npm run check:patch
+npm run check:browser
 ```
 
 Для проверки установки на временный checkout upstream:
