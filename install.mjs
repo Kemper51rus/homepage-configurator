@@ -146,20 +146,20 @@ function overlayFiles() {
 }
 
 function backupTargetFiles(target, files) {
-  const backupRoot = join(target, backupDirName, timestamp());
+  const backupRootPath = join(target, backupDirName, timestamp());
   const copied = [];
 
   for (const file of files) {
     const targetPath = join(target, file);
     if (!existsSync(targetPath)) continue;
 
-    const backupPath = join(backupRoot, file);
+    const backupPath = join(backupRootPath, file);
     mkdirSync(dirname(backupPath), { recursive: true });
     cpSync(targetPath, backupPath);
     copied.push(file);
   }
 
-  return copied.length ? { backupRoot, files: copied } : null;
+  return copied.length ? { backupRoot: relative(target, backupRootPath), files: copied } : null;
 }
 
 function printPlan(title, items) {
@@ -263,7 +263,7 @@ function install(target, options = {}) {
   });
 
   if (backup) {
-    console.log(`Backup written to ${backup.backupRoot}`);
+    console.log(`Backup written to ${join(target, backup.backupRoot)}`);
   }
   console.log(`Browser editor installed into ${target}`);
   console.log("Run with --enable to set HOMEPAGE_BROWSER_EDITOR=true.");

@@ -1,6 +1,6 @@
 import { execFileSync } from "child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
+import { isAbsolute, join } from "path";
 import { tmpdir } from "os";
 
 const root = process.cwd();
@@ -39,6 +39,21 @@ try {
   const manifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
   if (!manifest.overlayFiles?.includes("src/mods/browser-editor/components/editor.jsx")) {
     throw new Error("Install manifest does not list overlay files");
+  }
+  if (!manifest.overlayFiles?.includes("src/mods/browser-editor/lib/editor-window.js")) {
+    throw new Error("Install manifest does not list editor window helper overlay file");
+  }
+  if (!manifest.backup?.backupRoot) {
+    throw new Error("Install manifest does not list backup root");
+  }
+  if (isAbsolute(manifest.backup.backupRoot)) {
+    throw new Error(`Install manifest backup root should be relative, got ${manifest.backup.backupRoot}`);
+  }
+  if (!manifest.backup.backupRoot.startsWith(".homepage-configurator-backups/")) {
+    throw new Error(`Install manifest backup root should stay inside .homepage-configurator-backups, got ${manifest.backup.backupRoot}`);
+  }
+  if (!existsSync(join(target, manifest.backup.backupRoot))) {
+    throw new Error("Install manifest backup root does not exist under target checkout");
   }
 
   run("node", ["install.mjs", "--dry-run", "--uninstall", "--target", target], { stdio: "inherit" });

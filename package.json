@@ -6,10 +6,11 @@
   "author": "Kemper51rus <Kemper51rus@users.noreply.github.com>",
   "type": "module",
   "scripts": {
-    "check": "npm run check:shell && npm run check:node && npm run check:managed-blocks",
+    "check": "npm run check:shell && npm run check:node && npm run check:managed-blocks && npm run check:tests",
     "check:shell": "bash -n install.sh install-update-homepage.sh scripts/deploy-runtime.sh",
-    "check:node": "node --check install.mjs && node --check scripts/browser-smoke.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/smoke-install.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/api/icon.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js && node --check overlay/src/pages/api/config/icon/[file].js",
+    "check:node": "node --check install.mjs && node --check scripts/browser-smoke.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/smoke-install.mjs && node --check tests/editor-window.test.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/api/icon.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/editor-window.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js && node --check overlay/src/pages/api/config/icon/[file].js",
     "check:managed-blocks": "node scripts/check-managed-blocks.mjs",
+    "check:tests": "node --test tests/*.test.mjs",
     "check:browser": "node scripts/browser-smoke.mjs",
     "check:patch": "node scripts/check-patch.mjs",
     "smoke:install": "node scripts/smoke-install.mjs",
