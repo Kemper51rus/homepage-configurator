@@ -98,6 +98,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 ## Документация
 
 - [Установка и удаление](doc/install.md)
+- [Runtime/runbook](doc/runtime.md)
 - [Структура мода](doc/mod-structure.md)
 - [Разработка](doc/development.md)
 

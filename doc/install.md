@@ -301,6 +301,8 @@ scripts/deploy-runtime.sh \
 Скрипт ожидает production-сборку с `.next/standalone/server.js`, `.next/static` и `public`.
 При `--install-service` systemd unit запускает standalone server напрямую из `.next/standalone` через `node server.js` и задаёт `HOSTNAME=0.0.0.0`, чтобы внешний прокси мог ходить на `runtime-host:3000`.
 
+Подробный runtime runbook: [runtime.md](runtime.md).
+
 Если используется доступ по IP или домену и появляется `Host validation failed`, добавьте нужный host в настройки запуска Homepage. Например:
 
 ```bash
