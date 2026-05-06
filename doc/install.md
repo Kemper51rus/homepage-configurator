@@ -229,7 +229,7 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 
 ```bash
 systemctl status homepage.service
-curl -I -H 'Host: 100.100.0.230:3000' http://127.0.0.1:3000/
+curl -I -H 'Host: <runtime-host>:3000' http://127.0.0.1:3000/
 ```
 
 ## Runtime-Деплой Без `.git`
@@ -260,7 +260,7 @@ cd /projects/homepage-configurator
 
 rm -rf .runtime-build/config
 mkdir -p .runtime-build/config
-rsync -a --delete root@100.100.0.230:/srv/homepage-config/ .runtime-build/config/
+rsync -a --delete <runtime-ssh>:/srv/homepage-config/ .runtime-build/config/
 
 cd .runtime-build
 pnpm run build
@@ -270,27 +270,27 @@ Dry-run:
 
 ```bash
 cd /projects/homepage-configurator
-scripts/deploy-runtime.sh --source .runtime-build
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh>
 ```
 
 Применить и перезапустить сервис:
 
 ```bash
-scripts/deploy-runtime.sh --source .runtime-build --apply --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --restart
 ```
 
 Перевести systemd на standalone runtime:
 
 ```bash
-scripts/deploy-runtime.sh --source .runtime-build --apply --install-service --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --install-service --restart
 ```
 
-По умолчанию скрипт деплоит на `root@100.100.0.230` в `/opt/homepage`. Это можно переопределить:
+Runtime host передаётся явно через `--remote` или переменную `HOMEPAGE_RUNTIME_REMOTE`:
 
 ```bash
 scripts/deploy-runtime.sh \
   --source .runtime-build \
-  --remote root@100.100.0.230 \
+  --remote <runtime-ssh> \
   --app-dir /opt/homepage \
   --config-dir /srv/homepage-config \
   --images-dir /srv/homepage-images \
@@ -306,7 +306,7 @@ scripts/deploy-runtime.sh \
 Если используется доступ по IP или домену и появляется `Host validation failed`, добавьте нужный host в настройки запуска Homepage. Например:
 
 ```bash
-HOMEPAGE_ALLOWED_HOSTS=localhost:3000,127.0.0.1:3000,100.100.0.230:3000
+HOMEPAGE_ALLOWED_HOSTS=localhost:3000,127.0.0.1:3000,<runtime-host>:3000
 ```
 
 ## Docker
@@ -336,8 +336,8 @@ npm run enable:target -- --target /opt/homepage
 
 ```bash
 PORT=3001 \
-HOMEPAGE_ALLOWED_HOSTS=localhost:3001,127.0.0.1:3001,100.100.0.230:3001 \
-HOMEPAGE_ALLOWED_DEV_ORIGINS=100.100.0.230 \
+HOMEPAGE_ALLOWED_HOSTS=localhost:3001,127.0.0.1:3001,<runtime-host>:3001 \
+HOMEPAGE_ALLOWED_DEV_ORIGINS=<runtime-host> \
 HOMEPAGE_BROWSER_EDITOR=true \
 pnpm dev -p 3001
 ```

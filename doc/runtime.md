@@ -7,7 +7,7 @@
 - локальный полный проект: `/projects/homepage-configurator`;
 - staging checkout upstream Homepage: `/projects/homepage-configurator/.runtime-build`;
 - `.runtime-build/` исключён из git и может быть удалён/создан заново;
-- runtime-сервер: LXC `homepage`, SSH `root@100.100.0.230`;
+- runtime-сервер: SSH `<runtime-ssh>`;
 - runtime app dir: `/opt/homepage`;
 - runtime config: `/srv/homepage-config`;
 - runtime images/icons: `/srv/homepage-images`.
@@ -38,7 +38,7 @@ git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-
 
 rm -rf .runtime-build/config
 mkdir -p .runtime-build/config
-rsync -a --delete root@100.100.0.230:/srv/homepage-config/ .runtime-build/config/
+rsync -a --delete <runtime-ssh>:/srv/homepage-config/ .runtime-build/config/
 
 cd .runtime-build
 pnpm run build
@@ -52,19 +52,19 @@ Dry-run:
 
 ```bash
 cd /projects/homepage-configurator
-scripts/deploy-runtime.sh --source .runtime-build
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh>
 ```
 
 Применить:
 
 ```bash
-scripts/deploy-runtime.sh --source .runtime-build --apply --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --restart
 ```
 
 Если нужно заново записать systemd unit под standalone:
 
 ```bash
-scripts/deploy-runtime.sh --source .runtime-build --apply --install-service --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --install-service --restart
 ```
 
 Deploy-скрипт не затирает `/srv/homepage-config` и `/srv/homepage-images`.
@@ -72,10 +72,10 @@ Deploy-скрипт не затирает `/srv/homepage-config` и `/srv/homepa
 ## Проверки После Деплоя
 
 ```bash
-ssh root@100.100.0.230 'systemctl is-active homepage.service'
-ssh root@100.100.0.230 'systemctl show homepage.service -p WorkingDirectory -p ExecStart -p Environment --no-pager'
-ssh root@100.100.0.230 'ss -ltnp | grep ":3000"'
-ssh root@100.100.0.230 'curl -sS -I --max-time 5 http://127.0.0.1:3000/ | sed -n "1,5p"'
+ssh <runtime-ssh> 'systemctl is-active homepage.service'
+ssh <runtime-ssh> 'systemctl show homepage.service -p WorkingDirectory -p ExecStart -p Environment --no-pager'
+ssh <runtime-ssh> 'ss -ltnp | grep ":3000"'
+ssh <runtime-ssh> 'curl -sS -I --max-time 5 http://127.0.0.1:3000/ | sed -n "1,5p"'
 ```
 
 Локальные проверки проекта:

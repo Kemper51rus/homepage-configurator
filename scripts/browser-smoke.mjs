@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 
-const url = process.env.HOMEPAGE_BROWSER_SMOKE_URL || "https://jexum.ru/";
+const url = process.env.HOMEPAGE_BROWSER_SMOKE_URL || "http://127.0.0.1:3000/";
+const expectedText = process.env.HOMEPAGE_BROWSER_SMOKE_TEXT || "";
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ ignoreHTTPSErrors: true });
 const page = await context.newPage();
@@ -35,8 +36,8 @@ try {
   const bodyText = await page.locator("body").innerText({ timeout: 10000 });
   const title = await page.title();
 
-  if (!bodyText.includes("Jexum Dashboard") && title !== "Jexum Dashboard") {
-    failures.push(`expected Jexum Dashboard in title/body, got title: ${title}`);
+  if (expectedText && !bodyText.includes(expectedText) && !title.includes(expectedText)) {
+    failures.push(`expected ${expectedText} in title/body, got title: ${title}`);
   }
 
   if (bodyText.includes("Something went wrong")) {

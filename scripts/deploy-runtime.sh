@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REMOTE="${HOMEPAGE_RUNTIME_REMOTE:-root@100.100.0.230}"
+REMOTE="${HOMEPAGE_RUNTIME_REMOTE:-}"
 SOURCE="${HOMEPAGE_BUILD_DIR:-}"
 APP_DIR="${HOMEPAGE_RUNTIME_DIR:-/opt/homepage}"
 CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-/srv/homepage-config}"
@@ -16,7 +16,7 @@ usage() {
 Deploy a minimal Homepage runtime tree to the runtime server.
 
 Usage:
-  scripts/deploy-runtime.sh --source .runtime-build [--remote root@host] [--apply] [--install-service] [--restart]
+  scripts/deploy-runtime.sh --source .runtime-build --remote root@host [--apply] [--install-service] [--restart]
 
 By default this is a dry-run. Pass --apply to copy files.
 Pass --restart to also restart homepage.service after a successful apply.
@@ -93,6 +93,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$SOURCE" ]] || die "Pass --source .runtime-build or set HOMEPAGE_BUILD_DIR"
+[[ -n "$REMOTE" ]] || die "Pass --remote user@host or set HOMEPAGE_RUNTIME_REMOTE"
 [[ -d "$SOURCE" ]] || die "Source does not exist: $SOURCE"
 [[ -f "$SOURCE/.next/standalone/server.js" ]] || die "Missing standalone server: $SOURCE/.next/standalone/server.js"
 [[ -d "$SOURCE/.next/static" ]] || die "Missing build static assets: $SOURCE/.next/static"

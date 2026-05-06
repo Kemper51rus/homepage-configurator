@@ -129,17 +129,17 @@ git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-
 После сборки staging checkout можно доставить на runtime-сервер только production-файлы:
 
 ```bash
-scripts/deploy-runtime.sh --source .runtime-build
-scripts/deploy-runtime.sh --source .runtime-build --apply --restart
-scripts/deploy-runtime.sh --source .runtime-build --apply --install-service --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh>
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --restart
+scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --install-service --restart
 ```
 
-По умолчанию это LXC `homepage` по SSH `root@100.100.0.230`, target `/opt/homepage`.
+Runtime host передаётся явно через `--remote` или переменную `HOMEPAGE_RUNTIME_REMOTE`.
 
 Перед `pnpm build` staging checkout должен содержать актуальный `config` с runtime-сервера:
 
 ```bash
-rsync -a --delete root@100.100.0.230:/srv/homepage-config/ .runtime-build/config/
+rsync -a --delete <runtime-ssh>:/srv/homepage-config/ .runtime-build/config/
 ```
 
 Homepage генерирует главную страницу на build-time. Если собрать без live `settings.yaml`, после деплоя могут пропасть фон, title, страницы-вкладки и порядок групп, хотя runtime API будет читать правильный `/srv/homepage-config`.
