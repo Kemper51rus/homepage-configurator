@@ -16,7 +16,7 @@ usage() {
 Deploy a minimal Homepage runtime tree to the runtime server.
 
 Usage:
-  scripts/deploy-runtime.sh --source /path/to/built/homepage [--remote root@host] [--apply] [--install-service] [--restart]
+  scripts/deploy-runtime.sh --source .runtime-build [--remote root@host] [--apply] [--install-service] [--restart]
 
 By default this is a dry-run. Pass --apply to copy files.
 Pass --restart to also restart homepage.service after a successful apply.
@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$SOURCE" ]] || die "Pass --source /path/to/built/homepage or set HOMEPAGE_BUILD_DIR"
+[[ -n "$SOURCE" ]] || die "Pass --source .runtime-build or set HOMEPAGE_BUILD_DIR"
 [[ -d "$SOURCE" ]] || die "Source does not exist: $SOURCE"
 [[ -f "$SOURCE/.next/standalone/server.js" ]] || die "Missing standalone server: $SOURCE/.next/standalone/server.js"
 [[ -d "$SOURCE/.next/static" ]] || die "Missing build static assets: $SOURCE/.next/static"

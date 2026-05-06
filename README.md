@@ -117,12 +117,20 @@ npm run smoke:install
 
 ## Runtime-деплой
 
-После сборки target checkout можно доставить на runtime-сервер только production-файлы:
+Staging checkout для сборки живёт внутри проекта в `.runtime-build/`. Это служебная копия upstream `gethomepage/homepage`, она исключена из git и может быть удалена/пересоздана.
+
+Если `.runtime-build/` ещё нет:
 
 ```bash
-scripts/deploy-runtime.sh --source /path/to/built/homepage
-scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --restart
-scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --install-service --restart
+git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-build
+```
+
+После сборки staging checkout можно доставить на runtime-сервер только production-файлы:
+
+```bash
+scripts/deploy-runtime.sh --source .runtime-build
+scripts/deploy-runtime.sh --source .runtime-build --apply --restart
+scripts/deploy-runtime.sh --source .runtime-build --apply --install-service --restart
 ```
 
 По умолчанию это LXC `homepage` по SSH `root@100.100.0.230`, target `/opt/homepage`.
@@ -130,7 +138,7 @@ scripts/deploy-runtime.sh --source /path/to/built/homepage --apply --install-ser
 Перед `pnpm build` staging checkout должен содержать актуальный `config` с runtime-сервера:
 
 ```bash
-rsync -a --delete root@100.100.0.230:/srv/homepage-config/ /path/to/built/homepage/config/
+rsync -a --delete root@100.100.0.230:/srv/homepage-config/ .runtime-build/config/
 ```
 
 Homepage генерирует главную страницу на build-time. Если собрать без live `settings.yaml`, после деплоя могут пропасть фон, title, страницы-вкладки и порядок групп, хотя runtime API будет читать правильный `/srv/homepage-config`.
