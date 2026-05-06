@@ -30,6 +30,11 @@ try {
     cwd: target,
   });
 
+  const nextConfig = readFileSync(join(target, "next.config.js"), "utf8");
+  if (!nextConfig.includes("outputFileTracingRoot: __dirname")) {
+    throw new Error("next.config.js should pin outputFileTracingRoot to the Homepage checkout");
+  }
+
   const packageJsonPath = join(target, "package.json");
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
   if (!packageJson.dependencies?.prismjs || !packageJson.dependencies?.["react-simple-code-editor"]) {

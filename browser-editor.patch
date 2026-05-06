@@ -2,7 +2,7 @@ diff --git a/next.config.js b/next.config.js
 index ea49bf54..87c163d3 100644
 --- a/next.config.js
 +++ b/next.config.js
-@@ -1,9 +1,18 @@
+@@ -1,9 +1,19 @@
  const { i18n } = require("./next-i18next.config");
  
 +const allowedDevOrigins = (process.env.HOMEPAGE_ALLOWED_DEV_ORIGINS ?? "")
@@ -14,6 +14,7 @@ index ea49bf54..87c163d3 100644
  const nextConfig = {
    reactStrictMode: true,
    output: "standalone",
++  outputFileTracingRoot: __dirname,
 +  env: {
 +    HOMEPAGE_BROWSER_EDITOR: process.env.HOMEPAGE_BROWSER_EDITOR ?? "",
 +  },
