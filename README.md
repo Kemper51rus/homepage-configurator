@@ -56,6 +56,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Ассеты радио лежат в `custom-config/radio/assets/radio/`. При установке `radio`, `particles` или `all` установщик копирует картинки и `Comfortaa.ttf` в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`.
 
+Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
+
 ## Использование
 
 После включения мода кнопка `Edit` появляется только при наведении курсора на левый нижний угол страницы.

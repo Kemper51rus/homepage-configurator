@@ -99,6 +99,15 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Для неинтерактивного запуска используйте `--custom skip`, `--custom cards`, `--custom extras` или `--custom all`.
 
+Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный запуск покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. При удалении создаётся timestamp backup вида `.cleanup-YYYYMMDD-HHMMSS.bak`.
+
+Для неинтерактивного режима можно явно выбрать поведение:
+
+```bash
+bash ./install.sh --action install-custom --clean-custom keep
+bash ./install.sh --action install-custom --clean-custom delete
+```
+
 После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что оба варианта создают `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
 
 Низкоуровневый установщик `install.mjs` поддерживает safety-режимы:
@@ -203,7 +212,8 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 2. создаёт резервные копии существующих `custom.js` и `custom.css` как `.bak`, если содержимое отличается;
 3. встраивают или обновляют только свой managed-блок в `custom.js` и `custom.css`, не затирая другой preset;
 4. при установке `radio`, `particles` или `all` копируют картинки радио и `Comfortaa.ttf` из `custom-config/radio/assets/radio/` в каталог, который Homepage отдаёт как `/images/radio`;
-5. не требуют сборки target-проекта и не перезапускают `homepage.service`.
+5. спрашивают, удалять ли `custom.css`/`custom.js`, если в них найдено содержимое вне managed-блоков;
+6. не требуют сборки target-проекта и не перезапускают `homepage.service`.
 
 Каталог `/images` определяется автоматически:
 

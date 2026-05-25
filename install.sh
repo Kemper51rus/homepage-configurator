@@ -11,12 +11,14 @@ TARGET="${HOMEPAGE_TARGET_DIR:-}"
 CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
 IMAGES_DIR="${HOMEPAGE_IMAGES_DIR:-${IMAGES_REAL_DIR:-}}"
 CUSTOM_INSTALL="${HOMEPAGE_EDITOR_CUSTOM_INSTALL:-prompt}"
+CUSTOM_CLEAN="${HOMEPAGE_EDITOR_CLEAN_CUSTOM:-prompt}"
 DO_BUILD=1
 DO_RESTART=1
 TMP_DIR=""
 MOD_DIR="${HOMEPAGE_EDITOR_MOD_DIR:-}"
 MOD_SOURCE_MODE="auto"
 RADIO_ASSETS_INSTALLED=0
+CUSTOM_CLEAN_CHECKED=0
 
 usage() {
   cat <<'EOF'
@@ -33,6 +35,7 @@ usage() {
   --config-dir PATH   путь к внешней папке config Homepage
   --images-dir PATH   путь к папке, которая отдается Homepage как /images
   --custom MODE       что ставить после install/update: prompt, skip, cards, extras или all
+  --clean-custom MODE что делать с содержимым вне managed-блоков: prompt, keep или delete
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
@@ -46,6 +49,8 @@ usage() {
   HOMEPAGE_IMAGES_DIR       то же самое, что --images-dir; можно также задать IMAGES_REAL_DIR
   HOMEPAGE_EDITOR_CUSTOM_INSTALL
                             prompt, skip, cards, extras или all для custom.css/custom.js дополнений
+  HOMEPAGE_EDITOR_CLEAN_CUSTOM
+                            prompt, keep или delete для содержимого вне managed-блоков
   HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
   HOMEPAGE_SERVICE_NAME     имя systemd-сервиса, по умолчанию homepage.service
 EOF
@@ -93,6 +98,11 @@ parse_args() {
       --custom)
         [[ $# -ge 2 ]] || die "--custom requires prompt, skip, cards, extras, or all"
         CUSTOM_INSTALL="$2"
+        shift 2
+        ;;
+      --clean-custom)
+        [[ $# -ge 2 ]] || die "--clean-custom requires prompt, keep, or delete"
+        CUSTOM_CLEAN="$2"
         shift 2
         ;;
       --mode)
@@ -145,6 +155,11 @@ parse_args() {
   case "$CUSTOM_INSTALL" in
     prompt|skip|none|cards|extras|all) ;;
     *) die "--custom must be prompt, skip, cards, extras, or all" ;;
+  esac
+
+  case "$CUSTOM_CLEAN" in
+    prompt|keep|delete) ;;
+    *) die "--clean-custom must be prompt, keep, or delete" ;;
   esac
 }
 
@@ -609,6 +624,137 @@ install_radio_assets() {
   log "Radio assets installed into $radio_dir"
 }
 
+custom_file_has_unmanaged_content() {
+  local file="$1"
+
+  [[ -f "$file" ]] || return 1
+
+  awk '
+    /HOMEPAGE-EDITOR .* START/ {
+      skip = 1
+      next
+    }
+    /HOMEPAGE-EDITOR .* END/ {
+      skip = 0
+      next
+    }
+    !skip && $0 !~ /^[[:space:]]*$/ {
+      found = 1
+      exit
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$file"
+}
+
+print_unmanaged_preview() {
+  local file="$1"
+
+  awk '
+    /HOMEPAGE-EDITOR .* START/ {
+      skip = 1
+      next
+    }
+    /HOMEPAGE-EDITOR .* END/ {
+      skip = 0
+      next
+    }
+    !skip && $0 !~ /^[[:space:]]*$/ {
+      line = $0
+      if (length(line) > 120) {
+        line = substr(line, 1, 117) "..."
+      }
+      printf "      %d: %s\n", NR, line
+      count += 1
+      if (count >= 8) {
+        exit
+      }
+    }
+  ' "$file"
+}
+
+backup_file_for_cleanup() {
+  local target="$1"
+  local backup=""
+
+  [[ -f "$target" ]] || return 0
+
+  backup="${target}.cleanup-$(date +%Y%m%d-%H%M%S).bak"
+  cp -f "$target" "$backup"
+  log "Backup created: $backup"
+}
+
+delete_unmanaged_custom_files() {
+  local file=""
+
+  for file in "$@"; do
+    backup_file_for_cleanup "$file"
+    rm -f "$file"
+    log "Removed custom file with unmanaged content: $file"
+  done
+}
+
+prompt_clean_unmanaged_custom_files() {
+  [[ "$CUSTOM_CLEAN_CHECKED" -eq 0 ]] || return 0
+  CUSTOM_CLEAN_CHECKED=1
+
+  local files=()
+  local file=""
+  local answer=""
+
+  for file in "$CONFIG_DIR/custom.css" "$CONFIG_DIR/custom.js"; do
+    if custom_file_has_unmanaged_content "$file"; then
+      files+=("$file")
+    fi
+  done
+
+  [[ "${#files[@]}" -gt 0 ]] || return 0
+
+  cat >&2 <<'EOF'
+
+Найдены строки вне HOMEPAGE-EDITOR managed-блоков.
+Они не обновляются автоматически и могут дублировать текущие presets.
+EOF
+
+  for file in "${files[@]}"; do
+    printf '  - %s\n' "$file" >&2
+    print_unmanaged_preview "$file" >&2
+  done
+
+  case "$CUSTOM_CLEAN" in
+    delete)
+      delete_unmanaged_custom_files "${files[@]}"
+      return 0
+      ;;
+    keep)
+      log "Keeping unmanaged custom content outside managed blocks"
+      return 0
+      ;;
+  esac
+
+  if [[ ! -t 0 ]]; then
+    log "Keeping unmanaged custom content outside managed blocks (non-interactive run)"
+    return 0
+  fi
+
+  cat >&2 <<'EOF'
+
+Удалить эти custom.css/custom.js перед установкой выбранных presets?
+Будет создан .cleanup-*.bak backup. После удаления install.sh пересоздаст только выбранные presets.
+EOF
+
+  read -r -p "Удалить custom-файлы с содержимым вне managed-блоков? [y/N]: " answer
+  case "$answer" in
+    y|Y|yes|YES)
+      delete_unmanaged_custom_files "${files[@]}"
+      ;;
+    *)
+      log "Keeping unmanaged custom content outside managed blocks"
+      ;;
+  esac
+}
+
 get_fragment_markers() {
   local source="$1"
   local start_marker end_marker
@@ -905,6 +1051,8 @@ install_custom_fragment_set() {
 
 install_custom_presets() {
   local preset=""
+
+  prompt_clean_unmanaged_custom_files
 
   for preset in "$@"; do
     install_custom_fragment_set "$preset"
