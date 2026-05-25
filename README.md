@@ -54,7 +54,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Шаблоны лежат в репозитории в `custom-config/`. Установщик встраивает их как отдельные managed-блоки, поэтому `cards`, `extras`, `radio` и `particles` можно ставить независимо друг от друга без взаимного затирания. Блоки `cards` и `extras` в `custom.css` помечены предупреждением: правки внутри них будут заменены при следующей установке или обновлении.
 
-Ассеты радио лежат в `custom-config/radio/assets/radio/`. При установке `radio`, `particles` или `all` установщик копирует картинки и `Comfortaa.ttf` в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`.
+Ассеты радио лежат в `custom-config/radio/assets/radio/`. При установке `radio`, `particles` или `all` установщик копирует картинки и `Comfortaa.ttf` в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`. После установки custom-дополнений скрипт перезапускает `homepage.service`, потому что `next start` не начинает отдавать новые файлы из `public/images` без перезапуска процесса.
 
 Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
 

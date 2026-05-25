@@ -213,7 +213,7 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 3. встраивают или обновляют только свой managed-блок в `custom.js` и `custom.css`, не затирая другой preset;
 4. при установке `radio`, `particles` или `all` копируют картинки радио и `Comfortaa.ttf` из `custom-config/radio/assets/radio/` в каталог, который Homepage отдаёт как `/images/radio`;
 5. спрашивают, удалять ли `custom.css`/`custom.js`, если в них найдено содержимое вне managed-блоков;
-6. не требуют сборки target-проекта и не перезапускают `homepage.service`.
+6. не требуют сборки target-проекта, но перезапускают `homepage.service`, если сервис активен.
 
 Каталог `/images` определяется автоматически:
 

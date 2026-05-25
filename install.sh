@@ -40,7 +40,7 @@ usage() {
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
   --no-build          не запускать сборку после установки/обновления/удаления
-  --no-restart        не перезапускать homepage.service после установки/обновления/удаления
+  --no-restart        не перезапускать homepage.service после установки/обновления/удаления/custom-дополнений
   -h, --help          показать эту справку
 
 Переменные окружения:
@@ -1276,9 +1276,20 @@ build_target() {
   die "No supported package manager found. Install pnpm/npm or rerun with --no-build."
 }
 
+action_restarts_service() {
+  case "$ACTION" in
+    install|update-mod|update-target|uninstall|enable|disable|install-cards|install-extras|install-radio|install-particles|install-custom)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 restart_target() {
   [[ "$DO_RESTART" -eq 1 ]] || return 0
-  [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" || "$ACTION" == "enable" || "$ACTION" == "disable" ]] || return 0
+  action_restarts_service || return 0
   command -v systemctl >/dev/null 2>&1 || return 0
 
   if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
@@ -1356,6 +1367,7 @@ main() {
         install_requested_custom
         ;;
     esac
+    restart_target
     log "Done"
     return 0
   fi
