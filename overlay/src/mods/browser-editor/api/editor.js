@@ -88,12 +88,17 @@ function getImagesDir() {
     return process.env.IMAGES_REAL_DIR;
   }
 
+  const publicImagesDir = path.join(process.cwd(), "public", "images");
+  if (existsSync(publicImagesDir)) {
+    return publicImagesDir;
+  }
+
   const sourceImagesDir = path.join(process.cwd(), "images");
   if (existsSync(sourceImagesDir)) {
     return sourceImagesDir;
   }
 
-  return path.join(process.cwd(), "public", "images");
+  return publicImagesDir;
 }
 
 export const config = {

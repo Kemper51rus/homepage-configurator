@@ -60,7 +60,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 Клиент редактора попросит токен при первой ошибке `401` и сохранит его в `localStorage` браузера.
 Для systemd-инсталляции нашим `install-update-homepage.sh` токен удобно хранить в `/etc/default/homepage`; скрипт сохраняет существующее значение при обновлении. В LXC от Proxmox VE Community Scripts токен можно добавить в `/opt/homepage/.env`, рядом с `HOMEPAGE_ALLOWED_HOSTS`.
 
-Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При установке нашим target-скриптом `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её. В LXC от Proxmox VE Community Scripts, где `IMAGES_REAL_DIR` обычно не задан, иконки сохраняются в `/opt/homepage/images/icons`. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
+Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При установке нашим target-скриптом `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её. В LXC от Proxmox VE Community Scripts, где `IMAGES_REAL_DIR` обычно не задан, иконки сохраняются в `/opt/homepage/public/images/icons`. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
 
 Скрипт сам ищет target-проект в таком порядке:
 

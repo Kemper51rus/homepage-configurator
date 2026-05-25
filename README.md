@@ -85,7 +85,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `config/settings.yaml`
 
 Загруженный фон сохраняется в директорию `config` целевого проекта.
-Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при установке нашим target-скриптом это `/srv/homepage-images/icons`, а в LXC от Proxmox VE Community Scripts без `IMAGES_REAL_DIR` - `/opt/homepage/images/icons`. Редактор прописывает их через `/api/config/icon/...`, поэтому новые файлы начинают отдаваться сразу и не требуют перезапуска `homepage.service`.
+Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при установке нашим target-скриптом это `/srv/homepage-images/icons`, а в LXC от Proxmox VE Community Scripts без `IMAGES_REAL_DIR` - `/opt/homepage/public/images/icons`. Редактор прописывает их через `/api/config/icon/...`, поэтому новые файлы начинают отдаваться сразу и не требуют перезапуска `homepage.service`.
 
 Для write-доступа к API редактора можно задать `HOMEPAGE_EDITOR_TOKEN`; тогда браузер попросит токен при первом сохранении и будет отправлять его в `X-Homepage-Editor-Token`.
 

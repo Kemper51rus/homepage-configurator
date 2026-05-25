@@ -15,17 +15,27 @@ const contentTypes = {
   ".webp": "image/webp",
 };
 
-function getImagesDir() {
+function getImagesDirs() {
+  const candidates = [];
+
   if (process.env.IMAGES_REAL_DIR) {
-    return process.env.IMAGES_REAL_DIR;
+    candidates.push(process.env.IMAGES_REAL_DIR);
   }
 
+  const publicImagesDir = path.join(process.cwd(), "public", "images");
   const sourceImagesDir = path.join(process.cwd(), "images");
-  if (existsSync(sourceImagesDir)) {
-    return sourceImagesDir;
+
+  if (existsSync(publicImagesDir)) {
+    candidates.push(publicImagesDir);
   }
 
-  return path.join(process.cwd(), "public", "images");
+  if (existsSync(sourceImagesDir)) {
+    candidates.push(sourceImagesDir);
+  }
+
+  candidates.push(publicImagesDir);
+
+  return [...new Set(candidates)];
 }
 
 function getRequestedIcon(req) {
@@ -51,9 +61,21 @@ export default async function handler(req, res) {
       return res.status(400).end("Invalid icon");
     }
 
-    const filePath = path.join(getImagesDir(), "icons", fileName);
     const extension = path.extname(fileName).toLowerCase();
-    const image = await fs.readFile(filePath);
+    let image = null;
+
+    for (const imagesDir of getImagesDirs()) {
+      try {
+        image = await fs.readFile(path.join(imagesDir, "icons", fileName));
+        break;
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+
+    if (!image) {
+      return res.status(404).end("Icon not found");
+    }
 
     res.setHeader("Content-Type", contentTypes[extension] ?? "application/octet-stream");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
