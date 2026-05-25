@@ -8,7 +8,7 @@
 
 - `bash`;
 - `curl`;
-- `git`;
+- `git` для применения core-patch; `install.sh` автоматически установит его через `apt-get`, если запущен от `root` в Debian/Ubuntu LXC;
 - `node`;
 - пакетный менеджер для сборки Homepage: обычно `pnpm`, реже `npm` или `yarn`;
 - права на запись в директорию Homepage;
@@ -17,7 +17,7 @@
 
 ## Quick install
 
-Установка target-проекта Homepage:
+Установка target-проекта Homepage нашим скриптом внутри готового Debian/Ubuntu LXC:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
@@ -27,11 +27,21 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Для установки target-проекта запускайте его от `root`.
 
+Установка target-проекта Homepage через Proxmox VE Community Scripts из Proxmox VE Shell:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homepage.sh)"
+```
+
+Источник: [community-scripts.org/scripts/homepage](https://community-scripts.org/scripts/homepage).
+
 Установка мода:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
+
+Если target был создан через Proxmox VE Community Scripts, запускайте установку мода уже внутри созданного LXC. Такой target лежит в `/opt/homepage`, config находится в `/opt/homepage/config`, а переменные окружения хранятся в `/opt/homepage/.env`; `install.sh` учитывает этот layout автоматически.
 
 `install.sh` поддерживает действия:
 
@@ -44,13 +54,13 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Установить эффекты фона particles` - встроить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
 - `Установить все дополнения custom.css/custom.js` - встроить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта;
-- `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в `.env.local`.
+- `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в env-файле target (`.env.local` или существующий `.env`).
 
 Если задан `HOMEPAGE_EDITOR_TOKEN`, операции записи из браузера (`PUT/POST /api/config/editor`) требуют этот токен.
 Клиент редактора попросит токен при первой ошибке `401` и сохранит его в `localStorage` браузера.
-Для systemd-инсталляции токен удобно хранить в `/etc/default/homepage`; `install-update-homepage.sh` сохраняет существующее значение при обновлении.
+Для systemd-инсталляции нашим `install-update-homepage.sh` токен удобно хранить в `/etc/default/homepage`; скрипт сохраняет существующее значение при обновлении. В LXC от Proxmox VE Community Scripts токен можно добавить в `/opt/homepage/.env`, рядом с `HOMEPAGE_ALLOWED_HOSTS`.
 
-Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При стандартной установке `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
+Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При установке нашим target-скриптом `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её. В LXC от Proxmox VE Community Scripts, где `IMAGES_REAL_DIR` обычно не задан, иконки сохраняются в `/opt/homepage/images/icons`. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
 
 Скрипт сам ищет target-проект в таком порядке:
 
@@ -62,6 +72,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 6. текущая директория запуска.
 
 Если checkout Homepage не найден, скрипт попросит ввести путь вручную.
+
+Для target без `.git`, как у tarball-установки Proxmox VE Community Scripts, `install.mjs` пропускает проверку staged-файлов и применяет `browser-editor.patch` напрямую через `git apply`. При обычном git checkout safety-проверка staged-файлов остаётся включённой.
 
 Для действий с `custom.css/custom.js` скрипт сначала пытается определить папку config автоматически:
 
@@ -87,7 +99,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Для неинтерактивного запуска используйте `--custom skip`, `--custom cards`, `--custom extras` или `--custom all`.
 
-После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что `install-update-homepage.sh` создаёт `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
+После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что оба варианта создают `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
 
 Низкоуровневый установщик `install.mjs` поддерживает safety-режимы:
 
@@ -140,7 +152,7 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 
 1. удаление текущей версии мода из target-проекта;
 2. повторную установку overlay-файлов и `browser-editor.patch`;
-3. включение `HOMEPAGE_BROWSER_EDITOR=true`;
+3. включение `HOMEPAGE_BROWSER_EDITOR=true` в env-файле target;
 4. одну сборку Homepage;
 5. один перезапуск `homepage.service`, если сервис активен.
 
@@ -202,7 +214,7 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 2. находит checkout Homepage;
 3. копирует файлы из `overlay/` в target-проект;
 4. применяет `browser-editor.patch`;
-5. записывает `HOMEPAGE_BROWSER_EDITOR=true` в `.env.local`;
+5. записывает `HOMEPAGE_BROWSER_EDITOR=true` в env-файл target (`.env.local` или существующий `.env`);
 6. запускает сборку Homepage;
 7. перезапускает `homepage.service`, если сервис активен.
 
@@ -210,7 +222,7 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 
 1. откатывает предыдущую версию patch и удаляет overlay-файлы;
 2. заново копирует overlay и применяет patch;
-3. включает мод в `.env.local`;
+3. включает мод в env-файле target (`.env.local` или существующем `.env`);
 4. запускает одну сборку Homepage;
 5. перезапускает `homepage.service`, если сервис активен.
 
@@ -218,12 +230,24 @@ HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cust
 
 1. откатывает `browser-editor.patch`;
 2. удаляет overlay-файлы мода из target-проекта;
-3. записывает `HOMEPAGE_BROWSER_EDITOR=false` в `.env.local`;
+3. записывает `HOMEPAGE_BROWSER_EDITOR=false` в env-файл target (`.env.local` или существующий `.env`);
 4. снова запускает сборку и перезапуск сервиса.
 
 ## LXC / Systemd
 
 Для установки в LXC, где Homepage лежит в `/opt/homepage` и запущен через `homepage.service`, обычно достаточно quick install команды выше.
+
+Для LXC, созданного Proxmox VE Community Scripts:
+
+1. создайте LXC из Proxmox VE Shell командой `bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homepage.sh)"`;
+2. войдите в созданный LXC;
+3. запустите установку мода командой `bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)`.
+
+В этом варианте конфиги Homepage находятся в `/opt/homepage/config`, поэтому для установки только custom-дополнений можно явно передать:
+
+```bash
+HOMEPAGE_CONFIG_DIR=/opt/homepage/config bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
+```
 
 После установки проверьте:
 
@@ -362,7 +386,7 @@ npm run disable:target -- --target /opt/homepage
 HOMEPAGE_BROWSER_EDITOR=false
 ```
 
-в `.env.local` целевого проекта. Пропатченные файлы она не удаляет.
+в env-файл целевого проекта (`.env.local` или существующий `.env`). Пропатченные файлы она не удаляет.
 
 ## Полное удаление
 

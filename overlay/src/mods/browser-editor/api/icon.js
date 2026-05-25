@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import { existsSync, promises as fs } from "fs";
 import path from "path";
 
 import createLogger from "utils/logger";
@@ -16,7 +16,16 @@ const contentTypes = {
 };
 
 function getImagesDir() {
-  return process.env.IMAGES_REAL_DIR || path.join(process.cwd(), "public", "images");
+  if (process.env.IMAGES_REAL_DIR) {
+    return process.env.IMAGES_REAL_DIR;
+  }
+
+  const sourceImagesDir = path.join(process.cwd(), "images");
+  if (existsSync(sourceImagesDir)) {
+    return sourceImagesDir;
+  }
+
+  return path.join(process.cwd(), "public", "images");
 }
 
 function getRequestedIcon(req) {

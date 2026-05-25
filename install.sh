@@ -445,7 +445,17 @@ require_node() {
 }
 
 require_git() {
-  command -v git >/dev/null 2>&1 || die "git is required to apply or revert the core patch"
+  if command -v git >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ "$(id -u)" -eq 0 && "$(command -v apt-get || true)" ]]; then
+    log "Installing git for core patch support"
+    DEBIAN_FRONTEND=noninteractive apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y git
+  fi
+
+  command -v git >/dev/null 2>&1 || die "git is required to apply or revert the core patch. Install git or run install.sh as root on a Debian/Ubuntu-based LXC."
 }
 
 run_mod_installer() {
@@ -891,6 +901,7 @@ fix_target_ownership() {
   [[ -n "$group" ]] || group="$owner"
 
   paths=(
+    "$TARGET/.env"
     "$TARGET/.env.local"
     "$TARGET/.next"
     "$TARGET/package.json"

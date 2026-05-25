@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { isAbsolute, join } from "path";
 import { tmpdir } from "os";
 
@@ -62,6 +62,23 @@ try {
   }
 
   run("node", ["install.mjs", "--dry-run", "--uninstall", "--target", target], { stdio: "inherit" });
+  run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
+
+  rmSync(join(target, ".env.local"), { force: true });
+  rmSync(join(target, ".git"), { force: true, recursive: true });
+  writeFileSync(join(target, ".env"), "HOMEPAGE_ALLOWED_HOSTS=localhost:3000\n");
+
+  run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
+  run("node", ["install.mjs", "--enable", "--target", target], { stdio: "inherit" });
+
+  const dotEnv = readFileSync(join(target, ".env"), "utf8");
+  if (!dotEnv.includes("HOMEPAGE_BROWSER_EDITOR=true")) {
+    throw new Error("HOMEPAGE_BROWSER_EDITOR=true was not written to existing .env");
+  }
+
+  run("git", ["apply", "--reverse", "--check", join(root, "browser-editor.patch")], {
+    cwd: target,
+  });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
 
   console.log("Smoke install/uninstall passed.");

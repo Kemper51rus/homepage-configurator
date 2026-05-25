@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import { existsSync, promises as fs } from "fs";
 import { createHash } from "crypto";
 import path from "path";
 
@@ -81,6 +81,19 @@ function verifyEditorAccess(req, res) {
   }
 
   return true;
+}
+
+function getImagesDir() {
+  if (process.env.IMAGES_REAL_DIR) {
+    return process.env.IMAGES_REAL_DIR;
+  }
+
+  const sourceImagesDir = path.join(process.cwd(), "images");
+  if (existsSync(sourceImagesDir)) {
+    return sourceImagesDir;
+  }
+
+  return path.join(process.cwd(), "public", "images");
 }
 
 export const config = {
@@ -397,7 +410,7 @@ async function downloadIcon(url, itemName, iconsDir, downloadedByUrl) {
 }
 
 async function localizeRemoteIcons() {
-  const iconsDir = path.join(process.env.IMAGES_REAL_DIR || path.join(process.cwd(), "public", "images"), "icons");
+  const iconsDir = path.join(getImagesDir(), "icons");
   const services = await readYamlFile("services", []);
   const bookmarks = await readYamlFile("bookmarks", []);
   const targets = [];

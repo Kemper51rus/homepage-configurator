@@ -57,6 +57,14 @@ function runGit(target, args, stdio = "inherit") {
   });
 }
 
+function isGitWorkTree(target) {
+  try {
+    return runGit(target, ["rev-parse", "--is-inside-work-tree"], "pipe").trim() === "true";
+  } catch {
+    return false;
+  }
+}
+
 function patchFiles() {
   const output = execFileSync("git", ["apply", "--numstat", patchPath], {
     cwd: root,
@@ -71,6 +79,8 @@ function patchFiles() {
 }
 
 function ensurePatchFilesNotStaged(target) {
+  if (!isGitWorkTree(target)) return;
+
   const files = patchFiles();
   if (!files.length) return;
 
@@ -81,6 +91,8 @@ function ensurePatchFilesNotStaged(target) {
 }
 
 function unstagePatchFiles(target) {
+  if (!isGitWorkTree(target)) return;
+
   const files = patchFiles();
   if (files.length) {
     runGit(target, ["reset", "--quiet", "--", ...files], "pipe");
@@ -194,7 +206,17 @@ function syncManagedDependencies(target) {
 }
 
 function envPath(target) {
-  return join(target, ".env.local");
+  const localEnvPath = join(target, ".env.local");
+  if (existsSync(localEnvPath)) {
+    return localEnvPath;
+  }
+
+  const dotEnvPath = join(target, ".env");
+  if (existsSync(dotEnvPath)) {
+    return dotEnvPath;
+  }
+
+  return localEnvPath;
 }
 
 function readEnv(target) {
@@ -349,6 +371,7 @@ function removeOverlay(target, { files = null, force = false } = {}) {
 
 function applyPatch(target) {
   ensurePatchFilesNotStaged(target);
+  const gitWorkTree = isGitWorkTree(target);
 
   try {
     runGit(target, ["apply", "--check", patchPath], "pipe");
@@ -361,6 +384,10 @@ function applyPatch(target) {
       console.log("Core patch already applied");
       return;
     } catch {
+      if (!gitWorkTree) {
+        throw error;
+      }
+
       try {
         runGit(target, ["apply", "--3way", patchPath], "pipe");
         unstagePatchFiles(target);

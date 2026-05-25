@@ -18,17 +18,27 @@
 
 ## Quick install
 
-Установка target-проекта Homepage:
+Установка target-проекта Homepage нашим скриптом внутри готового Debian/Ubuntu LXC:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
 ```
+
+Установка target-проекта Homepage через Proxmox VE Community Scripts из Proxmox VE Shell:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homepage.sh)"
+```
+
+Источник: [community-scripts.org/scripts/homepage](https://community-scripts.org/scripts/homepage).
 
 Установка мода:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
 ```
+
+Если target был создан через Proxmox VE Community Scripts, запускайте установку мода уже внутри созданного LXC. Установщик сам найдёт `/opt/homepage`, будет использовать `/opt/homepage/config` для `custom.css/custom.js` и сохранит флаг редактора в существующий `/opt/homepage/.env`.
 
 Повторный запуск `install.sh` поддерживает разные сценарии обновления:
 
@@ -71,7 +81,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `config/settings.yaml`
 
 Загруженный фон сохраняется в директорию `config` целевого проекта.
-Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при стандартной установке это `/srv/homepage-images/icons`. Редактор прописывает их через `/api/config/icon/...`, поэтому новые файлы начинают отдаваться сразу и не требуют перезапуска `homepage.service`.
+Загруженные иконки сохраняются в `${IMAGES_REAL_DIR}/icons`; при установке нашим target-скриптом это `/srv/homepage-images/icons`, а в LXC от Proxmox VE Community Scripts без `IMAGES_REAL_DIR` - `/opt/homepage/images/icons`. Редактор прописывает их через `/api/config/icon/...`, поэтому новые файлы начинают отдаваться сразу и не требуют перезапуска `homepage.service`.
 
 Для write-доступа к API редактора можно задать `HOMEPAGE_EDITOR_TOKEN`; тогда браузер попросит токен при первом сохранении и будет отправлять его в `X-Homepage-Editor-Token`.
 
