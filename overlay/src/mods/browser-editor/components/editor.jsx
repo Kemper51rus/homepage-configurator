@@ -2554,8 +2554,6 @@ function EditorWindow({
             className="absolute bottom-0 right-0 z-[63] h-8 w-8 cursor-nwse-resize"
           />
         )}
-        {canResizeLeft && <div className="pointer-events-none absolute inset-y-8 left-2 z-[64] w-[2px] rounded-full bg-theme-500/35 dark:bg-white/25" />}
-        {canResizeRight && <div className="pointer-events-none absolute inset-y-8 right-2 z-[64] w-[2px] rounded-full bg-theme-500/35 dark:bg-white/25" />}
       </div>
     </div>
   );
