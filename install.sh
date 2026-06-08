@@ -294,7 +294,7 @@ normalize_path() {
 
   if [[ "$candidate" == "~" ]]; then
     candidate="$HOME"
-  elif [[ "$candidate" == "~/"* ]]; then
+  elif [[ "$candidate" == \~/* ]]; then
     candidate="$HOME/${candidate#~/}"
   fi
 

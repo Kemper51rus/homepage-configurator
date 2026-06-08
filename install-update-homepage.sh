@@ -27,6 +27,20 @@ fail() {
   exit 1
 }
 
+validate_app_dir() {
+  [ -n "${APP_DIR:-}" ] || fail "APP_DIR пуст"
+  case "$APP_DIR" in
+    /*) ;;
+    *) fail "APP_DIR должен быть абсолютным путём: $APP_DIR" ;;
+  esac
+
+  case "$APP_DIR" in
+    /|/bin|/boot|/dev|/etc|/home|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+      fail "APP_DIR слишком широкий для операций удаления: $APP_DIR"
+      ;;
+  esac
+}
+
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
     fail "Запустите скрипт от root"
@@ -210,7 +224,8 @@ ensure_storage_dirs() {
 
 clone_repo() {
   log "Клонирую Homepage"
-  rm -rf "$APP_DIR"
+  validate_app_dir
+  rm -rf -- "$APP_DIR"
   git clone "$DEFAULT_REPO" "$APP_DIR"
   chown -R "${APP_USER}:${APP_GROUP}" "$APP_DIR"
 }
@@ -306,12 +321,13 @@ create_initial_config() {
 
 link_external_dirs() {
   log "Подключаю внешние папки через symlink"
+  validate_app_dir
 
-  rm -rf "$APP_DIR/config"
+  rm -rf -- "$APP_DIR/config"
   ln -s "$CONFIG_REAL_DIR" "$APP_DIR/config"
 
   mkdir -p "$APP_DIR/public"
-  rm -rf "$APP_DIR/public/images"
+  rm -rf -- "$APP_DIR/public/images"
   ln -s "$IMAGES_REAL_DIR" "$APP_DIR/public/images"
 
   chown -h "$APP_USER:$APP_GROUP" "$APP_DIR/config" || true
@@ -487,7 +503,8 @@ remove_homepage() {
   rm -f "$ENV_FILE"
 
   log "Удаляю каталог приложения"
-  rm -rf "$APP_DIR"
+  validate_app_dir
+  rm -rf -- "$APP_DIR"
 
   if id -u "$APP_USER" >/dev/null 2>&1; then
     log "Удаляю пользователя ${APP_USER}"

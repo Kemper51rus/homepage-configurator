@@ -118,6 +118,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 ## Проверки
 
+Зависимости для полного набора проверок: `shellcheck` и Chromium для Playwright (`npx playwright install --with-deps chromium`).
+
 ```bash
 npm run check
 npm run check:patch

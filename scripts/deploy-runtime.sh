@@ -38,6 +38,24 @@ log() {
   printf '[deploy-runtime] %s\n' "$*"
 }
 
+validate_absolute_path() {
+  local name="$1"
+  local value="$2"
+
+  [[ -n "$value" ]] || die "$name must not be empty"
+  [[ "$value" == /* ]] || die "$name must be an absolute path: $value"
+
+  case "$value" in
+    /|/bin|/boot|/dev|/etc|/home|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+      die "$name is too broad for deploy operations: $value"
+      ;;
+  esac
+}
+
+validate_service_name() {
+  [[ "$SERVICE_NAME" =~ ^[A-Za-z0-9_.@-]+$ ]] || die "Invalid systemd service name: $SERVICE_NAME"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --source)
@@ -99,6 +117,10 @@ done
 [[ -d "$SOURCE/.next/static" ]] || die "Missing build static assets: $SOURCE/.next/static"
 [[ -d "$SOURCE/public" ]] || die "Missing public directory: $SOURCE/public"
 command -v rsync >/dev/null 2>&1 || die "rsync is required"
+validate_absolute_path "APP_DIR" "$APP_DIR"
+validate_absolute_path "CONFIG_DIR" "$CONFIG_DIR"
+validate_absolute_path "IMAGES_DIR" "$IMAGES_DIR"
+validate_service_name
 
 if [[ ! -f "$SOURCE/config/settings.yaml" ]]; then
   log "WARNING: $SOURCE/config/settings.yaml not found. Homepage prerenders / at build time; build with live config before deploying or title/background/tabs can be stale."
@@ -117,7 +139,13 @@ log "Target: $APP_DIR"
 [[ "$APPLY" -eq 1 ]] || log "Dry-run mode; pass --apply to copy files"
 
 if [[ "$APPLY" -eq 1 ]]; then
-  ssh "$REMOTE" "mkdir -p '$APP_DIR/.next' '$CONFIG_DIR' '$IMAGES_DIR'"
+  ssh "$REMOTE" bash -s -- "$APP_DIR" "$CONFIG_DIR" "$IMAGES_DIR" <<'REMOTE_SCRIPT'
+set -eu
+app_dir="$1"
+config_dir="$2"
+images_dir="$3"
+mkdir -p "$app_dir/.next" "$config_dir" "$images_dir"
+REMOTE_SCRIPT
 fi
 
 rsync "${STANDALONE_RSYNC_MODE[@]}" "$SOURCE/.next/standalone/" "$REMOTE:$APP_DIR/.next/standalone/"
@@ -136,25 +164,30 @@ if [[ -f "$SOURCE/next-i18next.config.js" ]]; then
 fi
 
 if [[ "$APPLY" -eq 1 ]]; then
-  ssh "$REMOTE" "
-    set -eu
-    mkdir -p '$IMAGES_DIR/icons'
-    chown homepage:homepage '$IMAGES_DIR' '$IMAGES_DIR/icons' 2>/dev/null || true
-    rm -rf '$APP_DIR/config' '$APP_DIR/.next/standalone/config' '$APP_DIR/public/images' '$APP_DIR/.next/standalone/public/images'
-    ln -sfn '$CONFIG_DIR' '$APP_DIR/config'
-    ln -sfn '$CONFIG_DIR' '$APP_DIR/.next/standalone/config'
-    mkdir -p '$APP_DIR/public'
-    ln -sfn '$IMAGES_DIR' '$APP_DIR/public/images'
-    mkdir -p '$APP_DIR/.next/standalone/public'
-    ln -sfn '$IMAGES_DIR' '$APP_DIR/.next/standalone/public/images'
-    chown -h homepage:homepage '$APP_DIR/config' '$APP_DIR/.next/standalone/config' '$APP_DIR/public/images' '$APP_DIR/.next/standalone/public/images' 2>/dev/null || true
-  "
+  ssh "$REMOTE" bash -s -- "$APP_DIR" "$CONFIG_DIR" "$IMAGES_DIR" <<'REMOTE_SCRIPT'
+set -eu
+app_dir="$1"
+config_dir="$2"
+images_dir="$3"
+mkdir -p "$images_dir/icons"
+chown homepage:homepage "$images_dir" "$images_dir/icons" 2>/dev/null || true
+rm -rf -- "$app_dir/config" "$app_dir/.next/standalone/config" "$app_dir/public/images" "$app_dir/.next/standalone/public/images"
+ln -sfn "$config_dir" "$app_dir/config"
+ln -sfn "$config_dir" "$app_dir/.next/standalone/config"
+mkdir -p "$app_dir/public"
+ln -sfn "$images_dir" "$app_dir/public/images"
+mkdir -p "$app_dir/.next/standalone/public"
+ln -sfn "$images_dir" "$app_dir/.next/standalone/public/images"
+chown -h homepage:homepage "$app_dir/config" "$app_dir/.next/standalone/config" "$app_dir/public/images" "$app_dir/.next/standalone/public/images" 2>/dev/null || true
+REMOTE_SCRIPT
 
   if [[ "$INSTALL_SERVICE" -eq 1 ]]; then
-    ssh "$REMOTE" "
-      set -eu
-      node_path=\"\$(command -v node)\"
-      cat > '/etc/systemd/system/$SERVICE_NAME' <<EOF
+    ssh "$REMOTE" bash -s -- "$APP_DIR" "$SERVICE_NAME" <<'REMOTE_SCRIPT'
+set -eu
+app_dir="$1"
+service_name="$2"
+node_path="$(command -v node)"
+cat > "/etc/systemd/system/$service_name" <<EOF
 [Unit]
 Description=Homepage Dashboard
 After=network.target
@@ -163,25 +196,30 @@ After=network.target
 Type=simple
 User=homepage
 Group=homepage
-WorkingDirectory=$APP_DIR/.next/standalone
+WorkingDirectory=$app_dir/.next/standalone
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=0.0.0.0
 EnvironmentFile=/etc/default/homepage
-ExecStart=\${node_path} server.js
+ExecStart=${node_path} server.js
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-      systemctl daemon-reload
-      systemctl enable '$SERVICE_NAME'
-    "
+systemctl daemon-reload
+systemctl enable "$service_name"
+REMOTE_SCRIPT
   fi
 
   if [[ "$RESTART" -eq 1 ]]; then
-    ssh "$REMOTE" "systemctl restart '$SERVICE_NAME' && systemctl is-active '$SERVICE_NAME'"
+    ssh "$REMOTE" bash -s -- "$SERVICE_NAME" <<'REMOTE_SCRIPT'
+set -eu
+service_name="$1"
+systemctl restart "$service_name"
+systemctl is-active "$service_name"
+REMOTE_SCRIPT
   else
     log "Files copied. Restart skipped; pass --restart to restart $SERVICE_NAME."
   fi
