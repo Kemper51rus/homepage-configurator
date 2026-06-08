@@ -219,6 +219,18 @@ set -eu
 service_name="$1"
 systemctl restart "$service_name"
 systemctl is-active "$service_name"
+if command -v curl >/dev/null 2>&1; then
+  attempt=1
+  while [ "$attempt" -le 30 ]; do
+    if curl -fsS -o /dev/null http://127.0.0.1:3000/ >/dev/null 2>&1; then
+      exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  echo "$service_name restarted, but http://127.0.0.1:3000/ did not become ready" >&2
+  exit 1
+fi
 REMOTE_SCRIPT
   else
     log "Files copied. Restart skipped; pass --restart to restart $SERVICE_NAME."

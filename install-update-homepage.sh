@@ -51,6 +51,23 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+wait_for_homepage() {
+  command_exists curl || return 0
+
+  local url="http://127.0.0.1:${APP_PORT}/"
+  local attempt=1
+
+  while [ "$attempt" -le 30 ]; do
+    if curl -fsS -o /dev/null "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+
+  fail "Homepage service restarted, but ${url} did not become ready"
+}
+
 detect_container_ip() {
   ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}'
 }
@@ -402,6 +419,7 @@ EOF
 start_services() {
   log "Запускаю Homepage"
   systemctl restart "$SERVICE_NAME"
+  wait_for_homepage
 }
 
 install_homepage() {

@@ -60,6 +60,24 @@ log() {
   printf '[homepage-configurator] %s\n' "$*"
 }
 
+wait_for_homepage() {
+  command -v curl >/dev/null 2>&1 || return 0
+
+  local port="${HOMEPAGE_PORT:-3000}"
+  local url="http://127.0.0.1:${port}/"
+  local attempt=1
+
+  while [[ "$attempt" -le 30 ]]; do
+    if curl -fsS -o /dev/null "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+
+  die "$SERVICE_NAME restarted, but $url did not become ready"
+}
+
 die() {
   printf '[homepage-configurator] ERROR: %s\n' "$*" >&2
   exit 1
@@ -1295,6 +1313,7 @@ restart_target() {
   if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     log "Restarting $SERVICE_NAME"
     systemctl restart "$SERVICE_NAME"
+    wait_for_homepage
   fi
 }
 
