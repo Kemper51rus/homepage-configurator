@@ -381,7 +381,7 @@ diff --git a/src/pages/index.jsx b/src/pages/index.jsx
 index bd4f809..3fd88b56 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
-@@ -4,11 +4,20 @@ import BookmarksGroup from "components/bookmarks/group";
+@@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
  import ErrorBoundary from "components/errorboundry";
  import QuickLaunch from "components/quicklaunch";
  import ServicesGroup from "components/services/group";
@@ -403,21 +403,52 @@ index bd4f809..3fd88b56 100644
  import dynamic from "next/dynamic";
  import Head from "next/head";
  import { useRouter } from "next/router";
-@@ -42,6 +51,24 @@ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmet
+ import Script from "next/script";
+-import { useContext, useEffect, useMemo, useState } from "react";
++import { useContext, useEffect, useMemo, useRef, useState } from "react";
+ import { BiError } from "react-icons/bi";
+ import useSWR, { SWRConfig } from "swr";
+ import { ColorContext } from "utils/contexts/color";
+@@ -42,6 +51,49 @@ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmet
  
  const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
  
 +function EditableInformationWidget({ widget, widgetIndex, style }) {
 +  const { editMode, widgetProps } = useEditableTopWidget(widget, widgetIndex);
++  const wrapperRef = useRef(null);
++  const [overlayRadius, setOverlayRadius] = useState("inherit");
++
++  useEffect(() => {
++    if (!editMode || !wrapperRef.current) {
++      return undefined;
++    }
++
++    let animationFrame = 0;
++    const updateOverlayRadius = () => {
++      const widgetElement = wrapperRef.current?.firstElementChild;
++      if (widgetElement) {
++        setOverlayRadius(window.getComputedStyle(widgetElement).borderRadius || "inherit");
++      }
++    };
++
++    animationFrame = window.requestAnimationFrame(updateOverlayRadius);
++    window.addEventListener("resize", updateOverlayRadius);
++
++    return () => {
++      window.cancelAnimationFrame(animationFrame);
++      window.removeEventListener("resize", updateOverlayRadius);
++    };
++  }, [editMode, widget.type]);
 +
 +  return (
-+    <div className="relative">
++    <div ref={wrapperRef} className="relative">
 +      <Widget widget={widget} style={style} />
 +      {editMode && (
 +        <button
 +          type="button"
 +          {...widgetProps}
-+          className="absolute inset-0 z-50 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          style={{ borderRadius: overlayRadius }}
++          className="absolute inset-0 z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
 +        />
 +      )}
