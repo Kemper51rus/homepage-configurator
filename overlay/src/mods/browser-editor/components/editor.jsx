@@ -41,6 +41,7 @@ const ConfigEditorContext = createContext({
   moveTab: () => {},
   moveGroup: () => {},
   moveItem: () => {},
+  moveTopWidget: () => {},
   openGroup: () => {},
   openItem: () => {},
   openTopWidget: () => {},
@@ -56,6 +57,7 @@ const noopEditorContext = {
   moveTab: () => {},
   moveGroup: () => {},
   moveItem: () => {},
+  moveTopWidget: () => {},
   openGroup: () => {},
   openItem: () => {},
   openTopWidget: () => {},
@@ -73,6 +75,7 @@ const JSON_DRAG_TYPE = "application/json";
 const GROUP_DRAG_TYPE = "application/x-homepage-browser-editor-group";
 const ITEM_DRAG_TYPE = "application/x-homepage-browser-editor-item";
 const TAB_DRAG_TYPE = "application/x-homepage-browser-editor-tab";
+const TOP_WIDGET_DRAG_TYPE = "application/x-homepage-browser-editor-top-widget";
 const PAGE_AUTO_OPEN_DELAY_MS = 450;
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
@@ -2361,6 +2364,30 @@ function replaceTopLevelYamlBlock(content, blockIndex, nextBlock) {
   return [...lines.slice(0, block.start), ...nextLines, ...lines.slice(block.end)].join("\n");
 }
 
+function moveTopLevelYamlBlock(content, sourceIndex, targetIndex) {
+  if (sourceIndex === targetIndex) {
+    return { moved: false, content };
+  }
+
+  const lines = String(content ?? "").split("\n");
+  const blocks = activeTopLevelYamlBlocks(content);
+  const sourceBlock = blocks[sourceIndex];
+  const targetBlock = blocks[targetIndex];
+
+  if (!sourceBlock || !targetBlock) {
+    return { moved: false, content };
+  }
+
+  const prefix = lines.slice(0, blocks[0].start);
+  const blockLines = blocks.map((block) => lines.slice(block.start, block.end));
+  [blockLines[sourceIndex], blockLines[targetIndex]] = [blockLines[targetIndex], blockLines[sourceIndex]];
+
+  return {
+    moved: true,
+    content: [...prefix, ...blockLines.flat()].join("\n"),
+  };
+}
+
 function topWidgetDisplayName(widget, index) {
   const label = widget?.label || widget?.type || `#${index + 1}`;
   return `${label}`;
@@ -3966,6 +3993,22 @@ function readItemDragPayload(event, fallbackPayload = null) {
   return null;
 }
 
+function readTopWidgetDragPayload(event, fallbackPayload = null) {
+  const typedPayload = readDragPayload(event, TOP_WIDGET_DRAG_TYPE);
+  const genericPayload = typedPayload ?? readDragPayload(event);
+  const fallback = fallbackPayload ?? activeDragPayload;
+
+  if (genericPayload?.scope === "top-widget") {
+    return genericPayload;
+  }
+
+  if (fallback?.scope === "top-widget") {
+    return fallback;
+  }
+
+  return null;
+}
+
 function isGroupDragOver(event, fallbackPayload = null) {
   return (
     hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group"
@@ -4440,11 +4483,37 @@ export function useEditableItem(type, groupName, itemName, item, itemIndex = nul
 }
 
 export function useEditableTopWidget(widget, widgetIndex) {
-  const { editMode, openTopWidget } = useConfigEditor();
+  const { editMode, moveTopWidget, openTopWidget } = useConfigEditor();
   return {
     editMode,
     widgetProps: editMode
       ? {
+          draggable: true,
+          onDragStart: (event) => {
+            event.dataTransfer.effectAllowed = "move";
+            writeDragPayload(event, { scope: "top-widget", widgetIndex }, TOP_WIDGET_DRAG_TYPE);
+          },
+          onDragEnd: () => {
+            window.setTimeout(clearDragPayload, 0);
+          },
+          onDragOver: (event) => {
+            if (!readTopWidgetDragPayload(event)) {
+              return;
+            }
+
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          },
+          onDrop: (event) => {
+            const dragged = readTopWidgetDragPayload(event);
+            if (!dragged) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            moveTopWidget(dragged.widgetIndex, widgetIndex);
+          },
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -4729,6 +4798,32 @@ export function ConfigEditorProvider({ children }) {
 
         await refreshConfigData(mutate);
         handleSaved("Порядок сохранён");
+      },
+      moveTopWidget: async (sourceIndex, targetIndex) => {
+        if (!data || sourceIndex === targetIndex) {
+          return;
+        }
+
+        const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+        const result = moveTopLevelYamlBlock(widgetsTab?.content ?? "", sourceIndex, targetIndex);
+        if (!result.moved) {
+          handleSaved("Виджет нельзя переместить");
+          return;
+        }
+
+        const response = await editorWriteFetch("/api/config/editor", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: "widgets.yaml", content: result.content }),
+        });
+
+        if (!response.ok) {
+          handleSaved(await response.text());
+          return;
+        }
+
+        await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
+        handleSaved("Порядок виджетов сохранён");
       },
       openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
       openItem: (type, groupName, itemName, item, itemMatcher = null, itemIndex = null) =>

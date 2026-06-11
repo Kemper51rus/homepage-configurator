@@ -417,7 +417,7 @@ index bd4f809..3fd88b56 100644
 +        <button
 +          type="button"
 +          {...widgetProps}
-+          className="absolute inset-0 z-50 rounded-md border border-theme-400/70 bg-theme-100/5 text-left backdrop-blur-[1px] transition-colors hover:bg-theme-300/10 dark:border-white/25 dark:bg-white/5 dark:hover:bg-white/10"
++          className="absolute inset-0 z-50 cursor-move rounded-md border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
 +        />
 +      )}
