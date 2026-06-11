@@ -409,14 +409,14 @@ index bd4f809..3fd88b56 100644
  import { BiError } from "react-icons/bi";
  import useSWR, { SWRConfig } from "swr";
  import { ColorContext } from "utils/contexts/color";
-@@ -42,6 +51,49 @@ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmet
+@@ -42,6 +51,66 @@ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmet
  
  const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
  
 +function EditableInformationWidget({ widget, widgetIndex, style }) {
 +  const { editMode, widgetProps } = useEditableTopWidget(widget, widgetIndex);
 +  const wrapperRef = useRef(null);
-+  const [overlayRadius, setOverlayRadius] = useState("inherit");
++  const [overlayStyle, setOverlayStyle] = useState({ borderRadius: "inherit" });
 +
 +  useEffect(() => {
 +    if (!editMode || !wrapperRef.current) {
@@ -424,19 +424,36 @@ index bd4f809..3fd88b56 100644
 +    }
 +
 +    let animationFrame = 0;
-+    const updateOverlayRadius = () => {
++    let resizeObserver = null;
++    const updateOverlayStyle = () => {
++      const wrapperElement = wrapperRef.current;
 +      const widgetElement = wrapperRef.current?.firstElementChild;
-+      if (widgetElement) {
-+        setOverlayRadius(window.getComputedStyle(widgetElement).borderRadius || "inherit");
++      if (wrapperElement && widgetElement) {
++        const wrapperRect = wrapperElement.getBoundingClientRect();
++        const widgetRect = widgetElement.getBoundingClientRect();
++        setOverlayStyle({
++          borderRadius: window.getComputedStyle(widgetElement).borderRadius || "inherit",
++          height: `${widgetRect.height}px`,
++          left: `${widgetRect.left - wrapperRect.left}px`,
++          top: `${widgetRect.top - wrapperRect.top}px`,
++          width: `${widgetRect.width}px`,
++        });
 +      }
 +    };
 +
-+    animationFrame = window.requestAnimationFrame(updateOverlayRadius);
-+    window.addEventListener("resize", updateOverlayRadius);
++    animationFrame = window.requestAnimationFrame(updateOverlayStyle);
++    window.addEventListener("resize", updateOverlayStyle);
++
++    if (window.ResizeObserver) {
++      resizeObserver = new window.ResizeObserver(updateOverlayStyle);
++      resizeObserver.observe(wrapperRef.current);
++      resizeObserver.observe(wrapperRef.current.firstElementChild);
++    }
 +
 +    return () => {
 +      window.cancelAnimationFrame(animationFrame);
-+      window.removeEventListener("resize", updateOverlayRadius);
++      window.removeEventListener("resize", updateOverlayStyle);
++      resizeObserver?.disconnect();
 +    };
 +  }, [editMode, widget.type]);
 +
@@ -447,8 +464,8 @@ index bd4f809..3fd88b56 100644
 +        <button
 +          type="button"
 +          {...widgetProps}
-+          style={{ borderRadius: overlayRadius }}
-+          className="absolute inset-0 z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          style={overlayStyle}
++          className="absolute z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
 +        />
 +      )}
