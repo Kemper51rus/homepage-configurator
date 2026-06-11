@@ -43,7 +43,7 @@ const ConfigEditorContext = createContext({
   moveItem: () => {},
   openGroup: () => {},
   openItem: () => {},
-  openWidget: () => {},
+  openTopWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
 });
@@ -58,7 +58,7 @@ const noopEditorContext = {
   moveItem: () => {},
   openGroup: () => {},
   openItem: () => {},
-  openWidget: () => {},
+  openTopWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
 };
@@ -2331,20 +2331,49 @@ function CodeEditor({
   );
 }
 
-function WidgetModal({ modal, data, onClose, onSaved }) {
+function activeTopLevelYamlBlocks(content) {
+  const lines = String(content ?? "").split("\n");
+  const starts = [];
+
+  lines.forEach((line, index) => {
+    if (/^-\s+\S/.test(line)) {
+      starts.push(index);
+    }
+  });
+
+  return starts.map((start, index) => ({
+    start,
+    end: starts[index + 1] ?? lines.length,
+    content: lines.slice(start, starts[index + 1] ?? lines.length).join("\n").replace(/\n+$/, ""),
+  }));
+}
+
+function replaceTopLevelYamlBlock(content, blockIndex, nextBlock) {
+  const lines = String(content ?? "").split("\n");
+  const blocks = activeTopLevelYamlBlocks(content);
+  const block = blocks[blockIndex];
+
+  if (!block) {
+    throw new Error("Виджет не найден в widgets.yaml. Обновите страницу и попробуйте снова.");
+  }
+
+  const nextLines = String(nextBlock ?? "").trimEnd().split("\n");
+  return [...lines.slice(0, block.start), ...nextLines, ...lines.slice(block.end)].join("\n");
+}
+
+function topWidgetDisplayName(widget, index) {
+  const label = widget?.label || widget?.type || `#${index + 1}`;
+  return `${label}`;
+}
+
+function TopWidgetModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const rawEntryConfig = findRawEntry(
-    data?.services,
-    "services",
-    modal.groupName,
-    modal.itemName,
-    modal.itemMatcher,
-    modal.itemIndex,
-  );
-  const rawConfig = rawEntryConfig ?? modal.item ?? {};
-  const originalItemMatcher = rawEntryConfig ? createItemMatcher("services", modal.itemName, rawEntryConfig) : modal.itemMatcher;
+  const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+  const originalContent = widgetsTab?.content ?? "";
+  const originalBlock = activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
   const [widgetYaml, setWidgetYaml] = useState(() =>
-    rawConfig.widget ? yaml.dump({ widget: rawConfig.widget }, { lineWidth: -1, noRefs: true, sortKeys: false }) : "widget:\n  type: \n  url: ",
+    originalBlock ||
+    yaml.dump([{ [modal.widget?.type ?? "widget"]: {} }], { lineWidth: -1, noRefs: true, sortKeys: false }).trimEnd(),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2359,71 +2388,38 @@ function WidgetModal({ modal, data, onClose, onSaved }) {
     return response.json();
   }
 
-  function latestMatcher(latestData) {
-    const latestRawEntryConfig = findRawEntry(
-      latestData?.services,
-      "services",
-      modal.groupName,
-      modal.itemName,
-      originalItemMatcher ?? modal.itemMatcher,
-      modal.itemIndex,
-    );
-
-    return latestRawEntryConfig ? createItemMatcher("services", modal.itemName, latestRawEntryConfig) : originalItemMatcher;
-  }
-
   async function handleSave() {
     setSaving(true);
     setError("");
 
     try {
       const parsed = yaml.load(widgetYaml) ?? {};
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Object.prototype.hasOwnProperty.call(parsed, "widget")) {
-        throw new Error("YAML должен содержать ключ widget");
+      if (
+        !Array.isArray(parsed) ||
+        parsed.length !== 1 ||
+        !parsed[0] ||
+        typeof parsed[0] !== "object" ||
+        Array.isArray(parsed[0]) ||
+        Object.keys(parsed[0]).length !== 1
+      ) {
+        throw new Error("YAML должен быть одной записью widgets.yaml, например: - resources:");
       }
 
       const latestData = await loadLatestEditorData();
-      const latestConfig =
-        findRawEntry(
-          latestData?.services,
-          "services",
-          modal.groupName,
-          modal.itemName,
-          latestMatcher(latestData),
-          modal.itemIndex,
-        ) ?? rawConfig;
-      const nextConfig = { ...latestConfig };
-
-      if (parsed.widget === null || parsed.widget === undefined || parsed.widget === "") {
-        delete nextConfig.widget;
-      } else if (typeof parsed.widget !== "object" || Array.isArray(parsed.widget)) {
-        throw new Error("widget должен быть объектом");
-      } else {
-        nextConfig.widget = parsed.widget;
-      }
-
-      const nextData = updateRawEntry(
-        latestData.services,
-        "services",
-        modal.groupName,
-        modal.itemName,
-        latestMatcher(latestData),
-        modal.itemIndex,
-        modal.itemName,
-        nextConfig,
-      );
+      const latestWidgetsTab = latestData?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+      const nextContent = replaceTopLevelYamlBlock(latestWidgetsTab?.content ?? "", modal.widgetIndex, widgetYaml);
       const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file: "services", data: nextData }),
+        body: JSON.stringify({ fileName: "widgets.yaml", content: nextContent }),
       });
 
       if (!response.ok) {
         throw new Error(await response.text());
       }
 
-      await refreshConfigData(mutate);
-      onSaved(`Виджет сохранён: ${modal.itemName}`);
+      await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
+      onSaved(`Виджет сохранён: ${topWidgetDisplayName(modal.widget, modal.widgetIndex)}`);
       onClose();
     } catch (saveError) {
       setError(saveError.message);
@@ -2434,8 +2430,8 @@ function WidgetModal({ modal, data, onClose, onSaved }) {
 
   return (
     <EditorWindow
-      storageKey="homepage-browser-editor-window-widget"
-      title={`Виджет: ${modal.itemName}`}
+      storageKey="homepage-browser-editor-window-top-widget"
+      title={`Виджет: ${topWidgetDisplayName(modal.widget, modal.widgetIndex)}`}
       onClose={onClose}
       defaultWidth={760}
       defaultHeight={620}
@@ -2450,7 +2446,7 @@ function WidgetModal({ modal, data, onClose, onSaved }) {
           onChange={setWidgetYaml}
           fillAvailableHeight
           zoomStorageKey="homepage-browser-editor-code-zoom-widget"
-          placeholder="widget:\n  type: customapi\n  url: http://example.local"
+          placeholder="- resources:\n    cpu: true\n    memory: true"
         />
       </div>
       {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
@@ -4443,10 +4439,8 @@ export function useEditableItem(type, groupName, itemName, item, itemIndex = nul
   };
 }
 
-export function useEditableWidget(groupName, itemName, item, itemIndex = null) {
-  const { editMode, openWidget } = useConfigEditor();
-  const itemMatcher = useMemo(() => createItemMatcher("services", itemName, item), [item, itemName]);
-
+export function useEditableTopWidget(widget, widgetIndex) {
+  const { editMode, openTopWidget } = useConfigEditor();
   return {
     editMode,
     widgetProps: editMode
@@ -4454,7 +4448,7 @@ export function useEditableWidget(groupName, itemName, item, itemIndex = null) {
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
-            openWidget(groupName, itemName, item, itemMatcher, itemIndex);
+            openTopWidget(widget, widgetIndex);
           },
         }
       : {},
@@ -4747,16 +4741,13 @@ export function ConfigEditorProvider({ children }) {
           itemIndex,
           mode: "edit",
         }),
-      openWidget: (groupName, itemName, item, itemMatcher = null, itemIndex = null) =>
+      openTopWidget: (widget, widgetIndex) =>
         setModal({
-          type: "services",
-          groupName,
-          itemName,
-          item,
-          itemMatcher,
-          itemIndex,
+          type: "widgets",
+          widget,
+          widgetIndex,
           mode: "edit",
-          scope: "widget",
+          scope: "top-widget",
         }),
       openNewGroup: (type) =>
         setModal({
@@ -4917,13 +4908,13 @@ export function ConfigEditorProvider({ children }) {
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
-      {modal?.scope === "widget" && modal && data && (
-        <WidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+      {modal?.scope === "top-widget" && modal && data && (
+        <TopWidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
       {modal?.type !== "background" &&
         modal?.type !== "settings-tabs" &&
         modal?.scope !== "group" &&
-        modal?.scope !== "widget" &&
+        modal?.scope !== "top-widget" &&
         modal &&
         data && (
         <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
