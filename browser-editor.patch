@@ -301,11 +301,11 @@ index c23e16a2..6161c6a6 100644
 @@ -1,5 +1,6 @@
  import classNames from "classnames";
  import ResolvedIcon from "components/resolvedicon";
-+import { useEditableItem } from "mods/browser-editor/components/editor";
++import { useEditableItem, useEditableWidget } from "mods/browser-editor/components/editor";
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  import Docker from "widgets/docker/component";
-@@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
+@@ -13,8 +14,10 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
  
@@ -313,12 +313,24 @@ index c23e16a2..6161c6a6 100644
 +export default function Item({ service, groupName, useEqualHeights, itemIndex }) {
    const hasLink = service.href && service.href !== "#";
 +  const { editMode, itemProps } = useEditableItem("services", groupName, service.name, service, itemIndex);
++  const { widgetProps } = useEditableWidget(groupName, service.name, service, itemIndex);
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -188,6 +191,26 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
-           <Widget widget={widget} service={service} key={widget.index} />
+-          <Widget widget={widget} service={service} key={widget.index} />
++          <div key={widget.index} className="relative">
++            <Widget widget={widget} service={service} />
++            {editMode && (
++              <button
++                type="button"
++                {...widgetProps}
++                className="absolute inset-0 z-50 rounded-md border border-theme-400/70 bg-theme-100/5 text-left backdrop-blur-[1px] transition-colors hover:bg-theme-300/10 dark:border-white/25 dark:bg-white/5 dark:hover:bg-white/10"
++                aria-label={`Edit ${service.name} widget`}
++              />
++            )}
++          </div>
          ))}
 +
 +        {editMode && (

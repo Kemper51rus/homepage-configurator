@@ -1,4 +1,5 @@
 import classNames from "classnames";
+import yaml from "js-yaml";
 import Prism from "prismjs";
 import "prismjs/components/prism-css";
 import "prismjs/components/prism-javascript";
@@ -42,6 +43,7 @@ const ConfigEditorContext = createContext({
   moveItem: () => {},
   openGroup: () => {},
   openItem: () => {},
+  openWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
 });
@@ -56,6 +58,7 @@ const noopEditorContext = {
   moveItem: () => {},
   openGroup: () => {},
   openItem: () => {},
+  openWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
 };
@@ -324,6 +327,46 @@ function configToRawEntry(type, itemName, itemConfig) {
   }
 
   return { [itemName]: itemConfig };
+}
+
+function collectRawEntryNames(rawGroups, type, groupName) {
+  const names = [];
+
+  const collectFromEntries = (entries = [], currentGroup) => {
+    entries.forEach((entry) => {
+      const name = getEntryName(entry);
+      const value = entry[name];
+
+      if (namesEqual(currentGroup, groupName) && isItemEntry(entry, type)) {
+        names.push(name);
+      }
+
+      if (type === "services" && Array.isArray(value)) {
+        collectFromEntries(value, name);
+      }
+    });
+  };
+
+  (rawGroups ?? []).forEach((group) => {
+    const name = getEntryName(group);
+    collectFromEntries(group[name], name);
+  });
+
+  return names;
+}
+
+function buildUniqueEntryName(rawGroups, type, groupName, baseName) {
+  const normalizedBaseName = String(baseName ?? "").trim() || "Copy";
+  const usedNames = new Set(collectRawEntryNames(rawGroups, type, groupName).map((entryName) => String(entryName).trim()));
+  let candidate = `${normalizedBaseName} copy`;
+  let index = 2;
+
+  while (usedNames.has(candidate)) {
+    candidate = `${normalizedBaseName} copy ${index}`;
+    index += 1;
+  }
+
+  return candidate;
 }
 
 function findRawEntry(
@@ -2041,6 +2084,91 @@ function highlightEditorCode(value, language) {
   }
 }
 
+function lineCommentSyntax(language) {
+  if (language === "javascript") {
+    return { kind: "line", token: "//" };
+  }
+
+  if (language === "css") {
+    return { kind: "block", start: "/*", end: "*/" };
+  }
+
+  return { kind: "line", token: "#" };
+}
+
+function selectedLineRange(value, selectionStart, selectionEnd) {
+  const start = Math.max(0, Number(selectionStart) || 0);
+  const end = Math.max(start, Number(selectionEnd) || start);
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  let lineEnd = value.indexOf("\n", end);
+
+  if (lineEnd === -1) {
+    lineEnd = value.length;
+  }
+
+  return { lineStart, lineEnd };
+}
+
+function toggleLineComments(value, selectionStart, selectionEnd, language) {
+  const syntax = lineCommentSyntax(language);
+  const { lineStart, lineEnd } = selectedLineRange(value, selectionStart, selectionEnd);
+  const before = value.slice(0, lineStart);
+  const selected = value.slice(lineStart, lineEnd);
+  const after = value.slice(lineEnd);
+  const lines = selected.split("\n");
+  const hasCodeLines = lines.some((line) => line.trim().length > 0);
+  const activeLines = hasCodeLines ? lines.filter((line) => line.trim().length > 0) : lines;
+
+  const allCommented = activeLines.length
+    ? activeLines.every((line) => {
+        const indent = line.match(/^\s*/)?.[0] ?? "";
+        const body = line.slice(indent.length);
+
+        if (syntax.kind === "block") {
+          return body.startsWith(syntax.start) && body.trimEnd().endsWith(syntax.end);
+        }
+
+        return body.startsWith(syntax.token);
+      })
+    : false;
+
+  const nextLines = lines.map((line) => {
+    if (hasCodeLines && !line.trim()) {
+      return line;
+    }
+
+    const indent = line.match(/^\s*/)?.[0] ?? "";
+    const body = line.slice(indent.length);
+
+    if (syntax.kind === "block") {
+      if (allCommented) {
+        const withoutStart = body.startsWith(syntax.start) ? body.slice(syntax.start.length).replace(/^ ?/, "") : body;
+        const withoutEnd = withoutStart.endsWith(syntax.end)
+          ? withoutStart.slice(0, -syntax.end.length).replace(/ ?$/, "")
+          : withoutStart;
+        return `${indent}${withoutEnd}`;
+      }
+
+      return `${indent}${syntax.start} ${body} ${syntax.end}`;
+    }
+
+    if (allCommented) {
+      const withoutToken = body.startsWith(syntax.token) ? body.slice(syntax.token.length).replace(/^ ?/, "") : body;
+      return `${indent}${withoutToken}`;
+    }
+
+    return `${indent}${syntax.token} ${body}`;
+  });
+
+  const nextSelected = nextLines.join("\n");
+
+  return {
+    value: `${before}${nextSelected}${after}`,
+    selectionStart: lineStart,
+    selectionEnd: lineStart + nextSelected.length,
+  };
+}
+
 function CodeEditor({
   label,
   value,
@@ -2081,6 +2209,26 @@ function CodeEditor({
       syncScrollPosition(event.currentTarget);
     },
     [syncScrollPosition],
+  );
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key !== "/" || (!event.ctrlKey && !event.metaKey) || event.altKey) {
+        return;
+      }
+
+      event.preventDefault();
+      const target = event.currentTarget;
+      const next = toggleLineComments(value, target.selectionStart, target.selectionEnd, language);
+      onChange(next.value);
+
+      window.requestAnimationFrame(() => {
+        target.selectionStart = next.selectionStart;
+        target.selectionEnd = next.selectionEnd;
+        syncScrollPosition(target);
+      });
+    },
+    [language, onChange, syncScrollPosition, value],
   );
 
   useEffect(() => {
@@ -2167,6 +2315,7 @@ function CodeEditor({
             ref={textareaRef}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            onKeyDown={handleKeyDown}
             onScroll={handleScroll}
             className="homepage-editor-textarea selection:bg-theme-300/30 px-3 py-3 dark:selection:bg-white/20"
             spellCheck={false}
@@ -2179,6 +2328,143 @@ function CodeEditor({
         </div>
       </div>
     </label>
+  );
+}
+
+function WidgetModal({ modal, data, onClose, onSaved }) {
+  const { mutate } = useSWRConfig();
+  const rawEntryConfig = findRawEntry(
+    data?.services,
+    "services",
+    modal.groupName,
+    modal.itemName,
+    modal.itemMatcher,
+    modal.itemIndex,
+  );
+  const rawConfig = rawEntryConfig ?? modal.item ?? {};
+  const originalItemMatcher = rawEntryConfig ? createItemMatcher("services", modal.itemName, rawEntryConfig) : modal.itemMatcher;
+  const [widgetYaml, setWidgetYaml] = useState(() =>
+    rawConfig.widget ? yaml.dump({ widget: rawConfig.widget }, { lineWidth: -1, noRefs: true, sortKeys: false }) : "widget:\n  type: \n  url: ",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadLatestEditorData() {
+    const response = await fetch("/api/config/editor");
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    return response.json();
+  }
+
+  function latestMatcher(latestData) {
+    const latestRawEntryConfig = findRawEntry(
+      latestData?.services,
+      "services",
+      modal.groupName,
+      modal.itemName,
+      originalItemMatcher ?? modal.itemMatcher,
+      modal.itemIndex,
+    );
+
+    return latestRawEntryConfig ? createItemMatcher("services", modal.itemName, latestRawEntryConfig) : originalItemMatcher;
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+
+    try {
+      const parsed = yaml.load(widgetYaml) ?? {};
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Object.prototype.hasOwnProperty.call(parsed, "widget")) {
+        throw new Error("YAML должен содержать ключ widget");
+      }
+
+      const latestData = await loadLatestEditorData();
+      const latestConfig =
+        findRawEntry(
+          latestData?.services,
+          "services",
+          modal.groupName,
+          modal.itemName,
+          latestMatcher(latestData),
+          modal.itemIndex,
+        ) ?? rawConfig;
+      const nextConfig = { ...latestConfig };
+
+      if (parsed.widget === null || parsed.widget === undefined || parsed.widget === "") {
+        delete nextConfig.widget;
+      } else if (typeof parsed.widget !== "object" || Array.isArray(parsed.widget)) {
+        throw new Error("widget должен быть объектом");
+      } else {
+        nextConfig.widget = parsed.widget;
+      }
+
+      const nextData = updateRawEntry(
+        latestData.services,
+        "services",
+        modal.groupName,
+        modal.itemName,
+        latestMatcher(latestData),
+        modal.itemIndex,
+        modal.itemName,
+        nextConfig,
+      );
+      const response = await editorWriteFetch("/api/config/editor", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: "services", data: nextData }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      await refreshConfigData(mutate);
+      onSaved(`Виджет сохранён: ${modal.itemName}`);
+      onClose();
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <EditorWindow
+      storageKey="homepage-browser-editor-window-widget"
+      title={`Виджет: ${modal.itemName}`}
+      onClose={onClose}
+      defaultWidth={760}
+      defaultHeight={620}
+      minWidth={620}
+      minHeight={460}
+    >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <CodeEditor
+          label="YAML виджета"
+          language="yaml"
+          value={widgetYaml}
+          onChange={setWidgetYaml}
+          fillAvailableHeight
+          zoomStorageKey="homepage-browser-editor-code-zoom-widget"
+          placeholder="widget:\n  type: customapi\n  url: http://example.local"
+        />
+      </div>
+      {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        >
+          {saving ? "Сохранение..." : "Сохранить"}
+        </button>
+      </div>
+    </EditorWindow>
   );
 }
 
@@ -2714,6 +3000,30 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     }
   }
 
+  async function handleClone() {
+    setSaving(true);
+    setError("");
+
+    try {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        throw new Error("Имя обязательно");
+      }
+
+      const config = formToConfig(form);
+      validateItemConfig(modal.type, config);
+      const latestData = await loadLatestEditorData();
+      const cloneName = buildUniqueEntryName(latestData[modal.type], modal.type, modal.groupName, trimmedName);
+      await save(addRawEntry(latestData[modal.type], modal.type, modal.groupName, cloneName, config));
+      onSaved(`Копия создана: ${cloneName}`);
+      onClose();
+    } catch (cloneError) {
+      setError(cloneError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const handleAdvancedBookmarkToggle = useCallback(
     (expanded) => {
       if (!isBookmarkModal) {
@@ -2865,14 +3175,24 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     <div className="flex flex-wrap justify-between gap-2">
       <div>
         {modal.mode === "edit" && (
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={saving}
-            className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
-          >
-            Удалить
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleClone}
+              disabled={saving}
+              className="rounded-md border border-theme-400/60 px-3 py-2 text-sm text-theme-700 disabled:opacity-60 dark:text-theme-200"
+            >
+              Клонировать
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={saving}
+              className="rounded-md border border-rose-400/60 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 dark:text-rose-300"
+            >
+              Удалить
+            </button>
+          </div>
         )}
       </div>
       <button
@@ -4123,6 +4443,24 @@ export function useEditableItem(type, groupName, itemName, item, itemIndex = nul
   };
 }
 
+export function useEditableWidget(groupName, itemName, item, itemIndex = null) {
+  const { editMode, openWidget } = useConfigEditor();
+  const itemMatcher = useMemo(() => createItemMatcher("services", itemName, item), [item, itemName]);
+
+  return {
+    editMode,
+    widgetProps: editMode
+      ? {
+          onClick: (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openWidget(groupName, itemName, item, itemMatcher, itemIndex);
+          },
+        }
+      : {},
+  };
+}
+
 export function EditorAddTile({ type, groupName, label, className, wrapperClassName }) {
   const { editMode, moveItem, openNewItem } = useConfigEditor();
 
@@ -4409,6 +4747,17 @@ export function ConfigEditorProvider({ children }) {
           itemIndex,
           mode: "edit",
         }),
+      openWidget: (groupName, itemName, item, itemMatcher = null, itemIndex = null) =>
+        setModal({
+          type: "services",
+          groupName,
+          itemName,
+          item,
+          itemMatcher,
+          itemIndex,
+          mode: "edit",
+          scope: "widget",
+        }),
       openNewGroup: (type) =>
         setModal({
           type,
@@ -4568,7 +4917,15 @@ export function ConfigEditorProvider({ children }) {
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
-      {modal?.type !== "background" && modal?.type !== "settings-tabs" && modal?.scope !== "group" && modal && data && (
+      {modal?.scope === "widget" && modal && data && (
+        <WidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
+      {modal?.type !== "background" &&
+        modal?.type !== "settings-tabs" &&
+        modal?.scope !== "group" &&
+        modal?.scope !== "widget" &&
+        modal &&
+        data && (
         <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
     </ConfigEditorContext.Provider>

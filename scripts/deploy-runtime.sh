@@ -4,8 +4,8 @@ set -Eeuo pipefail
 REMOTE="${HOMEPAGE_RUNTIME_REMOTE:-}"
 SOURCE="${HOMEPAGE_BUILD_DIR:-}"
 APP_DIR="${HOMEPAGE_RUNTIME_DIR:-/opt/homepage}"
-CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-/srv/homepage-config}"
-IMAGES_DIR="${HOMEPAGE_IMAGES_DIR:-/srv/homepage-images}"
+CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
+IMAGES_DIR="${HOMEPAGE_IMAGES_DIR:-}"
 SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 APPLY=0
 RESTART=0
@@ -117,6 +117,8 @@ done
 [[ -d "$SOURCE/.next/static" ]] || die "Missing build static assets: $SOURCE/.next/static"
 [[ -d "$SOURCE/public" ]] || die "Missing public directory: $SOURCE/public"
 command -v rsync >/dev/null 2>&1 || die "rsync is required"
+CONFIG_DIR="${CONFIG_DIR:-$APP_DIR/config}"
+IMAGES_DIR="${IMAGES_DIR:-$APP_DIR/public/images}"
 validate_absolute_path "APP_DIR" "$APP_DIR"
 validate_absolute_path "CONFIG_DIR" "$CONFIG_DIR"
 validate_absolute_path "IMAGES_DIR" "$IMAGES_DIR"
@@ -131,7 +133,8 @@ if [[ "$APPLY" -eq 1 ]]; then
   RSYNC_MODE=(-a --delete --itemize-changes)
 fi
 STANDALONE_RSYNC_MODE=("${RSYNC_MODE[@]}" --exclude=/config --exclude=/public/images)
-PUBLIC_RSYNC_MODE=("${RSYNC_MODE[@]}" --exclude=/images)
+NEXT_RSYNC_MODE=("${RSYNC_MODE[@]}" --exclude=/cache --exclude=/standalone)
+PUBLIC_RSYNC_MODE=("${RSYNC_MODE[@]}" --exclude=/images --exclude='/images.backup-*')
 
 log "Remote: $REMOTE"
 log "Source: $SOURCE"
@@ -144,10 +147,17 @@ set -eu
 app_dir="$1"
 config_dir="$2"
 images_dir="$3"
-mkdir -p "$app_dir/.next" "$config_dir" "$images_dir"
+if [ "$config_dir" = "$app_dir/config" ] && [ -L "$app_dir/config" ]; then
+  rm -f -- "$app_dir/config"
+fi
+if [ "$images_dir" = "$app_dir/public/images" ] && [ -L "$app_dir/public/images" ]; then
+  rm -f -- "$app_dir/public/images"
+fi
+mkdir -p "$app_dir/.next" "$app_dir/public" "$config_dir" "$images_dir"
 REMOTE_SCRIPT
 fi
 
+rsync "${NEXT_RSYNC_MODE[@]}" "$SOURCE/.next/" "$REMOTE:$APP_DIR/.next/"
 rsync "${STANDALONE_RSYNC_MODE[@]}" "$SOURCE/.next/standalone/" "$REMOTE:$APP_DIR/.next/standalone/"
 rsync "${RSYNC_MODE[@]}" "$SOURCE/.next/static/" "$REMOTE:$APP_DIR/.next/static/"
 rsync "${RSYNC_MODE[@]}" "$SOURCE/.next/static/" "$REMOTE:$APP_DIR/.next/standalone/.next/static/"
@@ -171,11 +181,23 @@ config_dir="$2"
 images_dir="$3"
 mkdir -p "$images_dir/icons"
 chown homepage:homepage "$images_dir" "$images_dir/icons" 2>/dev/null || true
-rm -rf -- "$app_dir/config" "$app_dir/.next/standalone/config" "$app_dir/public/images" "$app_dir/.next/standalone/public/images"
-ln -sfn "$config_dir" "$app_dir/config"
+if [ "$config_dir" != "$app_dir/config" ]; then
+  rm -rf -- "$app_dir/config"
+  ln -sfn "$config_dir" "$app_dir/config"
+elif [ -L "$app_dir/config" ]; then
+  rm -f -- "$app_dir/config"
+  mkdir -p "$app_dir/config"
+fi
+rm -rf -- "$app_dir/.next/standalone/config" "$app_dir/.next/standalone/public/images"
 ln -sfn "$config_dir" "$app_dir/.next/standalone/config"
 mkdir -p "$app_dir/public"
-ln -sfn "$images_dir" "$app_dir/public/images"
+if [ "$images_dir" != "$app_dir/public/images" ]; then
+  rm -rf -- "$app_dir/public/images"
+  ln -sfn "$images_dir" "$app_dir/public/images"
+elif [ -L "$app_dir/public/images" ]; then
+  rm -f -- "$app_dir/public/images"
+  mkdir -p "$app_dir/public/images"
+fi
 mkdir -p "$app_dir/.next/standalone/public"
 ln -sfn "$images_dir" "$app_dir/.next/standalone/public/images"
 chown -h homepage:homepage "$app_dir/config" "$app_dir/.next/standalone/config" "$app_dir/public/images" "$app_dir/.next/standalone/public/images" 2>/dev/null || true
