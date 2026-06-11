@@ -37,6 +37,14 @@
     opacity: 0.35;
 }
 
+li.bookmark[id$="-card"] {
+    overflow: visible !important;
+}
+
+li.bookmark[id$="-card"]::before {
+    content: none !important;
+}
+
 .service-card > button[aria-label^="Edit "] {
     inset: 2px !important;
     border-radius: inherit !important;
