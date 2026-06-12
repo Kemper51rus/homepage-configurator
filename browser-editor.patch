@@ -23,22 +23,25 @@ index ea49bf54..87c163d3 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..40fde785 100644
+index 88d4d7e..54c4282 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
  import ResolvedIcon from "components/resolvedicon";
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
-+import { EditorGroupToolbar, useConfigEditor } from "mods/browser-editor/components/editor";
++import { useConfigEditor, useEditableGroupHeader } from "mods/browser-editor/components/editor";
  
  export default function BookmarksGroup({
    bookmarks,
-@@ -14,12 +15,16 @@ export default function BookmarksGroup({
+@@ -14,12 +15,19 @@ export default function BookmarksGroup({
    bookmarksStyle,
    maxGroupColumns,
  }) {
-+  const { editMode, openGroup } = useConfigEditor();
++  const { editMode } = useConfigEditor();
++  const groupHeaderProps = useEditableGroupHeader("bookmarks", bookmarks.name, layout);
++  const headerHidden = layout?.header === false;
++  const showHeader = !headerHidden || editMode;
    const panel = useRef();
 -
    useEffect(() => {
@@ -52,34 +55,27 @@ index 88d4d7e8..40fde785 100644
    return (
      <div
        key={bookmarks.name}
-@@ -35,8 +40,25 @@ export default function BookmarksGroup({
+@@ -35,8 +43,17 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
-+            <EditorGroupToolbar type="bookmarks" groupName={bookmarks.name} layout={layout} />
-             {layout?.header !== false && (
+-            {layout?.header !== false && (
 -              <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
++            {showHeader && (
 +              <Disclosure.Button
 +                disabled={editMode ? false : disableCollapse}
-+                onClick={(event) => {
-+                  if (!editMode) {
-+                    return;
-+                  }
-+
-+                  event.preventDefault();
-+                  event.stopPropagation();
-+                  openGroup("bookmarks", bookmarks.name, layout);
-+                }}
++                {...groupHeaderProps}
 +                className={classNames(
 +                  "flex w-full select-none items-center group transition-colors",
 +                  editMode &&
-+                    "cursor-pointer rounded-md border border-transparent px-2 py-1 hover:border-theme-400/40 hover:bg-theme-100/30 hover:text-theme-900 dark:hover:border-white/15 dark:hover:bg-white/10 dark:hover:text-theme-100",
++                    "relative z-[61] cursor-grab rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-theme-800 hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 active:cursor-grabbing dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
++                  editMode && headerHidden && "opacity-55 blur-[0.35px] saturate-75",
 +                )}
 +              >
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 bookmark-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -73,7 +95,12 @@ export default function BookmarksGroup({
+@@ -73,7 +90,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -250,23 +246,26 @@ index f24794db..23c8c3bd 100644
    );
  }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 403f6063..f5fd2635 100644
+index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
 @@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
  import List from "components/services/list";
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
-+import { EditorGroupToolbar, useConfigEditor, useGroupInsideDropTarget } from "mods/browser-editor/components/editor";
++import { useConfigEditor, useEditableGroupHeader, useGroupInsideDropTarget } from "mods/browser-editor/components/editor";
  
  import { columnMap } from "../../utils/layout/columns";
  
-@@ -16,18 +17,49 @@ export default function ServicesGroup({
+@@ -16,18 +17,52 @@ export default function ServicesGroup({
    groupsInitiallyCollapsed,
    isSubgroup,
  }) {
-+  const { editMode, openGroup } = useConfigEditor();
++  const { editMode } = useConfigEditor();
 +  const groupInsideDropProps = useGroupInsideDropTarget("services", group.name, editMode);
++  const groupHeaderProps = useEditableGroupHeader("services", group.name, layout);
++  const headerHidden = layout?.header === false;
++  const showHeader = !headerHidden || editMode;
    const panel = useRef();
 -
    useEffect(() => {
@@ -312,34 +311,27 @@ index 403f6063..f5fd2635 100644
        className={classNames(
          "services-group flex-1",
          layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/2 lg:basis-1/3 xl:basis-1/4",
-@@ -39,8 +71,25 @@ export default function ServicesGroup({
+@@ -39,8 +74,17 @@ export default function ServicesGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
-+            <EditorGroupToolbar type="services" groupName={group.name} layout={layout} allowInside />
-             {layout?.header !== false && (
+-            {layout?.header !== false && (
 -              <Disclosure.Button disabled={disableCollapse} className="flex w-full select-none items-center group">
++            {showHeader && (
 +              <Disclosure.Button
 +                disabled={editMode ? false : disableCollapse}
-+                onClick={(event) => {
-+                  if (!editMode) {
-+                    return;
-+                  }
-+
-+                  event.preventDefault();
-+                  event.stopPropagation();
-+                  openGroup("services", group.name, layout);
-+                }}
++                {...groupHeaderProps}
 +                className={classNames(
 +                  "flex w-full select-none items-center group transition-colors",
 +                  editMode &&
-+                    "cursor-pointer rounded-md border border-transparent px-2 py-1 hover:border-theme-400/40 hover:bg-theme-100/30 hover:text-theme-900 dark:hover:border-white/15 dark:hover:bg-white/10 dark:hover:text-theme-100",
++                    "relative z-[61] cursor-grab rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-theme-800 hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 active:cursor-grabbing dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
++                  editMode && headerHidden && "opacity-55 blur-[0.35px] saturate-75",
 +                )}
 +              >
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 service-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -86,13 +135,13 @@ export default function ServicesGroup({
+@@ -86,13 +130,13 @@ export default function ServicesGroup({
                    useEqualHeights={useEqualHeights}
                    header={layout?.header !== false}
                  />

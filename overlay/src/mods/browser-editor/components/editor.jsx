@@ -4262,47 +4262,46 @@ function useServiceRowHeightBalancer() {
   }, []);
 }
 
-export function EditorGroupToolbar({ type, groupName, layout }) {
+export function useEditableGroupHeader(type, groupName, layout) {
   const { editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
 
   if (!editMode) {
-    return null;
+    return {};
   }
 
-  return (
-    <div
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
-        const payload = { scope: "group", type, groupName };
-        writeDragPayload(event, payload, GROUP_DRAG_TYPE);
-        setDraggedGroup(payload);
-      }}
-      onDragEnd={() => {
-        window.setTimeout(() => {
-          clearDragPayload();
-          setDraggedGroup(null);
-        }, 0);
-      }}
-      onDragOver={(event) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const dragged = readGroupDragPayload(event);
-        if (dragged?.scope === "group" && dragged.type === type) {
-          moveGroup(type, dragged.groupName, groupName, "before");
-        }
-      }}
-      onClick={() => openGroup(type, groupName, layout)}
-      data-editor-group-drop-target="true"
-      className="relative z-[61] mb-2 flex cursor-grab items-center justify-between gap-2 rounded-md border border-theme-400/70 bg-theme-100/10 px-2 py-1 text-xs text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 active:cursor-grabbing dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10"
-    >
-      <span className="truncate font-medium">{groupName}</span>
-    </div>
-  );
+  return {
+    draggable: true,
+    onDragStart: (event) => {
+      event.dataTransfer.effectAllowed = "move";
+      const payload = { scope: "group", type, groupName };
+      writeDragPayload(event, payload, GROUP_DRAG_TYPE);
+      setDraggedGroup(payload);
+    },
+    onDragEnd: () => {
+      window.setTimeout(() => {
+        clearDragPayload();
+        setDraggedGroup(null);
+      }, 0);
+    },
+    onDragOver: (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    },
+    onDrop: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const dragged = readGroupDragPayload(event);
+      if (dragged?.scope === "group" && dragged.type === type) {
+        moveGroup(type, dragged.groupName, groupName, "before");
+      }
+    },
+    onClick: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openGroup(type, groupName, layout);
+    },
+    "data-editor-group-drop-target": "true",
+  };
 }
 
 export function useGroupInsideDropTarget(type, groupName, enabled = true) {
