@@ -40,6 +40,20 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Если target был создан через Proxmox VE Community Scripts, запускайте установку мода уже внутри созданного LXC. Установщик сам найдёт `/opt/homepage`, будет использовать `/opt/homepage/config` для `custom.css/custom.js` и сохранит флаг редактора в существующий `/opt/homepage/.env`.
 
+Установка публичного runtime-template без секретов из текущего репозитория:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/runtime-template/install.sh) --restart
+```
+
+Для LXC от Proxmox VE Community Scripts можно указать пути явно:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/runtime-template/install.sh) --target /opt/homepage --config-dir /opt/homepage/config --images-dir /opt/homepage/public/images --restart
+```
+
+Template-архив лежит в `runtime-template/homepage-template.tar.gz`. В нем заменены API-ключи, пароли, токены и приватные адреса на плейсхолдеры `YOUR_*`, `example.com` и `192.168.1.x`.
+
 Повторный запуск `install.sh` поддерживает разные сценарии обновления:
 
 - `Установить` - первая установка;
