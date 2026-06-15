@@ -1109,6 +1109,10 @@ function groupLayoutToForm(layout) {
     initiallyCollapsed: layout?.initiallyCollapsed !== undefined ? String(layout.initiallyCollapsed) : "",
     style: layout?.style ?? "",
     tab: layout?.tab ?? "",
+    titleColor: layout?.titleColor ?? "",
+    titleAlign: layout?.titleAlign ?? "",
+    titleSize: layout?.titleSize ?? "",
+    titleFont: layout?.titleFont ?? "",
   };
 }
 
@@ -1122,6 +1126,10 @@ function formToGroupLayout(form) {
   if (form.icon.trim()) layout.icon = form.icon;
   if (form.initiallyCollapsed.trim()) layout.initiallyCollapsed = form.initiallyCollapsed === "true";
   if (form.tab.trim()) layout.tab = form.tab;
+  if (form.titleColor.trim()) layout.titleColor = form.titleColor;
+  if (form.titleAlign.trim()) layout.titleAlign = form.titleAlign;
+  if (form.titleSize.trim()) layout.titleSize = form.titleSize;
+  if (form.titleFont.trim()) layout.titleFont = form.titleFont;
 
   return layout;
 }
@@ -1849,7 +1857,112 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
   };
 }
 
-function Field({ label, value, onChange, compact = false }) {
+function Field({ name, label, value, onChange, compact = false }) {
+  if (name === "titleColor") {
+    return (
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
+        {label}
+        <div className="mt-1 flex items-center gap-1.5 h-[28px]">
+          <input
+            type="text"
+            placeholder="#ffffff"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-full"
+          />
+          <input
+            type="color"
+            value={value && value.startsWith('#') && (value.length === 4 || value.length === 7) ? value : "#ffffff"}
+            onChange={(event) => onChange(event.target.value)}
+            className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+          />
+        </div>
+      </label>
+    );
+  }
+
+  if (name === "titleAlign") {
+    const alignments = [
+      ["left", "Left"],
+      ["center", "Center"],
+      ["right", "Right"],
+    ];
+    return (
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
+        {label}
+        <div className="mt-1 flex gap-1 h-[28px]">
+          {alignments.map(([alignVal, alignLabel]) => (
+            <button
+              key={alignVal}
+              type="button"
+              onClick={() => onChange(alignVal)}
+              className={classNames(
+                "flex-1 rounded-md border text-center text-[12px] font-medium transition-colors cursor-pointer",
+                value === alignVal
+                  ? "border-theme-500 bg-theme-500/20 text-theme-900 dark:border-white/40 dark:bg-white/10 dark:text-theme-100"
+                  : "border-theme-300/50 bg-theme-50/30 text-theme-700 hover:bg-theme-50/70 dark:border-white/10 dark:bg-theme-900/30 dark:text-theme-300 dark:hover:bg-theme-900/50"
+              )}
+            >
+              {alignLabel}
+            </button>
+          ))}
+        </div>
+      </label>
+    );
+  }
+
+  if (name === "titleSize") {
+    const sizeOptions = [
+      ["", "Default"],
+      ["10px", "10px"], ["11px", "11px"], ["12px", "12px"], ["13px", "13px"],
+      ["14px", "14px"], ["15px", "15px"], ["16px", "16px"], ["18px", "18px"],
+      ["20px", "20px"], ["24px", "24px"],
+      ["0.75rem", "0.75rem"], ["0.85rem", "0.85rem"],
+      ["1rem", "1rem"], ["1.2rem", "1.2rem"],
+    ];
+    return (
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
+        {label}
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-[28px]"
+        >
+          {sizeOptions.map(([sizeVal, sizeLabel]) => (
+            <option key={sizeVal} value={sizeVal}>{sizeLabel}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  if (name === "titleFont") {
+    const fonts = [
+      ["", "Default"],
+      ["Comfortaa", "Comfortaa"],
+      ["Inter", "Inter"],
+      ["Roboto", "Roboto"],
+      ["system-ui", "System"],
+      ["Arial", "Arial"],
+      ["Georgia", "Georgia"],
+      ["Courier New", "Monospace"],
+    ];
+    return (
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
+        {label}
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-[28px]"
+        >
+          {fonts.map(([fontVal, fontLabel]) => (
+            <option key={fontVal} value={fontVal}>{fontLabel}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
   return (
     <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
       {label}
@@ -3271,8 +3384,17 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {fieldsBlock}
             <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
+              <WidgetTemplateSelector
+                extraYaml={form.extraYaml}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    extraYaml: value,
+                  }))
+                }
+              />
               <CodeEditor
-                label="Расширенный YAML"
+                label="Advanced YAML"
                 language="yaml"
                 value={form.extraYaml}
                 onChange={(value) =>
@@ -3293,6 +3415,596 @@ function ItemModal({ modal, data, onClose, onSaved }) {
         </>
       )}
     </EditorWindow>
+  );
+}
+
+
+const WIDGET_TEMPLATES = {
+  "argocd": "widget:\n  type: argocd\n  url: http://argocd.host.or.ip:port\n  key: argocdapikey",
+  "truenas": "widget:\n  type: truenas\n  url: http://truenas.host.or.ip\n  version: 2 # optional, defaults to 1\n  username: user # not required if using api key\n  password: pass # not required if using api key\n  key: yourtruenasapikey # not required if using username / password\n  enablePools: true # optional, defaults to false\n  nasType: scale # defaults to scale, must be set to 'core' if using enablePools with TrueNAS Core",
+  "photoprism": "widget:\n  type: photoprism\n  url: http://photoprism.host.or.ip:port\n  username: admin # required only if using username/password\n  password: password # required only if using username/password\n  key: # required only if using app passwords",
+  "mikrotik": "widget:\n  type: mikrotik\n  url: https://mikrotik.host.or.ip\n  username: username\n  password: password",
+  "prometheusmetric": "widget:\n  type: prometheusmetric\n  url: https://prometheus.host.or.ip\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  metrics:\n    - label: Metric 1\n      query: alertmanager_alerts{state=\"active\"}\n    - label: Metric 2\n      query: apiserver_storage_size_bytes{node=\"mynode\"}\n      format:\n        type: bytes\n    - label: Metric 3\n      query: avg(prometheus_notifications_latency_seconds)\n      format:\n        type: number\n        suffix: s\n        options:\n          maximumFractionDigits: 4\n    - label: Metric 4\n      query: time()\n      refreshInterval: 1000 # will override global refreshInterval\n      format:\n        type: date\n        scale: 1000\n        options:\n          timeStyle: medium",
+  "flood": "widget:\n  type: flood\n  url: http://flood.host.or.ip\n  username: username # if set\n  password: password # if set",
+  "stash": "widget:\n  type: stash\n  url: http://stash.host.or.ip\n  key: stashapikey\n  fields: [\"scenes\", \"images\"] # optional - default fields shown",
+  "lidarr": "widget:\n  type: lidarr\n  url: http://lidarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "fritzbox": "widget:\n  type: fritzbox\n  url: http://192.168.178.1",
+  "xteve": "widget:\n  type: xteve\n  url: http://xteve.host.or.ip\n  username: username # optional\n  password: password # optional",
+  "crowdsec": "widget:\n  type: crowdsec\n  url: http://crowdsechostorip:port\n  username: localhost # machine_id in crowdsec\n  password: password\n  limit24h: true # optional, limits alerts to last 24h. Default: false",
+  "calibre-web": "widget:\n  type: calibreweb\n  url: http://your.calibreweb.host:port\n  username: username\n  password: password",
+  "gitea": "widget:\n  type: gitea\n  url: http://gitea.host.or.ip:port\n  key: giteaapitoken",
+  "transmission": "widget:\n  type: transmission\n  url: http://transmission.host.or.ip\n  username: username\n  password: password\n  rpcUrl: /transmission/ # Optional. Matches the value of \"rpc-url\" in your Transmission's settings.json file",
+  "prowlarr": "widget:\n  type: prowlarr\n  url: http://prowlarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "vikunja": "widget:\n  type: vikunja\n  url: http[s]://vikunja.host.or.ip[:port]\n  key: vikunjaapikey\n  enableTaskList: true # optional, defaults to false\n  version: 2 # optional, defaults to 1",
+  "komga": "widget:\n  type: komga\n  url: http://komga.host.or.ip:port\n  username: username\n  password: password\n  key: komgaapikey # optional",
+  "channelsdvrserver": "widget:\n  type: channelsdvrserver\n  url: http://server.host.or.ip:port",
+  "linkwarden": "widget:\n  type: linkwarden\n  url: http://linkwarden.host.or.ip\n  key: myApiKeyHere # On your Linkwarden install, go to Settings > Access Tokens. Generate a token.",
+  "gatus": "widget:\n  type: gatus\n  url: http://gatus.host.or.ip:port",
+  "gamedig": "widget:\n  type: gamedig\n  serverType: csgo # see https://github.com/gamedig/node-gamedig#games-list\n  url: udp://server.host.or.ip:port\n  gameToken: # optional, a token used by gamedig with certain games",
+  "plex-tautulli": "widget:\n  type: tautulli\n  url: http://tautulli.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "wallos": "widget:\n  type: wallos\n  url: http://wallos.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "sonarr": "widget:\n  type: sonarr\n  url: http://sonarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
+  "mylar": "widget:\n  type: mylar\n  url: http://mylar3.host.or.ip:port\n  key: yourmylar3apikey",
+  "stocks": "widget:\n  type: stocks\n  provider: finnhub\n  showUSMarketStatus: true # optional, defaults to true\n  watchlist:\n    - GME\n    - AMC\n    - NVDA\n    - TSM\n    - BRK.A\n    - TSLA\n    - AAPL\n    - MSFT\n    - AMZN\n    - BRK.B",
+  "audiobookshelf": "widget:\n  type: audiobookshelf\n  url: http://audiobookshelf.host.or.ip:port\n  key: audiobookshelflapikey",
+  "mastodon": "widget:\n  type: mastodon\n  url: https://mastodon.host.name",
+  "zabbix": "widget:\n  type: zabbix\n  url: http://zabbix.host.or.ip/zabbix\n  key: your-api-key",
+  "diskstation": "widget:\n  type: diskstation\n  url: http://diskstation.host.or.ip:port\n  username: username\n  password: password\n  volume: volume_N # optional",
+  "pterodactyl": "widget:\n  type: pterodactyl\n  url: http://pterodactylhost:port\n  key: pterodactylapikey",
+  "nginx-proxy-manager": "widget:\n  type: npm\n  url: http://npm.host.or.ip\n  username: admin_username\n  password: admin_password",
+  "dispatcharr": "widget:\n  type: dispatcharr\n  url: http://dispatcharr.host.or.ip\n  username: username\n  password: password\n  enableActiveStreams: true # optional, defaults to false",
+  "develancacheui": "widget:\n  type: develancacheui\n  url: http://your.develancacheui_backend.host:port",
+  "tailscale": "widget:\n  type: tailscale\n  deviceid: deviceid\n  key: tailscalekey",
+  "readarr": "widget:\n  type: readarr\n  url: http://readarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "unmanic": "widget:\n  type: unmanic\n  url: http://unmanic.host.or.ip:port",
+  "cloudflared": "widget:\n  type: cloudflared\n  accountid: accountid # from zero trust dashboard url e.g. https://one.dash.cloudflare.com/<accountid>/home/quick-start\n  tunnelid: tunnelid # found in tunnels dashboard under the tunnel name\n  key: cloudflareapitoken # api token with `Account.Cloudflare Tunnel:Read` https://dash.cloudflare.com/profile/api-tokens",
+  "coin-market-cap": "widget:\n  type: coinmarketcap\n  currency: GBP # Optional\n  symbols: [BTC, LTC, ETH]\n  key: apikeyapikeyapikeyapikeyapikey\n  defaultinterval: 7d # Optional",
+  "customapi": "widget:\n  type: customapi\n  url: http://custom.api.host.or.ip:port/path/to/exact/api/endpoint\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  username: username # auth - optional\n  password: password # auth - optional\n  method: GET # optional, e.g. POST\n  headers: # optional, must be object, see below\n  requestBody: # optional, can be string or object, see below\n  display: # optional, default to block, see below\n  mappings:\n    - field: key\n      label: Field 1\n      format: text # optional - defaults to text\n    - field: path.to.key2\n      format: number # optional - defaults to text\n      label: Field 2\n    - field: path.to.another.key3\n      label: Field 3\n      format: percent # optional - defaults to text\n    - field: key\n      label: Field 4\n      format: date # optional - defaults to text\n      locale: nl # optional\n      dateStyle: long # optional - defaults to \"long\". Allowed values: `[\"full\", \"long\", \"medium\", \"short\"]`.\n      timeStyle: medium # optional - Allowed values: `[\"full\", \"long\", \"medium\", \"short\"]`.\n    - field: key\n      label: Field 5\n      format: relativeDate # optional - defaults to text\n      locale: nl # optional\n      style: short # optional - defaults to \"long\". Allowed values: `[\"long\", \"short\", \"narrow\"]`.\n      numeric: auto # optional - defaults to \"always\". Allowed values `[\"always\", \"auto\"]`.\n    - field: key\n      label: Field 6\n      format: text\n      additionalField: # optional\n        field: hourly.time.key\n        color: theme # optional - defaults to \"\". Allowed values: `[\"theme\", \"adaptive\", \"black\", \"white\"]`.\n        format: date # optional\n    - field: key\n      label: Number of things in array\n      format: size\n    # This (no field) will take the root of the API response, e.g. when APIs return an array:\n    - label: Number of items\n      format: size",
+  "seerr": "widget:\n  type: seerr\n  url: http://seerr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "radarr": "widget:\n  type: radarr\n  url: http://radarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
+  "ntfy": "widget:\n  type: ntfy\n  url: http://ntfy.host.or.ip:port # required\n  topic: mytopic # required\n  # key: tk_accesstoken # optional — for token auth\n  # username: user # optional — for basic auth\n  # password: pass # optional — for basic auth",
+  "nextcloud": "widget:\n  type: nextcloud\n  url: https://nextcloud.host.or.ip:port\n  key: token",
+  "tandoor": "widget:\n  type: tandoor\n  url: http://tandoor-frontend.host.or.ip\n  key: tandoor-api-token",
+  "pfsense": "widget:\n  type: pfsense\n  url: http://pfsense.host.or.ip:port\n  username: user # optional, or API key\n  password: pass # optional, or API key\n  headers: # optional, or username/password\n    X-API-Key: key\n  wan: igb0\n  version: 2 # optional, defaults to 1 for api v1\n  fields: [\"load\", \"memory\", \"temp\", \"wanStatus\"] # optional",
+  "frigate": "widget:\n  type: frigate\n  url: http://frigate.host.or.ip:port\n  enableRecentEvents: true # Optional, defaults to false\n  username: username # optional\n  password: password # optional",
+  "qbittorrent": "widget:\n  type: qbittorrent\n  url: http://qbittorrent.host.or.ip\n  username: username\n  password: password\n  enableLeechProgress: true # optional, defaults to false\n  enableLeechSize: true # optional, defaults to false",
+  "arcane": "widget:\n  type: arcane\n  url: http://localhost:3552\n  env: 0 # required, 0 is Arcane default local environment\n  key: your-api-key\n  fields: [\"running\", \"stopped\", \"total\", \"image_updates\"] # optional",
+  "mjpeg": "widget:\n  type: mjpeg\n  stream: http://mjpeg.host.or.ip/webcam/stream",
+  "slskd": "widget:\n  type: slskd\n  url: http[s]://slskd.host.or.ip[:5030]\n  key: generatedapikey",
+  "esphome": "widget:\n  type: esphome\n  url: http://esphome.host.or.ip:port\n  username: myesphomeuser # only if auth enabled\n  password: myesphomepass # only if auth enabled",
+  "openwrt": "widget:\n  type: openwrt\n  url: http://host.or.ip\n  username: homepage\n  password: pass\n  interfaceName: eth0 # optional",
+  "netalertx": "widget:\n  type: netalertx\n  url: http://ip:port # use backend port for widget version 2+\n  key: yournetalertxapitoken\n  version: 2 # optional, default is 1",
+  "peanut": "widget:\n  type: peanut\n  url: http://peanut.host.or.ip:port\n  key: nameofyourups\n  username: username # only needed if set\n  password: password # only needed if set",
+  "ghostfolio": "widget:\n  type: ghostfolio\n  url: http://ghostfoliohost:port\n  key: ghostfoliobearertoken",
+  "sabnzbd": "widget:\n  type: sabnzbd\n  url: http://sabnzbd.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "jackett": "widget:\n  type: jackett\n  url: http://jackett.host.or.ip\n  password: jackettadminpassword # optional",
+  "karakeep": "widget:\n  type: karakeep\n  url: http[s]://karakeep.host.or.ip[:port]\n  key: karakeep_api_key",
+  "wgeasy": "widget:\n  type: wgeasy\n  url: http://wg.easy.or.ip\n  version: 2 # optional, default is 1\n  username: yourwgusername # required for v15 and above\n  password: yourwgeasypassword\n  threshold: 2 # optional",
+  "jellystat": "widget:\n  type: jellystat\n  url: http://jellystat.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  days: 30 # optional, defaults to 30",
+  "homebridge": "widget:\n  type: homebridge\n  url: http://homebridge.host.or.ip:port\n  username: username\n  password: password",
+  "authentik": "widget:\n  type: authentik\n  url: http://authentik.host.or.ip:port\n  key: api_token\n  version: 2 # optional, default is 1",
+  "iframe": "widget:\n  type: iframe\n  name: myIframe\n  src: http://example.com",
+  "proxmoxbackupserver": "widget:\n  type: proxmoxbackupserver\n  url: https://proxmoxbackupserver.host:port\n  username: api_token_id\n  password: api_token_secret\n  datastore: datastore_name #optional; if ommitted, will display a combination of all datastores used / total",
+  "filebrowser": "widget:\n  type: filebrowser\n  url: http://filebrowserhostorip:port\n  username: username\n  password: password\n  authHeader: X-My-Header # If using Proxy header authentication",
+  "technitium": "widget:\n  type: technitium\n  url: <url to dns server>\n  key: biglongapitoken\n  node: <node dns name or cluster> # optional, defaults to current node\n  range: LastDay # optional, defaults to LastHour",
+  "healthchecks": "widget:\n  type: healthchecks\n  url: http://healthchecks.host.or.ip:port\n  key: <YOUR_API_KEY>\n  uuid: <CHECK_UUID> # optional, if not included total statistics for all checks is shown",
+  "proxmox": "widget:\n  type: proxmox\n  url: https://proxmox.host.or.ip:8006\n  username: api_token_id\n  password: api_token_secret\n  node: pve-1 # optional",
+  "scrutiny": "widget:\n  type: scrutiny\n  url: http://scrutiny.host.or.ip",
+  "hdhomerun": "widget:\n  type: hdhomerun\n  url: http://hdhomerun.host.or.ip\n  tuner: 0 # optional - defaults to 0, used for tuner-specific fields\n  fields: [\"channels\", \"hd\"] # optional - default fields shown",
+  "yourspotify": "widget:\n  type: yourspotify\n  url: http://your-spotify-server.host.or.ip # if using lsio image, add /api/\n  key: apikeyapikeyapikeyapikeyapikey\n  interval: month # optional, defaults to week",
+  "tdarr": "widget:\n  type: tdarr\n  url: http://tdarr.host.or.ip\n  key: tdarrapikey # optional",
+  "homebox": "widget:\n  type: homebox\n  url: http://homebox.host.or.ip:port\n  username: username\n  password: password\n  fields: [\"items\", \"locations\", \"totalValue\"] # optional - default fields shown",
+  "kopia": "widget:\n  type: kopia\n  url: http://kopia.host.or.ip:port\n  username: username\n  password: password\n  snapshotHost: hostname # optional\n  snapshotPath: path # optional",
+  "nzbget": "widget:\n  type: nzbget\n  url: http://nzbget.host.or.ip\n  username: controlusername\n  password: controlpassword",
+  "booklore": "widget:\n  type: booklore\n  url: https://booklore.host.or.ip\n  username: username\n  password: password",
+  "rutorrent": "widget:\n  type: rutorrent\n  url: http://rutorrent.host.or.ip\n  username: username # optional, false if not used\n  password: password # optional, false if not used",
+  "grafana": "widget:\n  type: grafana\n  version: 2 # optional, default is 1\n  alerts: alertmanager # optional, default is grafana\n  url: http://grafana.host.or.ip:port\n  username: username\n  password: password",
+  "swagdashboard": "widget:\n  type: swagdashboard\n  url: http://swagdashboard.host.or.ip:adminport # default port is 81",
+  "romm": "widget:\n  type: romm\n  url: http://romm.host.or.ip\n  fields: [\"platforms\", \"totalRoms\", \"saves\", \"states\"] # optional - default fields shown",
+  "trilium": "widget:\n  type: trilium\n  url: https://trilium.host.or.ip\n  key: etapi_token",
+  "downloadstation": "widget:\n  type: downloadstation\n  url: http://downloadstation.host.or.ip:port\n  username: username\n  password: password",
+  "apcups": "widget:\n  type: apcups\n  url: tcp://your.acpupsd.host:3551",
+  "adguard-home": "widget:\n  type: adguard\n  url: http://adguard.host.or.ip\n  username: admin\n  password: password",
+  "evcc": "widget:\n  type: evcc\n  url: http://evcc.host.or.ip:port",
+  "syncthing-relay-server": "widget:\n  type: strelaysrv\n  url: http://syncthing.host.or.ip:22070",
+  "pihole": "widget:\n  type: pihole\n  url: http://pi.hole.or.ip\n  version: 6 # required if running v6 or higher, defaults to 5\n  key: yourpiholeapikey # optional, in v6 can be your password or app password",
+  "calendar": "widget:\n  type: calendar\n  firstDayInWeek: sunday # optional - defaults to monday\n  view: monthly # optional - possible values monthly, agenda\n  maxEvents: 10 # optional - defaults to 10\n  showTime: true # optional - show time for event happening today - defaults to false\n  timezone: America/Los_Angeles # optional and only when timezone is not detected properly (slightly slower performance) - force timezone for ical events (if it's the same - no change, if missing or different in ical - will be converted to this timezone)\n  integrations: # optional\n    - type: sonarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr, ical\n      service_group: Media # group name where widget exists\n      service_name: Sonarr # service name for that widget\n      color: teal # optional - defaults to pre-defined color for the service (teal for sonarr)\n      baseUrl: https://sonarr.domain.url # optional - adds links to sonarr/radarr pages\n      params: # optional - additional params for the service\n        unmonitored: true # optional - defaults to false, used with *arr stack\n    - type: ical # Show calendar events from another service\n      url: https://domain.url/with/link/to.ics # URL with calendar events\n      name: My Events # required - name for these calendar events\n      color: zinc # optional - defaults to pre-defined color for the service (zinc for ical)\n      params: # optional - additional params for the service\n        showName: true # optional - show name before event title in event line - defaults to false",
+  "navidrome": "widget:\n  type: navidrome\n  url: http://navidrome.host.or.ip:port\n  user: username\n  token: token #md5(password + salt)\n  salt: randomsalt",
+  "opendtu": "widget:\n  type: opendtu\n  url: http://opendtu.host.or.ip",
+  "sparkyfitness": "widget:\n  type: sparkyfitness\n  url: http://sparkyfitness.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "plex": "widget:\n  type: plex\n  url: http://plex.host.or.ip:32400\n  key: mytokenhere # see https://www.plexopedia.com/plex-media-server/general/plex-token/",
+  "fileflows": "widget:\n  type: fileflows\n  url: http://your.fileflows.host:port",
+  "traefik": "widget:\n  type: traefik\n  url: http://traefik.host.or.ip\n  username: username # optional\n  password: password # optional",
+  "plantit": "widget:\n  type: plantit\n  url: http://plant-it.host.or.ip:port # api port\n  key: plantit-api-key",
+  "jdownloader": "widget:\n  type: jdownloader\n  username: JDownloader Username\n  password: JDownloader Password\n  client: Name of JDownloader Instance",
+  "urbackup": "widget:\n  type: urbackup\n  username: urbackupUsername\n  password: urbackupPassword\n  url: http://urbackupUrl:55414\n  maxDays: 5 # optional",
+  "deluge": "widget:\n  type: deluge\n  url: http://deluge.host.or.ip\n  password: password # webui password\n  enableLeechProgress: true # optional, defaults to false",
+  "headscale": "widget:\n  type: headscale\n  url: http://headscale.host.or.ip:port\n  nodeId: nodeid\n  key: headscaleapiaccesstoken",
+  "watchtower": "widget:\n  type: watchtower\n  url: http://your-ip-address:8080\n  key: demotoken",
+  "atsumeru": "widget:\n  type: atsumeru\n  url: http://atsumeru.host.or.ip:port\n  username: username\n  password: password",
+  "pyload": "widget:\n  type: pyload\n  url: http://pyload.host.or.ip:port\n  username: username\n  password: password # only needed if set\n  key: pyloadapikey # only needed if set, takes precedence over username/password",
+  "minecraft": "widget:\n  type: minecraft\n  url: udp://minecraftserveripordomain:port",
+  "spoolman": "widget:\n  type: spoolman\n  url: http://spoolman.host.or.ip\n  spoolIds: [1, 2, 3, 4] # optional",
+  "prometheus": "widget:\n  type: prometheus\n  url: http://prometheushost:port",
+  "kavita": "widget:\n  type: kavita\n  url: http://kavita.host.or.ip:port\n  username: username\n  password: password\n  key: kavitaapikey # Optional, e.g. if not using username and password",
+  "unraid": "widget:\n  type: unraid\n  url: https://unraid.host.or.ip\n  key: api-key\n  pool1: pool1name # required only if using pool1 fields\n  pool2: pool2name # required only if using pool2 fields\n  pool3: pool3name # required only if using pool3 fields\n  pool4: pool4name # required only if using pool4 fields",
+  "immich": "widget:\n  type: immich\n  url: http://immich.host.or.ip\n  key: adminapikeyadminapikeyadminapikey\n  version: 2 # optional, default is 1",
+  "backrest": "widget:\n  type: backrest\n  url: http://backrest.host.or.ip\n  username: admin # optional if auth is enabled in Backrest\n  password: admin # optional if auth is enabled in Backrest",
+  "opnsense": "widget:\n  type: opnsense\n  url: http://opnsense.host.or.ip\n  username: key\n  password: secret\n  wan: opt1 # optional, defaults to wan",
+  "unifi-controller": "widget:\n  type: unifi\n  url: https://unifi.host.or.ip:port\n  site: Site Name # optional\n  username: user\n  password: pass\n  key: unifiapikey # required if using API key instead of username/password",
+  "openmediavault": "widget:\n  type: openmediavault\n  url: http://omv.host.or.ip\n  username: admin\n  password: pass\n  method: services.getStatus # required",
+  "autobrr": "widget:\n  type: autobrr\n  url: http://autobrr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "uptimerobot": "widget:\n  type: uptimerobot\n  url: https://api.uptimerobot.com\n  key: uptimerobotapitoken",
+  "uptime-kuma": "widget:\n  type: uptimekuma\n  url: http://uptimekuma.host.or.ip:port\n  slug: statuspageslug",
+  "octoprint": "widget:\n  type: octoprint\n  url: http://octoprint.host.or.ip:port\n  key: youroctoprintapikey",
+  "gotify": "widget:\n  type: gotify\n  url: http://gotify.host.or.ip\n  key: clientoken",
+  "miniflux": "widget:\n  type: miniflux\n  url: http://miniflux.host.or.ip:port\n  key: minifluxapikey",
+  "medusa": "widget:\n  type: medusa\n  url: http://medusa.host.or.ip:port\n  key: medusaapikeyapikeyapikeyapikeyapikey",
+  "changedetectionio": "widget:\n  type: changedetectionio\n  url: http://changedetection.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey",
+  "mealie": "widget:\n  type: mealie\n  url: http://mealie-frontend.host.or.ip\n  key: mealieapitoken\n  version: 2 # only required if version > 1, defaults to 1",
+  "gitlab": "widget:\n  type: gitlab\n  url: http://gitlab.host.or.ip:port\n  key: personal-access-token\n  user_id: 123456",
+  "beszel": "widget:\n  type: beszel\n  url: http://beszel.host.or.ip\n  username: username # email\n  password: password\n  systemId: systemId # optional\n  version: 2 # optional, default is 1",
+  "moonraker": "widget:\n  type: moonraker\n  url: http://moonraker.host.or.ip:port",
+  "dockhand": "widget:\n  type: dockhand\n  url: http://localhost:3001\n  environment: local # optional: name or id; aggregates all when omitted\n  username: your-user # required for local auth\n  password: your-pass # required for local auth",
+  "azuredevops": "widget:\n  type: azuredevops\n  organization: myOrganization\n  project: myProject\n  definitionId: pipelineDefinitionId # required for pipelines\n  branchName: branchName # optional for pipelines, leave empty for all\n  userEmail: email # required for pull requests\n  repositoryId: prRepositoryId # required for pull requests\n  key: personalaccesstoken",
+  "whatsupdocker": "widget:\n  type: whatsupdocker\n  url: http://whatsupdocker:port\n  username: username # optional\n  password: password # optional",
+  "emby": "widget:\n  type: emby\n  url: http://emby.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "glances": "widget:\n  type: glances\n  url: http://glances.host.or.ip:port\n  username: user # optional if auth enabled in Glances\n  password: pass # optional if auth enabled in Glances\n  version: 4 # required only if running glances v4 or higher, defaults to 3\n  metric: cpu\n  diskUnits: bytes # optional, bytes (default) or bbytes. Only applies to disk\n  refreshInterval: 5000 # optional - in milliseconds, defaults to 1000 or more, depending on the metric\n  pointsLimit: 15 # optional, defaults to 15",
+  "omada": "widget:\n  type: omada\n  url: http://omada.host.or.ip:port\n  username: username\n  password: password\n  site: sitename",
+  "bazarr": "widget:\n  type: bazarr\n  url: http://bazarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "firefly": "widget:\n  type: firefly\n  url: https://firefly.host.or.ip\n  key: personalaccesstoken.personalaccesstoken.personalaccesstoken",
+  "unifi-drive": "widget:\n  type: unifi_drive\n  url: https://unifi.host.or.ip\n  username: your_username\n  password: your_password",
+  "jellyfin": "widget:\n  type: jellyfin\n  url: http://jellyfin.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  version: 2 # optional, default is 1\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "lubelogger": "widget:\n  type: lubelogger\n  url: https://lubelogger.host.or.ip\n  username: lubeloggerusername\n  password: lubeloggerpassword\n  vehicleID: 1 # optional, changes to single-vehicle version",
+  "caddy": "widget:\n  type: caddy\n  url: http://caddy.host.or.ip:adminport # default admin port is 2019",
+  "checkmk": "widget:\n  type: checkmk\n  url: http://checkmk.host.or.ip:port\n  site: your-site-name-cla-by-default\n  username: username\n  password: password",
+  "qnap": "widget:\n  type: qnap\n  url: http://qnap.host.or.ip:port\n  username: user\n  password: pass",
+  "ombi": "widget:\n  type: ombi\n  url: http://ombi.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "komodo": "widget:\n  type: komodo\n  url: http://komodo.hostname.or.ip:port\n  key: K-xxxxxx...\n  secret: S-xxxxxx...\n  showSummary: true # optional, default: false. Takes precedence over showStacks\n  showStacks: true # optional, default: false",
+  "mailcow": "widget:\n  type: mailcow\n  url: https://mailcow.host.or.ip\n  key: mailcowapikey",
+  "portainer": "widget:\n  type: portainer\n  url: https://portainer.host.or.ip:9443\n  env: 1\n  kubernetes: true # optional, defaults to false\n  key: ptr_accesskeyaccesskeyaccesskeyaccesskey",
+  "netdata": "widget:\n  type: netdata\n  url: http://netdata.host.or.ip",
+  "myspeed": "widget:\n  type: myspeed\n  url: http://myspeed.host.or.ip:port\n  password: password # only required if password is set",
+  "suwayomi": "widget:\n  type: suwayomi\n  url: http://suwayomi.host.or.ip\n  username: username #optional\n  password: password #optional\n  category: 0 #optional, defaults to all categories",
+  "tubearchivist": "widget:\n  type: tubearchivist\n  url: http://tubearchivist.host.or.ip\n  key: tubearchivistapikey",
+  "gluetun": "widget:\n  type: gluetun\n  url: http://gluetun.host.or.ip:port\n  key: gluetunkey # Not required if /v1/publicip/ip endpoint is configured with `auth = none`\n  version: 2 # optional, default is 1",
+  "homeassistant": "widget:\n  type: homeassistant\n  url: http://homeassistant.host.or.ip:port\n  key: access_token\n  custom:\n    - state: sensor.total_power\n    - state: sensor.total_energy_today\n      label: energy today\n    - template: \"{{ states.switch|selectattr('state','equalto','on')|list|length }}\"\n      label: switches on\n    - state: weather.forecast_home\n      label: wind speed\n      value: \"{attributes.wind_speed} {attributes.wind_speed_unit}\"",
+  "pangolin": "widget:\n  type: pangolin\n  url: https://api.pangolin.net\n  key: your-api-key\n  org: your-org-id",
+  "speedtest-tracker": "widget:\n  type: speedtest\n  url: http://speedtest.host.or.ip\n  version: 1 # optional, default is 1\n  key: speedtestapikey # required for version 2\n  bitratePrecision: 3 # optional, default is 0",
+  "nextdns": "widget:\n  type: nextdns\n  profile: profileid\n  key: yourapikeyhere",
+  "freshrss": "widget:\n  type: freshrss\n  url: http://freshrss.host.or.ip:port\n  username: username\n  password: password",
+  "tracearr": "widget:\n  type: tracearr\n  url: http://tracearr.host.or.ip:3000\n  key: apikeyapikeyapikeyapikeyapikey\n  view: both # optional, \"summary\", \"details\", or \"both\", defaults to \"details\"\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "paperlessngx": "widget:\n  type: paperlessngx\n  url: http://paperlessngx.host.or.ip:port\n  username: username\n  password: password",
+  "torrsyncarr": "widget:\n  type: torrsyncarr\n  url: http://192.168.1.132:8099\n  fields:\n    - movies\n    - series\n    - anime\n    - cartoons\n    - import"
+};
+
+const WIDGET_BOOLEANS = {
+  "jellyfin": [
+    "enableBlocks",
+    "enableMediaControl",
+    "enableNowPlaying",
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "dispatcharr": [
+    "enableActiveStreams"
+  ],
+  "truenas": [
+    "enablePools"
+  ],
+  "tautulli": [
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "komodo": [
+    "showStacks",
+    "showSummary"
+  ],
+  "sonarr": [
+    "enableQueue"
+  ],
+  "stocks": [
+    "showUSMarketStatus"
+  ],
+  "radarr": [
+    "enableQueue"
+  ],
+  "iframe": [
+    "allowPolicy",
+    "allowScrolling",
+    "allowfullscreen"
+  ],
+  "frigate": [
+    "enableRecentEvents"
+  ],
+  "deluge": [
+    "enableLeechProgress"
+  ],
+  "vikunja": [
+    "enableTaskList"
+  ],
+  "tracearr": [
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "qbittorrent": [
+    "enableLeechProgress",
+    "enableLeechSize"
+  ],
+  "emby": [
+    "enableBlocks",
+    "enableMediaControl",
+    "enableNowPlaying",
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "glances": [
+    "hideErrors"
+  ],
+  "calendar": [
+    "showTime"
+  ],
+  "ical": [
+    "showTime"
+  ],
+  "torrsyncarr": [
+    "enableWaitingCount"
+  ]
+};
+
+const WIDGET_TRANSLATIONS = {
+  "enableBlocks": "Показывать библиотеки блоками",
+  "enableMediaControl": "Интерактивный пульт управления медиа",
+  "enableNowPlaying": "Показывать воспроизведение сейчас",
+  "enableUser": "Показывать имя пользователя",
+  "expandOneStreamToTwoRows": "Отображать поток в две строки",
+  "showEpisodeNumber": "Показывать сезон и номер серии",
+  "enableActiveStreams": "Показывать активные потоки",
+  "enablePools": "Отображать дисковые пулы подробно",
+  "showStacks": "Показывать стеки контейнеров",
+  "showSummary": "Показывать общую сводку",
+  "enableQueue": "Отображать очередь загрузок",
+  "showUSMarketStatus": "Показывать статус рынка США",
+  "allowPolicy": "Разрешить политики безопасности (allow-policy)",
+  "allowScrolling": "Разрешить прокрутку внутри фрейма",
+  "allowfullscreen": "Разрешить полноэкранный режим фрейма",
+  "enableRecentEvents": "Показывать недавние события frigate",
+  "enableLeechProgress": "Показывать прогресс скачивающих (личей)",
+  "enableLeechSize": "Показывать размер загрузок скачивающих (личей)",
+  "enableTaskList": "Показывать список задач",
+  "hideErrors": "Скрывать ошибки подключения",
+  "showTime": "Показывать время для сегодняшних событий",
+  "enableWaitingCount": "Показывать количество медиа на импорт"
+};
+
+function WidgetTemplateSelector({ extraYaml, onChange }) {
+  let parsed = null;
+  try {
+    parsed = yaml.load(extraYaml) ?? {};
+  } catch {
+    // ignore parsing errors (e.g. while editing)
+  }
+
+  const widget = parsed?.widget;
+
+  const allWidgetTypes = [
+  "adguard-home",
+  "apcups",
+  "arcane",
+  "argocd",
+  "atsumeru",
+  "audiobookshelf",
+  "authentik",
+  "autobrr",
+  "azuredevops",
+  "backrest",
+  "bazarr",
+  "beszel",
+  "booklore",
+  "caddy",
+  "calendar",
+  "calibre-web",
+  "changedetectionio",
+  "channelsdvrserver",
+  "checkmk",
+  "cloudflared",
+  "coin-market-cap",
+  "crowdsec",
+  "customapi",
+  "deluge",
+  "develancacheui",
+  "diskstation",
+  "dispatcharr",
+  "dockhand",
+  "downloadstation",
+  "emby",
+  "esphome",
+  "evcc",
+  "filebrowser",
+  "fileflows",
+  "firefly",
+  "flood",
+  "freshrss",
+  "frigate",
+  "fritzbox",
+  "gamedig",
+  "gatus",
+  "ghostfolio",
+  "gitea",
+  "gitlab",
+  "glances",
+  "gluetun",
+  "gotify",
+  "grafana",
+  "hdhomerun",
+  "headscale",
+  "healthchecks",
+  "homeassistant",
+  "homebox",
+  "homebridge",
+  "iframe",
+  "immich",
+  "jackett",
+  "jdownloader",
+  "jellyfin",
+  "jellystat",
+  "karakeep",
+  "kavita",
+  "komga",
+  "komodo",
+  "kopia",
+  "lidarr",
+  "linkwarden",
+  "lubelogger",
+  "mailcow",
+  "mastodon",
+  "mealie",
+  "medusa",
+  "mikrotik",
+  "minecraft",
+  "miniflux",
+  "mjpeg",
+  "moonraker",
+  "mylar",
+  "myspeed",
+  "navidrome",
+  "netalertx",
+  "netdata",
+  "nextcloud",
+  "nextdns",
+  "nginx-proxy-manager",
+  "ntfy",
+  "nzbget",
+  "octoprint",
+  "omada",
+  "ombi",
+  "opendtu",
+  "openmediavault",
+  "openwrt",
+  "opnsense",
+  "pangolin",
+  "paperlessngx",
+  "peanut",
+  "pfsense",
+  "photoprism",
+  "pihole",
+  "plantit",
+  "plex",
+  "plex-tautulli",
+  "portainer",
+  "prometheus",
+  "prometheusmetric",
+  "prowlarr",
+  "proxmox",
+  "proxmoxbackupserver",
+  "pterodactyl",
+  "pyload",
+  "qbittorrent",
+  "qnap",
+  "radarr",
+  "readarr",
+  "romm",
+  "rutorrent",
+  "sabnzbd",
+  "scrutiny",
+  "seerr",
+  "slskd",
+  "sonarr",
+  "sparkyfitness",
+  "speedtest-tracker",
+  "spoolman",
+  "stash",
+  "stocks",
+  "suwayomi",
+  "swagdashboard",
+  "syncthing-relay-server",
+  "tailscale",
+  "tandoor",
+  "tdarr",
+  "technitium",
+  "torrsyncarr",
+  "tracearr",
+  "traefik",
+  "transmission",
+  "trilium",
+  "truenas",
+  "tubearchivist",
+  "unifi-controller",
+  "unifi-drive",
+  "unmanic",
+  "unraid",
+  "uptime-kuma",
+  "uptimerobot",
+  "urbackup",
+  "vikunja",
+  "wallos",
+  "watchtower",
+  "wgeasy",
+  "whatsupdocker",
+  "xteve",
+  "yourspotify",
+  "zabbix"
+];
+
+  let currentType = "";
+  if (widget) {
+    if (allWidgetTypes.includes(widget.type)) {
+      currentType = widget.type;
+    } else {
+      currentType = "custom";
+    }
+  }
+
+  const handleTypeChange = (newType) => {
+    const obj = { ...(parsed ?? {}) };
+    if (newType === "") {
+      delete obj.widget;
+    } else if (newType === "custom") {
+      obj.widget = {
+        type: "custom_widget",
+        url: "http://example-ip:80",
+      };
+    } else {
+      const templateStr = WIDGET_TEMPLATES[newType];
+      if (templateStr) {
+        try {
+          const templateObj = yaml.load(templateStr);
+          Object.assign(obj, templateObj);
+        } catch {
+          obj.widget = {
+            type: newType,
+            url: "http://ip-address:port",
+          };
+        }
+      } else {
+        obj.widget = {
+          type: newType,
+          url: "http://ip-address:port",
+        };
+      }
+    }
+
+    try {
+      const nextYaml = Object.keys(obj).length ? yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }) : "";
+      onChange(nextYaml);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggle = (key, checked) => {
+    if (!parsed) return;
+    const obj = { ...parsed };
+    if (!obj.widget) obj.widget = {};
+    obj.widget[key] = checked;
+    try {
+      const nextYaml = yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false });
+      onChange(nextYaml);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Find all boolean keys for the current widget type
+  const getWidgetBooleans = (w, type) => {
+    const booleans = [];
+    const keysSeen = new Set();
+
+    // 1. Known booleans for this type
+    const knownBools = WIDGET_BOOLEANS[type] || [];
+    knownBools.forEach((k) => {
+      const val = w && typeof w === "object" && k in w ? w[k] : false;
+      booleans.push({ key: k, value: val });
+      keysSeen.add(k);
+    });
+
+    // 2. Any other custom booleans in the widget object
+    if (w && typeof w === "object") {
+      Object.entries(w).forEach(([k, v]) => {
+        if (typeof v === "boolean" && k !== "type" && !keysSeen.has(k)) {
+          booleans.push({ key: k, value: v });
+        }
+      });
+    }
+
+    return booleans;
+  };
+
+  const booleans = getWidgetBooleans(widget, currentType);
+
+  return (
+    <div className="mb-3 rounded-md border border-theme-300/50 p-3 dark:border-white/10 bg-theme-100/5 dark:bg-white/5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-theme-300/30 dark:border-white/5 pb-2">
+        <label className="text-xs font-semibold text-theme-700 dark:text-theme-200">
+          Шаблоны интеграции виджетов
+        </label>
+        {parsed === null && (
+          <span className="text-[11px] font-medium text-rose-500">
+            Ошибка в YAML (исправьте код ниже)
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", width: "100%" }}>
+        <div style={{ flex: "1 1 300px", minWidth: "250px" }} className="flex flex-col justify-start">
+          <label className="block min-w-0 text-xs text-theme-600 dark:text-theme-300">
+            Выберите тип виджета для вставки шаблона:
+            <select
+              value={currentType}
+              disabled={parsed === null}
+              onChange={(e) => handleTypeChange(e.target.value)}
+              className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-[32px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">Без виджета / очистить</option>
+              {allWidgetTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+              <option value="custom">Другой (кастомный шаблон)</option>
+            </select>
+          </label>
+        </div>
+
+        <div style={{ flex: "1 1 300px", minWidth: "250px" }} className="flex flex-col justify-start">
+          {booleans.length > 0 && parsed !== null ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-semibold text-theme-500 uppercase tracking-wide">
+                Дополнительные настройки ({currentType}):
+              </span>
+              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                {booleans.map(({ key, value }) => {
+                  const labelRussian = WIDGET_TRANSLATIONS[key] || key;
+                  return (
+                    <label key={key} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200 hover:text-theme-950 dark:hover:text-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={value}
+                        onChange={(e) => handleToggle(key, e.target.checked)}
+                        className="h-4 w-4 rounded border-theme-300 text-theme-600 focus:ring-theme-500 cursor-pointer"
+                      />
+                      <span className="truncate" title={`${key}: ${labelRussian}`}>
+                        {labelRussian} <span className="text-[10px] text-theme-400 dark:text-theme-500 font-normal">({key})</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            currentType && currentType !== "custom" && parsed !== null && (
+              <div className="text-xs text-theme-400 dark:text-theme-500 italic mt-5">
+                У виджета {currentType} нет дополнительных настроек.
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -3865,6 +4577,35 @@ function GroupModal({ modal, data, onClose, onSaved }) {
           <p className="text-xs text-theme-600 dark:text-theme-300">
             Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
           </p>
+          <div className="mt-3 border-t border-theme-300/30 pt-3">
+            <p className="mb-2 text-xs font-medium text-theme-600 dark:text-theme-300">Title style</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field
+                name="titleColor"
+                label="Title color"
+                value={form.titleColor}
+                onChange={(value) => setForm((current) => ({ ...current, titleColor: value }))}
+              />
+              <Field
+                name="titleAlign"
+                label="Title alignment"
+                value={form.titleAlign}
+                onChange={(value) => setForm((current) => ({ ...current, titleAlign: value }))}
+              />
+              <Field
+                name="titleSize"
+                label="Title font size"
+                value={form.titleSize}
+                onChange={(value) => setForm((current) => ({ ...current, titleSize: value }))}
+              />
+              <Field
+                name="titleFont"
+                label="Title font"
+                value={form.titleFont}
+                onChange={(value) => setForm((current) => ({ ...current, titleFont: value }))}
+              />
+            </div>
+          </div>
         </div>
 
         {error && (
