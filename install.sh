@@ -1299,6 +1299,34 @@ build_target() {
   die "No supported package manager found. Install pnpm/npm or rerun with --no-build."
 }
 
+sync_standalone_assets() {
+  [[ -n "$TARGET" && -d "$TARGET/.next/standalone" ]] || return 0
+
+  local standalone="$TARGET/.next/standalone"
+  local owner=""
+  local group=""
+
+  log "Syncing standalone static assets"
+
+  if [[ -d "$TARGET/.next/static" ]]; then
+    mkdir -p "$standalone/.next"
+    rm -rf -- "$standalone/.next/static"
+    cp -a "$TARGET/.next/static" "$standalone/.next/static"
+  fi
+
+  if [[ -d "$TARGET/public" ]]; then
+    rm -rf -- "$standalone/public"
+    cp -a "$TARGET/public" "$standalone/public"
+  fi
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    owner="$(target_owner)"
+    group="$(target_group)"
+    [[ -n "$group" ]] || group="$owner"
+    chown -R "$owner:$group" "$standalone/.next/static" "$standalone/public" 2>/dev/null || true
+  fi
+}
+
 action_restarts_service() {
   case "$ACTION" in
     install|update-mod|update-target|uninstall|enable|disable|install-cards|install-extras|install-radio|install-particles|install-custom)
@@ -1391,6 +1419,7 @@ main() {
         install_requested_custom
         ;;
     esac
+    sync_standalone_assets
     restart_target
     log "Done"
     return 0
@@ -1438,12 +1467,14 @@ main() {
   fi
   ensure_target_dependencies
   build_target
+  sync_standalone_assets
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
   fi
 
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]]; then
     install_requested_custom
+    sync_standalone_assets
   fi
 
   restart_target

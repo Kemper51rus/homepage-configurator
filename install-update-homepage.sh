@@ -366,6 +366,27 @@ build_project() {
     pnpm run build
 }
 
+sync_standalone_assets() {
+  [ -d "$APP_DIR/.next/standalone" ] || return 0
+
+  log "Синхронизирую static/public для standalone runtime"
+
+  if [ -d "$APP_DIR/.next/static" ]; then
+    mkdir -p "$APP_DIR/.next/standalone/.next"
+    rm -rf -- "$APP_DIR/.next/standalone/.next/static"
+    cp -a "$APP_DIR/.next/static" "$APP_DIR/.next/standalone/.next/static"
+  fi
+
+  if [ -d "$APP_DIR/public" ]; then
+    rm -rf -- "$APP_DIR/.next/standalone/public"
+    cp -a "$APP_DIR/public" "$APP_DIR/.next/standalone/public"
+  fi
+
+  chown -R "$APP_USER:$APP_GROUP" \
+    "$APP_DIR/.next/standalone/.next/static" \
+    "$APP_DIR/.next/standalone/public" 2>/dev/null || true
+}
+
 write_env_file() {
   local editor_token
   editor_token="$(read_env_var "HOMEPAGE_EDITOR_TOKEN")"
@@ -435,6 +456,7 @@ install_homepage() {
   create_initial_config
   link_external_dirs
   build_project
+  sync_standalone_assets
   write_env_file
   write_systemd_service
   start_services
@@ -471,6 +493,7 @@ update_homepage() {
   create_initial_config
   link_external_dirs
   build_project
+  sync_standalone_assets
   write_env_file
   write_systemd_service
   start_services
