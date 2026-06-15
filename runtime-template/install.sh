@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 ARCHIVE_URL="${HOMEPAGE_TEMPLATE_ARCHIVE_URL:-https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/runtime-template/homepage-template.tar.gz}"
-ARCHIVE_SHA256="${HOMEPAGE_TEMPLATE_SHA256:-905cd9ccfcbe90e68e90c68caae4922fdd326b3f93ca5c443b11e9b739d57a15}"
+ARCHIVE_SHA256="${HOMEPAGE_TEMPLATE_SHA256:-ca938596fcfc4303e7dc01457cca803044597a4150f95095dfd3025add82cf64}"
 
 TARGET="${HOMEPAGE_TARGET_DIR:-}"
 CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
@@ -306,14 +306,40 @@ download_template() {
   printf '%s\n' "$source_dir"
 }
 
-sync_standalone_images() {
+same_real_path() {
+  local left="$1"
+  local right="$2"
+  local left_real=""
+  local right_real=""
+
+  left_real="$(readlink -f "$left" 2>/dev/null || true)"
+  right_real="$(readlink -f "$right" 2>/dev/null || true)"
+
+  [[ -n "$left_real" && -n "$right_real" && "$left_real" == "$right_real" ]]
+}
+
+replace_standalone_path() {
+  local source="$1"
+  local target="$2"
+
+  if same_real_path "$source" "$target"; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$target")"
+  rm -rf -- "$target"
+  cp -a "$source" "$target"
+}
+
+sync_standalone_runtime() {
   [[ -n "$TARGET" && -d "$TARGET/.next/standalone" ]] || return 0
 
+  local standalone_config="$TARGET/.next/standalone/config"
   local standalone_images="$TARGET/.next/standalone/public/images"
-  log "Syncing standalone public images"
-  mkdir -p "$(dirname "$standalone_images")"
-  rm -rf -- "$standalone_images"
-  cp -a "$IMAGES_DIR" "$standalone_images"
+
+  log "Syncing standalone config and public images"
+  replace_standalone_path "$CONFIG_DIR" "$standalone_config"
+  replace_standalone_path "$IMAGES_DIR" "$standalone_images"
 }
 
 restart_service() {
@@ -351,7 +377,7 @@ main() {
     log "Installed env file: $ENV_FILE"
   fi
 
-  sync_standalone_images
+  sync_standalone_runtime
   restart_service
 
   log "Done"

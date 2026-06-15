@@ -196,7 +196,7 @@ index 7ea16bb..8f84ba9 100644
 +          type="button"
 +          {...itemProps}
 +          style={overlayStyle}
-+          className="absolute z-40 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${bookmark.name}`}
 +        />
 +      )}
@@ -379,7 +379,7 @@ index c23e16a2..6161c6a6 100644
 +            type="button"
 +            {...itemProps}
 +            style={{ borderRadius: "inherit", inset: "2px" }}
-+            className="absolute z-40 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++            className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +            aria-label={`Edit ${service.name}`}
 +          />
 +        )}
@@ -518,7 +518,7 @@ index bd4f809..3fd88b56 100644
 +          type="button"
 +          {...widgetProps}
 +          style={overlayStyle}
-+          className="absolute z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
 +        />
 +      )}
