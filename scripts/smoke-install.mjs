@@ -20,6 +20,7 @@ try {
   run("node", ["install.mjs", "--dry-run", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--enable", "--target", target], { stdio: "inherit" });
+  run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
 
   const env = readFileSync(join(target, ".env.local"), "utf8");
   if (!env.includes("HOMEPAGE_BROWSER_EDITOR=true")) {

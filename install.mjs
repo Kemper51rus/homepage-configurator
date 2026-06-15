@@ -57,6 +57,25 @@ function runGit(target, args, stdio = "inherit") {
   });
 }
 
+function canApplyPatch(target, reverse = false) {
+  try {
+    runGit(target, ["apply", ...(reverse ? ["--reverse"] : []), "--check", patchPath], "pipe");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function patchState(target) {
+  if (canApplyPatch(target)) {
+    return "applies";
+  }
+  if (canApplyPatch(target, true)) {
+    return "already-applied";
+  }
+  return "conflict";
+}
+
 function isGitWorkTree(target) {
   try {
     return runGit(target, ["rev-parse", "--is-inside-work-tree"], "pipe").trim() === "true";
@@ -144,6 +163,10 @@ function timestamp() {
 
 function readFileIfExists(file) {
   return existsSync(file) ? readFileSync(file, "utf8") : null;
+}
+
+function isSafeRelativePath(path) {
+  return Boolean(path) && !path.startsWith("/") && !path.split(/[\\/]/).includes("..");
 }
 
 function overlayFiles() {
@@ -254,8 +277,10 @@ function install(target, options = {}) {
 
   const files = overlayFiles().map((file) => file.relativePath);
   const patchTouchedFiles = patchFiles();
+  const existingManifest = readManifest(target);
   const plan = [
     `validate Homepage checkout: ${target}`,
+    ...(existingManifest ? [`remove existing browser editor install from ${manifestName}`] : []),
     `sync managed dependencies: ${Object.keys(managedDependencies).join(", ")}`,
     `copy overlay files: ${files.length}`,
     `apply core patch files: ${patchTouchedFiles.length}`,
@@ -269,6 +294,9 @@ function install(target, options = {}) {
     console.log("Dry-run only. No files changed.");
     return;
   }
+
+  preflightInstallPatchState(target, existingManifest);
+  prepareExistingInstall(target, existingManifest);
 
   const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
 
@@ -291,6 +319,37 @@ function install(target, options = {}) {
   console.log("Run with --enable to set HOMEPAGE_BROWSER_EDITOR=true.");
 }
 
+function preflightInstallPatchState(target, manifest) {
+  const state = patchState(target);
+
+  if (state !== "conflict") {
+    return;
+  }
+
+  if (manifest && backupCanAcceptCurrentPatch(target, manifest)) {
+    return;
+  }
+
+  throw new Error(
+    [
+      "Core patch cannot be applied to this Homepage checkout.",
+      "Update the Homepage source checkout first, then run the configurator again.",
+      "For the bundled LXC installer use install-update-homepage.sh option 2, or reinstall Homepage from the current community script.",
+    ].join("\n"),
+  );
+}
+
+function backupCanAcceptCurrentPatch(target, manifest) {
+  const backupRoot = manifest?.backup?.backupRoot;
+
+  if (!isSafeRelativePath(backupRoot)) {
+    return false;
+  }
+
+  const backupRootPath = join(target, backupRoot);
+  return existsSync(backupRootPath) && canApplyPatch(backupRootPath);
+}
+
 function uninstall(target, options = {}) {
   ensureTarget(target);
   const manifest = readManifest(target);
@@ -310,13 +369,78 @@ function uninstall(target, options = {}) {
     return;
   }
 
-  reversePatch(target);
+  try {
+    reversePatch(target);
+  } catch (error) {
+    if (!restoreBackupFiles(target, manifest)) {
+      throw error;
+    }
+    console.log("Core patch restored from previous install backup");
+  }
   removeOverlay(target, { files, force: options.force });
   setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");
   if (existsSync(manifestPath(target))) {
     unlinkSync(manifestPath(target));
   }
   console.log(`Browser editor removed from ${target}`);
+}
+
+function prepareExistingInstall(target, manifest) {
+  if (!manifest) return;
+
+  console.log(`Existing browser editor install detected in ${manifestName}; preparing reinstall`);
+
+  try {
+    reversePatch(target);
+  } catch (error) {
+    if (!restoreBackupFiles(target, manifest)) {
+      throw new Error(`Existing install could not be reverted before reinstall:\n${error.message}`);
+    }
+    console.log("Previous install files restored from backup before reinstall");
+  }
+
+  removeOverlay(target, { files: manifest.overlayFiles ?? [], force: true });
+  if (existsSync(manifestPath(target))) {
+    unlinkSync(manifestPath(target));
+  }
+}
+
+function restoreBackupFiles(target, manifest) {
+  const backupRoot = manifest?.backup?.backupRoot;
+  const files = manifest?.backup?.files ?? [];
+
+  if (!isSafeRelativePath(backupRoot) || !files.length) {
+    return false;
+  }
+
+  const backupRootPath = join(target, backupRoot);
+  if (!existsSync(backupRootPath)) {
+    return false;
+  }
+
+  let restored = 0;
+  for (const file of files) {
+    if (!isSafeRelativePath(file)) {
+      throw new Error(`Refusing to restore unsafe backup path from manifest: ${file}`);
+    }
+
+    const backupPath = join(backupRootPath, file);
+    if (!existsSync(backupPath)) {
+      continue;
+    }
+
+    const targetPath = join(target, file);
+    mkdirSync(dirname(targetPath), { recursive: true });
+    cpSync(backupPath, targetPath);
+    restored += 1;
+  }
+
+  if (!restored) {
+    return false;
+  }
+
+  console.log(`Restored ${restored} file(s) from ${backupRoot}`);
+  return true;
 }
 
 function walk(dir) {

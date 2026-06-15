@@ -268,7 +268,12 @@ EOF
 
 is_homepage_target() {
   local candidate="$1"
-  [[ -n "$candidate" && -f "$candidate/package.json" && -d "$candidate/src" ]]
+  [[ -n "$candidate" ]] || return 1
+  [[ -f "$candidate/package.json" && -d "$candidate/src" ]] || return 1
+  [[ -f "$candidate/next.config.js" ]] || return 1
+  [[ -f "$candidate/src/pages/index.jsx" ]] || return 1
+  [[ -f "$candidate/src/components/services/group.jsx" ]] || return 1
+  [[ -f "$candidate/src/components/bookmarks/group.jsx" ]] || return 1
 }
 
 systemd_workdir() {
