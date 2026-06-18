@@ -50,8 +50,8 @@ export const serviceCardColorOptions = [
 ];
 
 export const knownFields = {
-  bookmarks: bookmarkFields.map(([key]) => key),
-  services: serviceFields.map(([key]) => key),
+  bookmarks: [...bookmarkFields.map(([key]) => key), "titleColor", "titleAlign", "titleSize", "titleFont"],
+  services: [...serviceFields.map(([key]) => key), "titleColor", "titleAlign", "titleSize", "titleFont"],
 };
 
 function slugifyCardName(value) {

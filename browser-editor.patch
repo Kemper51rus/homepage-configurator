@@ -1,5 +1,5 @@
 diff --git a/next.config.js b/next.config.js
-index ea49bf54..87c163d3 100644
+index ea49bf5..7426606 100644
 --- a/next.config.js
 +++ b/next.config.js
 @@ -1,9 +1,19 @@
@@ -23,7 +23,7 @@ index ea49bf54..87c163d3 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e..54c4282 100644
+index 88d4d7e..af3ee26 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
@@ -34,7 +34,7 @@ index 88d4d7e..54c4282 100644
  
  export default function BookmarksGroup({
    bookmarks,
-@@ -14,12 +15,19 @@ export default function BookmarksGroup({
+@@ -14,15 +15,23 @@ export default function BookmarksGroup({
    bookmarksStyle,
    maxGroupColumns,
  }) {
@@ -55,7 +55,11 @@ index 88d4d7e..54c4282 100644
    return (
      <div
        key={bookmarks.name}
-@@ -35,8 +43,17 @@ export default function BookmarksGroup({
++      data-editor-group-name={bookmarks.name}
+       className={classNames(
+         "bookmark-group flex-1 overflow-hidden",
+         layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/4 lg:basis-1/5 xl:basis-1/6",
+@@ -35,8 +44,17 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -75,7 +79,7 @@ index 88d4d7e..54c4282 100644
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 bookmark-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -73,7 +90,12 @@ export default function BookmarksGroup({
+@@ -73,7 +91,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -90,7 +94,7 @@ index 88d4d7e..54c4282 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..8f84ba9 100644
+index 7ea16bb..7fd57bb 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
 @@ -1,24 +1,88 @@
@@ -204,7 +208,7 @@ index 7ea16bb..8f84ba9 100644
    );
  }
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index f24794db..23c8c3bd 100644
+index f24794d..23c8c3b 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
 @@ -1,9 +1,10 @@
@@ -348,7 +352,7 @@ index 403f606..fcdf4b3 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..6161c6a6 100644
+index c23e16a..9c53cc0 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,5 +1,6 @@
@@ -387,7 +391,7 @@ index c23e16a2..6161c6a6 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..531ba65d 100644
+index 1acf94d..531ba65 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
 @@ -1,25 +1,37 @@
@@ -430,8 +434,20 @@ index 1acf94d6..531ba65d 100644
      </ul>
    );
  }
+diff --git a/src/pages/api/config/[path].js b/src/pages/api/config/[path].js
+index b69ddff..c74277d 100644
+--- a/src/pages/api/config/[path].js
++++ b/src/pages/api/config/[path].js
+@@ -26,6 +26,7 @@ export default async function handler(req, res) {
+     // hard-coded since we only support two known files for now
+     const mimeType = relativePath === "custom.css" ? "text/css" : "text/javascript";
+     res.setHeader("Content-Type", mimeType);
++    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+     return res.status(200).send(fileContent);
+   } catch (error) {
+     if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index bd4f809..3fd88b56 100644
+index a51313e..5d1343f 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -462,7 +478,7 @@ index bd4f809..3fd88b56 100644
  import { BiError } from "react-icons/bi";
  import useSWR, { SWRConfig } from "swr";
  import { ColorContext } from "utils/contexts/color";
-@@ -42,6 +51,66 @@ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmet
+@@ -41,6 +50,66 @@ const Version = dynamic(() => import("components/version"), {
  
  const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
  
@@ -529,7 +545,15 @@ index bd4f809..3fd88b56 100644
  // Normalize language codes so older config values like zh-CN still point to Crowdin-provided ones
  const LANGUAGE_ALIASES = {
    "zh-cn": "zh-Hans",
-@@ -275,14 +283,8 @@ function Home({ initialSettings }) {
+@@ -226,6 +295,7 @@ function Home({ initialSettings }) {
+   const { data: services } = useSWR("/api/services");
+   const { data: bookmarks } = useSWR("/api/bookmarks");
+   const { data: widgets } = useSWR("/api/widgets");
++  const { data: hashData } = useSWR("/api/hash");
+ 
+   const servicesAndBookmarks = [...bookmarks.map((bg) => bg.bookmarks).flat(), ...getAllServices(services)].filter(
+     (i) => i?.href,
+@@ -277,14 +347,8 @@ function Home({ initialSettings }) {
    });
  
    const tabs = useMemo(
@@ -546,7 +570,7 @@ index bd4f809..3fd88b56 100644
    );
  
    useEffect(() => {
-@@ -292,21 +294,74 @@ function Home({ initialSettings }) {
+@@ -294,21 +358,74 @@ function Home({ initialSettings }) {
      }
    });
  
@@ -569,7 +593,10 @@ index bd4f809..3fd88b56 100644
 +
 +      return getGroupLayout(settings.layout ?? {}, type, groupName);
 +    };
-+
+ 
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
+-      .filter(tabGroupFilter);
 +    const tabGroupFilter = (type, groupName) =>
 +      [activeTab, ""].includes(slugifyAndEncode(getLayoutForGroup(type, groupName)?.tab));
 +    const undefinedGroupFilter = (type, groupName) => getLayoutForGroup(type, groupName) === undefined;
@@ -590,10 +617,7 @@ index bd4f809..3fd88b56 100644
 +        if (bookmarkMap.has(groupName)) {
 +          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
 +        }
- 
--    const layoutGroups = Object.keys(settings.layout ?? {})
--      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
--      .filter(tabGroupFilter);
++
 +        return { type: "services", group: { name: groupName, services: [], groups: [] } };
 +      })
 +      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
@@ -628,7 +652,7 @@ index bd4f809..3fd88b56 100644
  
      return (
        <>
-@@ -323,19 +378,19 @@ function Home({ initialSettings }) {
+@@ -325,19 +442,19 @@ function Home({ initialSettings }) {
                role="tablist"
              >
                {tabs.map((tab) => (
@@ -656,7 +680,7 @@ index bd4f809..3fd88b56 100644
                    maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
                    disableCollapse={settings.disableCollapse}
                    useEqualHeights={settings.useEqualHeights}
-@@ -343,50 +398,23 @@ function Home({ initialSettings }) {
+@@ -345,50 +462,23 @@ function Home({ initialSettings }) {
                  />
                ) : (
                  <BookmarksGroup
@@ -712,7 +736,7 @@ index bd4f809..3fd88b56 100644
      activeTab,
      services,
      bookmarks,
-@@ -397,6 +425,7 @@ function Home({ initialSettings }) {
+@@ -399,6 +489,7 @@ function Home({ initialSettings }) {
      settings.disableCollapse,
      settings.useEqualHeights,
      settings.cardBlur,
@@ -720,7 +744,15 @@ index bd4f809..3fd88b56 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -436,12 +465,13 @@ function Home({ initialSettings }) {
+@@ -408,6 +499,7 @@ function Home({ initialSettings }) {
+     <>
+       <Head>
+         <title>{initialSettings.title || "Homepage"}</title>
++        <link rel="stylesheet" href={`/api/config/custom.css?v=${hashData?.hash || "initial"}`} />
+         <meta
+           name="description"
+           content={
+@@ -438,12 +530,13 @@ function Home({ initialSettings }) {
  
        <Script src="/api/config/custom.js" />
  
@@ -740,7 +772,8 @@ index bd4f809..3fd88b56 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -466,10 +516,12 @@ function Home({ initialSettings }) {
+@@ -465,11 +558,13 @@ function Home({ initialSettings }) {
+             {widgets && (
                <>
                  {widgets
 -                  .filter((widget) => !rightAlignedWidgets.includes(widget.type))
@@ -757,7 +790,8 @@ index bd4f809..3fd88b56 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -483,10 +535,12 @@ function Home({ initialSettings }) {
+@@ -482,11 +577,13 @@ function Home({ initialSettings }) {
+                   )}
                  >
                    {widgets
 -                    .filter((widget) => rightAlignedWidgets.includes(widget.type))
@@ -774,7 +808,7 @@ index bd4f809..3fd88b56 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -494,7 +548,7 @@ function Home({ initialSettings }) {
+@@ -496,7 +593,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -783,7 +817,7 @@ index bd4f809..3fd88b56 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -507,7 +537,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +606,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

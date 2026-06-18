@@ -460,6 +460,213 @@ async function localizeRemoteIcons() {
   return result;
 }
 
+const CSS_START_MARKER = "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */";
+const CSS_END_MARKER = "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES END --- */";
+
+function extractGroupLayouts(settings) {
+  const layouts = [];
+  const layoutObj = settings?.layout;
+  if (!layoutObj || typeof layoutObj !== "object") {
+    return layouts;
+  }
+
+  for (const [key, value] of Object.entries(layoutObj)) {
+    if (key === "Bookmarks" && value && typeof value === "object" && !Array.isArray(value)) {
+      for (const [bKey, bValue] of Object.entries(value)) {
+        if (bValue && typeof bValue === "object" && !Array.isArray(bValue)) {
+          layouts.push({ name: bKey, layout: bValue });
+        }
+      }
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      layouts.push({ name: key, layout: value });
+    }
+  }
+  return layouts;
+}
+
+function generateCssForLayouts(layouts) {
+  let css = "";
+  for (const item of layouts) {
+    const name = item.name;
+    const l = item.layout;
+    if (!l) continue;
+
+    const color = (l.titleColor || "").trim();
+    const align = (l.titleAlign || "").trim();
+    const size = (l.titleSize || "").trim();
+    const font = (l.titleFont || "").trim();
+
+    if (!color && !align && !size && !font) {
+      continue;
+    }
+
+    const escapedName = name.replace(/"/g, '\\"');
+
+    css += `div[data-editor-group-name="${escapedName}"] h2 {\n`;
+    if (color) {
+      css += `  color: ${color} !important;\n`;
+    }
+    if (size) {
+      css += `  font-size: ${size} !important;\n`;
+    }
+    if (font) {
+      css += `  font-family: "${font}", sans-serif !important;\n`;
+    }
+    if (align) {
+      css += `  flex-grow: 1 !important;\n`;
+      css += `  text-align: ${align} !important;\n`;
+      if (align === "center") {
+        css += `  justify-content: center !important;\n`;
+      } else if (align === "right") {
+        css += `  justify-content: flex-end !important;\n`;
+      } else if (align === "left") {
+        css += `  justify-content: flex-start !important;\n`;
+      }
+    }
+    css += `}\n\n`;
+  }
+  return css;
+}
+
+async function updateCustomCssWithStyles(generatedCss) {
+  const customCssPath = path.join(CONF_DIR, "custom.css");
+  let currentContent = "";
+
+  if (existsSync(customCssPath)) {
+    currentContent = await fs.readFile(customCssPath, "utf8");
+  }
+
+  const startIdx = currentContent.indexOf(CSS_START_MARKER);
+  const endIdx = currentContent.indexOf(CSS_END_MARKER);
+
+  const blockContent = `${CSS_START_MARKER}\n/* This block is auto-generated. Do not edit manually. */\n${generatedCss}${CSS_END_MARKER}`;
+
+  let nextContent = "";
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    nextContent = currentContent.substring(0, startIdx) + blockContent + currentContent.substring(endIdx + CSS_END_MARKER.length);
+  } else {
+    const separator = currentContent && !currentContent.endsWith("\n") ? "\n\n" : "";
+    nextContent = currentContent + separator + blockContent + "\n";
+  }
+
+  await fs.writeFile(customCssPath, nextContent, "utf8");
+}
+
+function generateCssForItems(items) {
+  let css = "";
+  for (const item of items) {
+    const name = item.name;
+    const c = item.config;
+    if (!c) continue;
+
+    const color = (c.titleColor || "").trim();
+    const align = (c.titleAlign || "").trim();
+    const size = (c.titleSize || "").trim();
+    const font = (c.titleFont || "").trim();
+
+    if (!color && !align && !size && !font) {
+      continue;
+    }
+
+    const escapedName = name.replace(/"/g, '\\"');
+
+    if (item.type === "services") {
+      css += `li.service[data-name="${escapedName}"] .service-name {\n`;
+    } else {
+      css += `li.bookmark[data-name="${escapedName}"] .bookmark-name {\n`;
+    }
+
+    if (color) {
+      css += `  color: ${color} !important;\n`;
+    }
+    if (size) {
+      css += `  font-size: ${size} !important;\n`;
+    }
+    if (font) {
+      css += `  font-family: "${font}", sans-serif !important;\n`;
+    }
+    if (align) {
+      css += `  flex-grow: 1 !important;\n`;
+      css += `  text-align: ${align} !important;\n`;
+      if (align === "center") {
+        css += `  justify-content: center !important;\n`;
+      } else if (align === "right") {
+        css += `  justify-content: flex-end !important;\n`;
+      } else if (align === "left") {
+        css += `  justify-content: flex-start !important;\n`;
+      }
+    }
+    css += `}\n\n`;
+  }
+  return css;
+}
+
+async function regenerateAllStylesCss() {
+  try {
+    const services = await readYamlFile("services", []);
+    const bookmarks = await readYamlFile("bookmarks", []);
+    const settings = await readYamlFile("settings", {});
+
+    const groupLayouts = extractGroupLayouts(settings);
+    let css = generateCssForLayouts(groupLayouts);
+
+    const items = [];
+    // Extract services items
+    if (Array.isArray(services)) {
+      for (const groupObj of services) {
+        if (groupObj && typeof groupObj === "object") {
+          for (const [groupName, itemsList] of Object.entries(groupObj)) {
+            if (Array.isArray(itemsList)) {
+              for (const itemObj of itemsList) {
+                if (itemObj && typeof itemObj === "object") {
+                  for (const [itemName, itemConfig] of Object.entries(itemObj)) {
+                    if (itemConfig && typeof itemConfig === "object" && !Array.isArray(itemConfig)) {
+                      items.push({ name: itemName, config: itemConfig, type: "services" });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Extract bookmarks items
+    if (Array.isArray(bookmarks)) {
+      for (const groupObj of bookmarks) {
+        if (groupObj && typeof groupObj === "object") {
+          for (const [groupName, itemsList] of Object.entries(groupObj)) {
+            if (Array.isArray(itemsList)) {
+              for (const itemObj of itemsList) {
+                if (itemObj && typeof itemObj === "object") {
+                  for (const [itemName, configVal] of Object.entries(itemObj)) {
+                    if (Array.isArray(configVal)) {
+                      for (const subConf of configVal) {
+                        if (subConf && typeof subConf === "object") {
+                          items.push({ name: itemName, config: subConf, type: "bookmarks" });
+                        }
+                      }
+                    } else if (configVal && typeof configVal === "object") {
+                      items.push({ name: itemName, config: configVal, type: "bookmarks" });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    css += generateCssForItems(items);
+
+    await updateCustomCssWithStyles(css);
+  } catch (error) {
+    logger.error("Failed to regenerate style CSS:", error);
+  }
+}
+
 async function getEditorConfig() {
   const [services, bookmarks, settings, settingsTabs] = await Promise.all([
     readYamlFile("services", []),
@@ -494,6 +701,9 @@ export default async function handler(req, res) {
         }
 
         await writeRawConfigFile(settingsTab.fileName, settingsTab.format, content);
+        if (["settings.yaml", "services.yaml", "bookmarks.yaml"].includes(fileName)) {
+          await regenerateAllStylesCss();
+        }
         return res.status(200).json(await getEditorConfig());
       }
 
@@ -510,6 +720,9 @@ export default async function handler(req, res) {
       }
 
       await writeYamlFile(file, data);
+      if (["settings", "services", "bookmarks"].includes(file)) {
+        await regenerateAllStylesCss();
+      }
       return res.status(200).json(await getEditorConfig());
     }
 

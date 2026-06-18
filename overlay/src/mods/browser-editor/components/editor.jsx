@@ -2912,7 +2912,7 @@ function EditorWindow({
           minWidth: `${minWidth}px`,
           minHeight: `${minHeight}px`,
         }}
-        className="fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
+        className="editor-window fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div
@@ -2981,11 +2981,14 @@ function EditorWindow({
   );
 }
 
+const isSmallViewport = () => typeof window !== "undefined" && (window.innerWidth < 2000 || window.innerHeight < 1200);
+
 function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const isServiceModal = modal.type === "services";
   const isBookmarkModal = modal.type === "bookmarks";
-  const bookmarkWindowApiRef = useRef(null);
+  const windowApiRef = useRef(null);
+  const contentRef = useRef(null);
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawEntryConfig =
     modal.mode === "edit"
@@ -3010,12 +3013,19 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const [showAdvancedServiceFields, setShowAdvancedServiceFields] = useState(false);
   const [showAdvancedBookmarkFields, setShowAdvancedBookmarkFields] = useState(false);
   const title = isServiceModal ? "сервис" : "закладка";
-  const bookmarkWindowWidth = 648;
-  const bookmarkCollapsedHeight = 379;
-  const bookmarkExpandedHeight = 760;
-  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v9";
-  const itemModalDefaultHeight = isServiceModal ? 840 : showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight;
-  const itemModalMinHeight = isServiceModal ? 780 : showAdvancedBookmarkFields ? 620 : 360;
+  const isSmall = isSmallViewport();
+  const bookmarkWindowWidth = isSmall ? 820 : 960;
+  const bookmarkCollapsedHeight = isSmall ? 550 : 650;
+  const bookmarkExpandedHeight = isSmall ? 550 : 650;
+  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v19";
+  const serviceCollapsedHeight = isSmall ? 620 : 750;
+  const serviceExpandedHeight = isSmall ? 780 : 910;
+  const itemModalDefaultHeight = isServiceModal
+    ? (showAdvancedServiceFields ? serviceExpandedHeight : serviceCollapsedHeight)
+    : (showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight);
+  const itemModalMinHeight = isServiceModal
+    ? (showAdvancedServiceFields ? (isSmall ? 780 : 910) : (isSmall ? 620 : 740))
+    : (showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight);
   const primaryTypeFields =
     isServiceModal
       ? typeFields.filter(([key]) => !collapsedServiceFieldKeys.has(key))
@@ -3160,25 +3170,46 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     }
   }
 
-  const handleAdvancedBookmarkToggle = useCallback(
+  const handleAdvancedServiceToggle = useCallback(
     (expanded) => {
-      if (!isBookmarkModal) {
-        setShowAdvancedBookmarkFields(expanded);
-        return;
-      }
+      setShowAdvancedServiceFields(expanded);
 
-      const currentRect = bookmarkWindowApiRef.current?.windowRect;
+      const currentRect = windowApiRef.current?.windowRect;
       if (currentRect) {
-        const targetHeight = expanded ? Math.max(currentRect.height, bookmarkExpandedHeight) : bookmarkCollapsedHeight;
-        bookmarkWindowApiRef.current?.setWindowRect((current) =>
+        const targetHeight = expanded ? Math.max(currentRect.height, serviceExpandedHeight) : serviceCollapsedHeight;
+        windowApiRef.current?.setWindowRect((current) =>
           current
             ? clampEditorWindow(
                 {
                   ...current,
                   height: targetHeight,
                 },
-                620,
-                expanded ? 520 : 360,
+                isSmallViewport() ? 680 : 760,
+                expanded ? (isSmallViewport() ? 780 : 910) : (isSmallViewport() ? 620 : 740),
+              )
+            : current,
+        );
+      }
+    },
+    [serviceCollapsedHeight, serviceExpandedHeight],
+  );
+
+  const handleAdvancedBookmarkToggle = useCallback(
+    (expanded) => {
+      setShowAdvancedBookmarkFields(expanded);
+
+      const currentRect = windowApiRef.current?.windowRect;
+      if (currentRect) {
+        const targetHeight = expanded ? Math.max(currentRect.height, bookmarkExpandedHeight) : bookmarkCollapsedHeight;
+        windowApiRef.current?.setWindowRect((current) =>
+          current
+            ? clampEditorWindow(
+                {
+                  ...current,
+                  height: targetHeight,
+                },
+                isSmallViewport() ? 680 : 760,
+                isSmallViewport() ? 550 : 650,
               )
             : current,
         );
@@ -3190,31 +3221,14 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           window.localStorage.setItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY, "100");
         }
       }
-
-      setShowAdvancedBookmarkFields(expanded);
     },
-    [bookmarkCollapsedHeight, bookmarkExpandedHeight, isBookmarkModal],
+    [bookmarkCollapsedHeight, bookmarkExpandedHeight],
   );
 
-  const fieldsBlock = (
+  const mainFieldsBlock = (
     <div className="space-y-3">
       <Field label="Имя" value={name} onChange={setName} compact={isServiceModal} />
-      {(isServiceModal || isBookmarkModal) && (
-        <ServiceCardColorField
-          value={form.fields.id ?? ""}
-          itemName={name}
-          onChange={(value) =>
-            setForm((current) => ({
-              ...current,
-              fields: {
-                ...current.fields,
-                id: value,
-              },
-            }))
-          }
-        />
-      )}
-      <div className={classNames("grid min-w-0 gap-2", isServiceModal ? "grid-cols-3" : "md:grid-cols-2")}>
+      <div className="grid min-w-0 gap-2 grid-cols-2">
         {primaryTypeFields.map(([key, label]) => (
           <Field
             key={key}
@@ -3239,13 +3253,13 @@ function ItemModal({ modal, data, onClose, onSaved }) {
             <input
               type="checkbox"
               checked={showAdvancedServiceFields}
-              onChange={(event) => setShowAdvancedServiceFields(event.target.checked)}
+              onChange={(event) => handleAdvancedServiceToggle(event.target.checked)}
               className="h-4 w-4"
             />
             Дополнительные поля
           </label>
           {showAdvancedServiceFields && (
-            <div className="mt-3 grid min-w-0 gap-2 grid-cols-3">
+            <div className="mt-3 grid min-w-0 gap-2 grid-cols-2">
               {advancedServiceFields.map(([key, label]) => (
                 <Field
                   key={key}
@@ -3303,6 +3317,91 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     </div>
   );
 
+  const styleFieldsBlock = (
+    <div className="space-y-4">
+      {(isServiceModal || isBookmarkModal) && (
+        <ServiceCardColorField
+          value={form.fields.id ?? ""}
+          itemName={name}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              fields: {
+                ...current.fields,
+                id: value,
+              },
+            }))
+          }
+        />
+      )}
+      <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10 bg-theme-100/5 dark:bg-white/5">
+        <p className="mb-3 text-xs font-semibold text-theme-700 dark:text-theme-200">Настройки заголовка (Title style)</p>
+        <div className="space-y-3">
+          <Field
+            name="titleColor"
+            label="Цвет заголовка"
+            value={form.fields.titleColor ?? ""}
+            compact={isServiceModal}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  titleColor: value,
+                },
+              }))
+            }
+          />
+          <Field
+            name="titleAlign"
+            label="Выравнивание"
+            value={form.fields.titleAlign ?? ""}
+            compact={isServiceModal}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  titleAlign: value,
+                },
+              }))
+            }
+          />
+          <Field
+            name="titleSize"
+            label="Размер шрифта"
+            value={form.fields.titleSize ?? ""}
+            compact={isServiceModal}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  titleSize: value,
+                },
+              }))
+            }
+          />
+          <Field
+            name="titleFont"
+            label="Шрифт"
+            value={form.fields.titleFont ?? ""}
+            compact={isServiceModal}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  titleFont: value,
+                },
+              }))
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   const errorBlock = error && (
     <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>
   );
@@ -3344,57 +3443,74 @@ function ItemModal({ modal, data, onClose, onSaved }) {
 
   return (
     <EditorWindow
-      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}`}
+      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}-v19`}
       title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
       onClose={onClose}
-      defaultWidth={isServiceModal ? 1040 : bookmarkWindowWidth}
+      defaultWidth={isServiceModal ? (isSmall ? 920 : 1100) : bookmarkWindowWidth}
       defaultHeight={itemModalDefaultHeight}
-      minWidth={isServiceModal ? 760 : 620}
+      minWidth={isSmall ? 680 : 760}
       minHeight={itemModalMinHeight}
-      windowApiRef={isBookmarkModal ? bookmarkWindowApiRef : null}
+      windowApiRef={windowApiRef}
     >
       {isBookmarkModal ? (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            {fieldsBlock}
-            {showAdvancedBookmarkFields && (
-              <div className="mt-3 flex min-h-0 min-w-0 flex-col">
-                <CodeEditor
-                  label="Другие YAML-ключи"
-                  language="yaml"
-                  value={form.extraYaml}
-                  onChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      extraYaml: value,
-                    }))
-                  }
-                  minHeightClassName="h-[20rem] min-h-[20rem]"
-                  zoomStorageKey={BOOKMARK_YAML_ZOOM_STORAGE_KEY}
-                  placeholder="custom:\n  key: value"
-                />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div ref={contentRef} className="flex min-w-0 flex-1 min-h-0 flex-col pr-1 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6 flex-1 min-h-0">
+              <div className="flex flex-col min-w-0 space-y-3 flex-1 min-h-0">
+                {mainFieldsBlock}
+                {showAdvancedBookmarkFields && (
+                  <div className="flex min-w-0 flex-1 min-h-0 flex-col border-t border-theme-300/30 dark:border-white/5 pt-3">
+                    <CodeEditor
+                      label="Другие YAML-ключи"
+                      language="yaml"
+                      value={form.extraYaml}
+                      onChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          extraYaml: value,
+                        }))
+                      }
+                      minHeightClassName="min-h-[6rem]"
+                      fillAvailableHeight
+                      zoomStorageKey={BOOKMARK_YAML_ZOOM_STORAGE_KEY}
+                      placeholder="custom:\n  key: value"
+                    />
+                  </div>
+                )}
               </div>
-            )}
+              <div className="flex flex-col min-w-0 space-y-3 border-t md:border-t-0 md:border-l border-theme-300/30 dark:border-white/5 md:pl-4">
+                {styleFieldsBlock}
+              </div>
+            </div>
             {errorBlock && <div className="mt-4">{errorBlock}</div>}
           </div>
           <div className="mt-4 shrink-0">{footerBlock}</div>
         </div>
       ) : (
         <>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {fieldsBlock}
-            <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
-              <WidgetTemplateSelector
-                extraYaml={form.extraYaml}
-                onChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    extraYaml: value,
-                  }))
-                }
-              />
+          <div ref={contentRef} className="flex min-w-0 flex-1 min-h-0 flex-col pr-1 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6">
+              <div className="flex flex-col min-w-0 space-y-3">
+                {mainFieldsBlock}
+                <div className="mt-3">
+                  <WidgetTemplateSelector
+                    extraYaml={form.extraYaml}
+                    onChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        extraYaml: value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col min-w-0 space-y-3 border-t md:border-t-0 md:border-l border-theme-300/30 dark:border-white/5 md:pl-4">
+                {styleFieldsBlock}
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-1 min-h-0 flex-col border-t border-theme-300/30 dark:border-white/5 pt-3">
               <CodeEditor
-                label="Advanced YAML"
+                label="Расширенный YAML"
                 language="yaml"
                 value={form.extraYaml}
                 onChange={(value) =>
@@ -3403,7 +3519,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
                     extraYaml: value,
                   }))
                 }
-                minHeightClassName="min-h-[20rem]"
+                minHeightClassName="min-h-[6rem]"
                 fillAvailableHeight
                 zoomStorageKey="homepage-browser-editor-code-zoom-item-services"
                 placeholder="widget:\n  type: customapi\n  url: http://example.local"
@@ -3417,7 +3533,6 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     </EditorWindow>
   );
 }
-
 
 const WIDGET_TEMPLATES = {
   "argocd": "widget:\n  type: argocd\n  url: http://argocd.host.or.ip:port\n  key: argocdapikey",
@@ -3692,163 +3807,163 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
   const widget = parsed?.widget;
 
   const allWidgetTypes = [
-  "adguard-home",
-  "apcups",
-  "arcane",
-  "argocd",
-  "atsumeru",
-  "audiobookshelf",
-  "authentik",
-  "autobrr",
-  "azuredevops",
-  "backrest",
-  "bazarr",
-  "beszel",
-  "booklore",
-  "caddy",
-  "calendar",
-  "calibre-web",
-  "changedetectionio",
-  "channelsdvrserver",
-  "checkmk",
-  "cloudflared",
-  "coin-market-cap",
-  "crowdsec",
-  "customapi",
-  "deluge",
-  "develancacheui",
-  "diskstation",
-  "dispatcharr",
-  "dockhand",
-  "downloadstation",
-  "emby",
-  "esphome",
-  "evcc",
-  "filebrowser",
-  "fileflows",
-  "firefly",
-  "flood",
-  "freshrss",
-  "frigate",
-  "fritzbox",
-  "gamedig",
-  "gatus",
-  "ghostfolio",
-  "gitea",
-  "gitlab",
-  "glances",
-  "gluetun",
-  "gotify",
-  "grafana",
-  "hdhomerun",
-  "headscale",
-  "healthchecks",
-  "homeassistant",
-  "homebox",
-  "homebridge",
-  "iframe",
-  "immich",
-  "jackett",
-  "jdownloader",
-  "jellyfin",
-  "jellystat",
-  "karakeep",
-  "kavita",
-  "komga",
-  "komodo",
-  "kopia",
-  "lidarr",
-  "linkwarden",
-  "lubelogger",
-  "mailcow",
-  "mastodon",
-  "mealie",
-  "medusa",
-  "mikrotik",
-  "minecraft",
-  "miniflux",
-  "mjpeg",
-  "moonraker",
-  "mylar",
-  "myspeed",
-  "navidrome",
-  "netalertx",
-  "netdata",
-  "nextcloud",
-  "nextdns",
-  "nginx-proxy-manager",
-  "ntfy",
-  "nzbget",
-  "octoprint",
-  "omada",
-  "ombi",
-  "opendtu",
-  "openmediavault",
-  "openwrt",
-  "opnsense",
-  "pangolin",
-  "paperlessngx",
-  "peanut",
-  "pfsense",
-  "photoprism",
-  "pihole",
-  "plantit",
-  "plex",
-  "plex-tautulli",
-  "portainer",
-  "prometheus",
-  "prometheusmetric",
-  "prowlarr",
-  "proxmox",
-  "proxmoxbackupserver",
-  "pterodactyl",
-  "pyload",
-  "qbittorrent",
-  "qnap",
-  "radarr",
-  "readarr",
-  "romm",
-  "rutorrent",
-  "sabnzbd",
-  "scrutiny",
-  "seerr",
-  "slskd",
-  "sonarr",
-  "sparkyfitness",
-  "speedtest-tracker",
-  "spoolman",
-  "stash",
-  "stocks",
-  "suwayomi",
-  "swagdashboard",
-  "syncthing-relay-server",
-  "tailscale",
-  "tandoor",
-  "tdarr",
-  "technitium",
-  "torrsyncarr",
-  "tracearr",
-  "traefik",
-  "transmission",
-  "trilium",
-  "truenas",
-  "tubearchivist",
-  "unifi-controller",
-  "unifi-drive",
-  "unmanic",
-  "unraid",
-  "uptime-kuma",
-  "uptimerobot",
-  "urbackup",
-  "vikunja",
-  "wallos",
-  "watchtower",
-  "wgeasy",
-  "whatsupdocker",
-  "xteve",
-  "yourspotify",
-  "zabbix"
-];
+    "adguard-home",
+    "apcups",
+    "arcane",
+    "argocd",
+    "atsumeru",
+    "audiobookshelf",
+    "authentik",
+    "autobrr",
+    "azuredevops",
+    "backrest",
+    "bazarr",
+    "beszel",
+    "booklore",
+    "caddy",
+    "calendar",
+    "calibre-web",
+    "changedetectionio",
+    "channelsdvrserver",
+    "checkmk",
+    "cloudflared",
+    "coin-market-cap",
+    "crowdsec",
+    "customapi",
+    "deluge",
+    "develancacheui",
+    "diskstation",
+    "dispatcharr",
+    "dockhand",
+    "downloadstation",
+    "emby",
+    "esphome",
+    "evcc",
+    "filebrowser",
+    "fileflows",
+    "firefly",
+    "flood",
+    "freshrss",
+    "frigate",
+    "fritzbox",
+    "gamedig",
+    "gatus",
+    "ghostfolio",
+    "gitea",
+    "gitlab",
+    "glances",
+    "gluetun",
+    "gotify",
+    "grafana",
+    "hdhomerun",
+    "headscale",
+    "healthchecks",
+    "homeassistant",
+    "homebox",
+    "homebridge",
+    "iframe",
+    "immich",
+    "jackett",
+    "jdownloader",
+    "jellyfin",
+    "jellystat",
+    "karakeep",
+    "kavita",
+    "komga",
+    "komodo",
+    "kopia",
+    "lidarr",
+    "linkwarden",
+    "lubelogger",
+    "mailcow",
+    "mastodon",
+    "mealie",
+    "medusa",
+    "mikrotik",
+    "minecraft",
+    "miniflux",
+    "mjpeg",
+    "moonraker",
+    "mylar",
+    "myspeed",
+    "navidrome",
+    "netalertx",
+    "netdata",
+    "nextcloud",
+    "nextdns",
+    "nginx-proxy-manager",
+    "ntfy",
+    "nzbget",
+    "octoprint",
+    "omada",
+    "ombi",
+    "opendtu",
+    "openmediavault",
+    "openwrt",
+    "opnsense",
+    "pangolin",
+    "paperlessngx",
+    "peanut",
+    "pfsense",
+    "photoprism",
+    "pihole",
+    "plantit",
+    "plex",
+    "plex-tautulli",
+    "portainer",
+    "prometheus",
+    "prometheusmetric",
+    "prowlarr",
+    "proxmox",
+    "proxmoxbackupserver",
+    "pterodactyl",
+    "pyload",
+    "qbittorrent",
+    "qnap",
+    "radarr",
+    "readarr",
+    "romm",
+    "rutorrent",
+    "sabnzbd",
+    "scrutiny",
+    "seerr",
+    "slskd",
+    "sonarr",
+    "sparkyfitness",
+    "speedtest-tracker",
+    "spoolman",
+    "stash",
+    "stocks",
+    "suwayomi",
+    "swagdashboard",
+    "syncthing-relay-server",
+    "tailscale",
+    "tandoor",
+    "tdarr",
+    "technitium",
+    "torrsyncarr",
+    "tracearr",
+    "traefik",
+    "transmission",
+    "trilium",
+    "truenas",
+    "tubearchivist",
+    "unifi-controller",
+    "unifi-drive",
+    "unmanic",
+    "unraid",
+    "uptime-kuma",
+    "uptimerobot",
+    "urbackup",
+    "vikunja",
+    "wallos",
+    "watchtower",
+    "wgeasy",
+    "whatsupdocker",
+    "xteve",
+    "yourspotify",
+    "zabbix"
+  ];
 
   let currentType = "";
   if (widget) {
@@ -3874,7 +3989,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
         try {
           const templateObj = yaml.load(templateStr);
           Object.assign(obj, templateObj);
-        } catch {
+        } catch (e) {
           obj.widget = {
             type: newType,
             url: "http://ip-address:port",
@@ -3891,7 +4006,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     try {
       const nextYaml = Object.keys(obj).length ? yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }) : "";
       onChange(nextYaml);
-    } catch {
+    } catch (e) {
       // ignore
     }
   };
@@ -3904,7 +4019,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     try {
       const nextYaml = yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false });
       onChange(nextYaml);
-    } catch {
+    } catch (e) {
       // ignore
     }
   };
@@ -5664,6 +5779,62 @@ export function ConfigEditorProvider({ children }) {
 
   return (
     <ConfigEditorContext.Provider value={value}>
+      <style>{`
+        @media (max-width: 2000px), (max-height: 1200px) {
+          .editor-window {
+            font-size: 13px !important;
+          }
+          .editor-window h2 {
+            font-size: 15px !important;
+          }
+          .editor-window input,
+          .editor-window select,
+          .editor-window textarea {
+            font-size: 13px !important;
+            padding-top: 4px !important;
+            padding-bottom: 4px !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          .editor-window label {
+            font-size: 11px !important;
+          }
+          .editor-window button {
+            font-size: 12px !important;
+            padding-top: 4px !important;
+            padding-bottom: 4px !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          .editor-window .p-4 {
+            padding: 10px !important;
+          }
+          .editor-window .gap-6 {
+            gap: 12px !important;
+          }
+          .editor-window .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 6px !important;
+          }
+          .editor-window .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 8px !important;
+          }
+          .editor-window .mt-4 {
+            margin-top: 8px !important;
+          }
+          .editor-window .mt-3 {
+            margin-top: 6px !important;
+          }
+          .editor-window .pt-3 {
+            padding-top: 6px !important;
+          }
+          .editor-window .mb-3 {
+            margin-bottom: 6px !important;
+          }
+          .editor-window .react-simple-code-editor {
+            font-size: 12px !important;
+          }
+        }
+      `}</style>
       {children}
       {editMode ? (
         <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
