@@ -1,5 +1,5 @@
 diff --git a/next.config.js b/next.config.js
-index ea49bf54..7426606f 100644
+index ea49bf5..7426606 100644
 --- a/next.config.js
 +++ b/next.config.js
 @@ -1,9 +1,19 @@
@@ -23,7 +23,7 @@ index ea49bf54..7426606f 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..af3ee260 100644
+index 88d4d7e..af3ee26 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
@@ -94,7 +94,7 @@ index 88d4d7e8..af3ee260 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..edeeeb54 100644
+index 7ea16bb..edeeeb5 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
 @@ -1,24 +1,100 @@
@@ -236,7 +236,7 @@ index 7ea16bba..edeeeb54 100644
    );
  }
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index f24794db..23c8c3bd 100644
+index f24794d..23c8c3b 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
 @@ -1,9 +1,10 @@
@@ -278,7 +278,7 @@ index f24794db..23c8c3bd 100644
    );
  }
 diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index 77ba9119..9360b160 100644
+index 77ba911..9360b16 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
 @@ -1,8 +1,34 @@
@@ -392,7 +392,7 @@ index 77ba9119..9360b160 100644
        height={height}
        style={{
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 403f6063..fcdf4b3f 100644
+index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
 @@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
@@ -494,7 +494,7 @@ index 403f6063..fcdf4b3f 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..9c53cc03 100644
+index c23e16a..9c53cc0 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,5 +1,6 @@
@@ -533,7 +533,7 @@ index c23e16a2..9c53cc03 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..531ba65d 100644
+index 1acf94d..531ba65 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
 @@ -1,25 +1,37 @@
@@ -577,7 +577,7 @@ index 1acf94d6..531ba65d 100644
    );
  }
 diff --git a/src/pages/api/config/[path].js b/src/pages/api/config/[path].js
-index b69ddff5..c74277d5 100644
+index b69ddff..c74277d 100644
 --- a/src/pages/api/config/[path].js
 +++ b/src/pages/api/config/[path].js
 @@ -26,6 +26,7 @@ export default async function handler(req, res) {
@@ -589,7 +589,7 @@ index b69ddff5..c74277d5 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index a51313e0..39ffab63 100644
+index a51313e..feed837 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -727,10 +727,7 @@ index a51313e0..39ffab63 100644
 +
 +      return getGroupLayout(settings.layout ?? {}, type, groupName);
 +    };
- 
--    const layoutGroups = Object.keys(settings.layout ?? {})
--      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
--      .filter(tabGroupFilter);
++
 +    const tabGroupFilter = (type, groupName) =>
 +      [activeTab, ""].includes(slugifyAndEncode(getLayoutForGroup(type, groupName)?.tab));
 +    const undefinedGroupFilter = (type, groupName) => getLayoutForGroup(type, groupName) === undefined;
@@ -751,7 +748,10 @@ index a51313e0..39ffab63 100644
 +        if (bookmarkMap.has(groupName)) {
 +          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
 +        }
-+
+ 
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
+-      .filter(tabGroupFilter);
 +        return { type: "services", group: { name: groupName, services: [], groups: [] } };
 +      })
 +      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
@@ -902,7 +902,31 @@ index a51313e0..39ffab63 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -438,12 +542,13 @@ function Home({ initialSettings }) {
+@@ -434,16 +538,37 @@ function Home({ initialSettings }) {
+         <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="color-scheme" content="dark light"></meta>
++        
++        <link rel="preconnect" href="https://fonts.googleapis.com" />
++        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
++        <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
++
++        <style>{`
++          #tabs ul li button.tab-style-pill {
++            border-radius: 9999px !important;
++          }
++          #tabs ul li button.tab-style-card {
++            border-radius: 0.375rem !important;
++          }
++          #tabs ul li button.tab-style-underline {
++            border-radius: 0px !important;
++          }
++          #tabs ul li button.tab-style-underline[aria-selected="true"] {
++            border-bottom-width: 2px !important;
++            border-radius: 0px !important;
++          }
++        `}</style>
+       </Head>
  
        <Script src="/api/config/custom.js" />
  
@@ -922,7 +946,7 @@ index a51313e0..39ffab63 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -465,11 +570,13 @@ function Home({ initialSettings }) {
+@@ -465,11 +590,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -940,7 +964,7 @@ index a51313e0..39ffab63 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -482,11 +589,13 @@ function Home({ initialSettings }) {
+@@ -482,11 +609,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -958,7 +982,7 @@ index a51313e0..39ffab63 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -496,7 +605,7 @@ function Home({ initialSettings }) {
+@@ -496,7 +625,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -967,7 +991,7 @@ index a51313e0..39ffab63 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -509,7 +618,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +638,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

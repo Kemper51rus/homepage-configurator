@@ -5374,10 +5374,23 @@ function PageStylingEditor({ settingsContent, onChange }) {
     ["Comfortaa", "Comfortaa"],
     ["Inter", "Inter"],
     ["Roboto", "Roboto"],
+    ["Outfit", "Outfit"],
     ["system-ui", "Системный"],
     ["Arial", "Arial"],
     ["Georgia", "Georgia"],
     ["Courier New", "Monospace"],
+  ];
+
+  const fontSizes = [
+    ["", "По умолчанию (14px)"],
+    ["12px", "Очень маленький (12px)"],
+    ["13px", "Маленький (13px)"],
+    ["14px", "Стандартный (14px)"],
+    ["15px", "Средний (15px)"],
+    ["16px", "Увеличенный (16px)"],
+    ["18px", "Крупный (18px)"],
+    ["20px", "Очень крупный (20px)"],
+    ["24px", "Огромный (24px)"],
   ];
 
   return (
@@ -5400,14 +5413,16 @@ function PageStylingEditor({ settingsContent, onChange }) {
           </label>
 
           <label className="block text-xs text-theme-600 dark:text-theme-300">
-            Размер шрифта (напр. 14px, 0.85rem)
-            <input
-              type="text"
-              placeholder="По умолчанию (14px)"
+            Размер шрифта
+            <select
               value={pageStyles.fontSize ?? ""}
               onChange={(e) => updateStyle("fontSize", e.target.value)}
               className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-            />
+            >
+              {fontSizes.map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
           </label>
 
           <label className="block text-xs text-theme-600 dark:text-theme-300">
@@ -6200,16 +6215,29 @@ export function EditorPageTab({ tab }) {
   ) : null;
 
   const buttonStyle = {};
+  const textStyle = {};
+
+  const fontFamily = pageStyles.fontFamily;
+  const fontSize = pageStyles.fontSize;
+  if (fontFamily) {
+    buttonStyle.fontFamily = fontFamily;
+  }
+  if (fontSize) {
+    buttonStyle.fontSize = fontSize;
+  }
+
   if (matchesTab && (activeColor || borderColor)) {
     buttonStyle.color = activeColor || borderColor;
+    textStyle.color = activeColor || borderColor;
   } else if (!matchesTab && inactiveColor) {
     buttonStyle.color = inactiveColor;
+    textStyle.color = inactiveColor;
   }
 
   let buttonClasses = "";
   if (borderStyle === "underline") {
     buttonClasses = classNames(
-      "w-full rounded-none m-1 pb-1 transition-all",
+      "w-full rounded-none m-1 pb-1 transition-all tab-style-underline",
       matchesTab ? "border-b-2" : "hover:border-b-2 hover:border-theme-300/30 dark:hover:border-white/10",
     );
     if (matchesTab && (borderColor || activeColor)) {
@@ -6217,7 +6245,7 @@ export function EditorPageTab({ tab }) {
     }
   } else if (borderStyle === "pill") {
     buttonClasses = classNames(
-      "w-full rounded-full m-1 transition-all",
+      "w-full rounded-full m-1 transition-all tab-style-pill",
       matchesTab ? "" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
     if (matchesTab) {
@@ -6228,7 +6256,7 @@ export function EditorPageTab({ tab }) {
     }
   } else if (borderStyle === "card") {
     buttonClasses = classNames(
-      "w-full rounded-md m-1 border transition-all",
+      "w-full rounded-md m-1 border transition-all tab-style-card",
       matchesTab ? "bg-theme-100/10 dark:bg-white/5" : "border-transparent hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
     if (matchesTab && borderColor) {
@@ -6369,9 +6397,9 @@ export function EditorPageTab({ tab }) {
           activateTab();
         }}
       >
-        <span className="flex items-center justify-center w-full h-full" style={buttonStyle}>
+        <span className="flex items-center justify-center w-full h-full" style={textStyle}>
           {iconEl}
-          <span style={buttonStyle}>{tab}</span>
+          <span style={textStyle}>{tab}</span>
         </span>
       </button>
     </li>
