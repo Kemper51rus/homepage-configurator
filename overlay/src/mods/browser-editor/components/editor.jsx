@@ -5328,6 +5328,18 @@ function PageStylingEditor({ settingsContent, onChange }) {
             <div className="w-full border-t border-theme-300/30 dark:border-white/5 mt-0.5"></div>
           </div>
         );
+      case "underline-rounded":
+        return (
+          <div className="mt-2 flex flex-col items-center justify-center rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
+            <div className="flex gap-1.5 w-full justify-center">
+              <span className="text-[10px] px-2 pb-1 relative text-theme-950 dark:text-white font-semibold">
+                Active
+                <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-theme-600 dark:bg-white/50"></span>
+              </span>
+              <span className="text-[10px] px-2 pb-1 opacity-60">Tab</span>
+            </div>
+          </div>
+        );
       case "outline":
         return (
           <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-theme-300/60 dark:border-white/20 w-full">
@@ -5357,6 +5369,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
   const borderStyles = [
     ["none", "Без рамки"],
     ["underline", "Подчеркивание"],
+    ["underline-rounded", "Подчеркивание (скруглённое)"],
     ["outline", "Рамка контейнера"],
     ["pill", "Пилюли"],
     ["card", "Карточки"],
@@ -6243,6 +6256,16 @@ export function EditorPageTab({ tab }) {
     if (matchesTab && (borderColor || activeColor)) {
       buttonStyle.borderBottomColor = borderColor || activeColor;
     }
+  } else if (borderStyle === "underline-rounded") {
+    buttonClasses = classNames(
+      "w-full rounded-none m-1 pb-1 transition-all tab-style-underline-rounded",
+    );
+    if (matchesTab && (borderColor || activeColor)) {
+      buttonStyle["--underline-color"] = borderColor || activeColor;
+    }
+    if (!matchesTab && inactiveColor) {
+      buttonStyle["--underline-hover-color"] = inactiveColor;
+    }
   } else if (borderStyle === "pill") {
     buttonClasses = classNames(
       "w-full rounded-full m-1 transition-all tab-style-pill",
@@ -6253,6 +6276,7 @@ export function EditorPageTab({ tab }) {
         ? (borderColor.length === 4 ? borderColor + borderColor.substring(1) : borderColor) + "26"
         : "rgba(59, 130, 246, 0.15)";
       buttonStyle.backgroundColor = tintColor;
+      buttonStyle["--pill-bg-color"] = tintColor;
     }
   } else if (borderStyle === "card") {
     buttonClasses = classNames(
@@ -6271,7 +6295,7 @@ export function EditorPageTab({ tab }) {
     );
   }
 
-  if (editMode) {
+  if (editMode && borderStyle === "none") {
     buttonClasses = classNames(
       buttonClasses,
       "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",

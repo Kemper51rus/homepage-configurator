@@ -589,7 +589,7 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index a51313e..feed837 100644
+index a51313e..9c320f2 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -744,14 +744,14 @@ index a51313e..feed837 100644
 +        if (serviceMap.has(groupName)) {
 +          return { type: "services", group: serviceMap.get(groupName) };
 +        }
-+
-+        if (bookmarkMap.has(groupName)) {
-+          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
-+        }
  
 -    const layoutGroups = Object.keys(settings.layout ?? {})
 -      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
 -      .filter(tabGroupFilter);
++        if (bookmarkMap.has(groupName)) {
++          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
++        }
++
 +        return { type: "services", group: { name: groupName, services: [], groups: [] } };
 +      })
 +      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
@@ -902,7 +902,7 @@ index a51313e..feed837 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -434,16 +538,37 @@ function Home({ initialSettings }) {
+@@ -434,16 +538,92 @@ function Home({ initialSettings }) {
          <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="color-scheme" content="dark light"></meta>
@@ -915,16 +915,71 @@ index a51313e..feed837 100644
 +          #tabs ul li button.tab-style-pill {
 +            border-radius: 9999px !important;
 +          }
++          #tabs ul li button.tab-style-pill[aria-selected="true"] {
++            background-color: var(--pill-bg-color, rgba(59, 130, 246, 0.15)) !important;
++          }
 +          #tabs ul li button.tab-style-card {
 +            border-radius: 0.375rem !important;
 +          }
++          #tabs ul li button.tab-style-card[aria-selected="true"] {
++            background-color: rgba(156, 163, 175, 0.1) !important;
++          }
 +          #tabs ul li button.tab-style-underline {
 +            border-radius: 0px !important;
++            background-color: transparent !important;
 +          }
 +          #tabs ul li button.tab-style-underline[aria-selected="true"] {
 +            border-bottom-width: 2px !important;
 +            border-radius: 0px !important;
++            background-color: transparent !important;
 +          }
++          #tabs ul li button.tab-style-underline-rounded {
++            position: relative !important;
++            border-radius: 0px !important;
++            border-bottom: none !important;
++            overflow: visible !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"] {
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded::after {
++            content: "" !important;
++            display: block !important;
++            position: absolute !important;
++            bottom: 2px !important;
++            left: 12.5% !important;
++            width: 75% !important;
++            height: 3px !important;
++            border-radius: 9999px !important;
++            background-color: transparent !important;
++            z-index: 10 !important;
++            transition: all 0.2s ease-in-out !important;
++            transform: scaleX(0) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]::after {
++            background-color: var(--underline-color, currentColor) !important;
++            transform: scaleX(1) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded:hover::after {
++            background-color: var(--underline-hover-color, rgba(156, 163, 175, 0.3)) !important;
++            transform: scaleX(0.7) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]:hover::after {
++            transform: scaleX(1) !important;
++          }
++          
++          ${settings.pageStyles?.fontFamily ? `
++            #tabs ul, #tabs ul li button, #tabs ul li button span {
++              font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
++            }
++          ` : ''}
++          
++          ${settings.pageStyles?.fontSize ? `
++            #tabs ul li button, #tabs ul li button span {
++              font-size: ${settings.pageStyles.fontSize} !important;
++            }
++          ` : ''}
 +        `}</style>
        </Head>
  
@@ -946,7 +1001,7 @@ index a51313e..feed837 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -465,11 +590,13 @@ function Home({ initialSettings }) {
+@@ -465,11 +645,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -964,7 +1019,7 @@ index a51313e..feed837 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -482,11 +609,13 @@ function Home({ initialSettings }) {
+@@ -482,11 +664,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -982,7 +1037,7 @@ index a51313e..feed837 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -496,7 +625,7 @@ function Home({ initialSettings }) {
+@@ -496,7 +680,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -991,7 +1046,7 @@ index a51313e..feed837 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -509,7 +638,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +693,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>
