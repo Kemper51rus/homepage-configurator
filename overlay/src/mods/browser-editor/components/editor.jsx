@@ -9,6 +9,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
 import { TabContext } from "utils/contexts/tab";
 import { ThemeContext } from "utils/contexts/theme";
+import ResolvedIcon from "components/resolvedicon";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 import {
   bookmarkFields,
@@ -5264,10 +5265,250 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
 }
 
 
-function ConfigFilesModal({ tabs, onClose, onSaved }) {
+function PageStylingEditor({ settingsContent, onChange }) {
+  const editor = useConfigEditor();
+  const config = useMemo(() => {
+    try {
+      return yaml.load(settingsContent) ?? {};
+    } catch {
+      return {};
+    }
+  }, [settingsContent]);
+
+  const pageStyles = config.pageStyles ?? {};
+  const pageIcons = pageStyles.icons ?? {};
+
+  const tabsList = useMemo(() => {
+    return getOrderedTabsForLayout(config.layout ?? {}, config.__browserEditorTabOrder ?? []);
+  }, [config]);
+
+  const updateStyle = (key, value) => {
+    const nextConfig = { ...config };
+    if (!nextConfig.pageStyles) {
+      nextConfig.pageStyles = {};
+    }
+    nextConfig.pageStyles = {
+      ...nextConfig.pageStyles,
+      [key]: value,
+    };
+    onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
+  };
+
+  const updateIcon = (tabName, iconVal) => {
+    const nextConfig = { ...config };
+    if (!nextConfig.pageStyles) {
+      nextConfig.pageStyles = {};
+    }
+    const nextIcons = { ...(nextConfig.pageStyles.icons ?? {}) };
+    if (!iconVal) {
+      delete nextIcons[tabName];
+    } else {
+      nextIcons[tabName] = iconVal;
+    }
+    nextConfig.pageStyles.icons = nextIcons;
+    onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
+  };
+
+  const borderStyles = [
+    ["none", "Без рамки"],
+    ["underline", "Подчеркивание"],
+    ["outline", "Рамка контейнера"],
+    ["pill", "Пилюли"],
+    ["card", "Карточки"],
+  ];
+
+  const alignments = [
+    ["start", "Слева (left)"],
+    ["center", "По центру (center)"],
+    ["end", "Справа (right)"],
+    ["between", "Распределить (fill row)"],
+  ];
+
+  const fonts = [
+    ["", "По умолчанию"],
+    ["Comfortaa", "Comfortaa"],
+    ["Inter", "Inter"],
+    ["Roboto", "Roboto"],
+    ["system-ui", "Системный"],
+    ["Arial", "Arial"],
+    ["Georgia", "Georgia"],
+    ["Courier New", "Monospace"],
+  ];
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2">
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
+          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Стиль вкладок страниц</h3>
+          
+          <label className="block text-xs text-theme-600 dark:text-theme-300">
+            Шрифт
+            <select
+              value={pageStyles.fontFamily ?? ""}
+              onChange={(e) => updateStyle("fontFamily", e.target.value)}
+              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+            >
+              {fonts.map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs text-theme-600 dark:text-theme-300">
+            Размер шрифта (напр. 14px, 0.85rem)
+            <input
+              type="text"
+              placeholder="По умолчанию (14px)"
+              value={pageStyles.fontSize ?? ""}
+              onChange={(e) => updateStyle("fontSize", e.target.value)}
+              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+            />
+          </label>
+
+          <label className="block text-xs text-theme-600 dark:text-theme-300">
+            Выравнивание вкладок
+            <select
+              value={pageStyles.align ?? "start"}
+              onChange={(e) => updateStyle("align", e.target.value)}
+              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+            >
+              {alignments.map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="block text-xs text-theme-600 dark:text-theme-300">
+            Эффект / Тип бордюра
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              {borderStyles.map(([val, label]) => {
+                const isSelected = (pageStyles.borderStyle ?? "none") === val;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => updateStyle("borderStyle", val)}
+                    className={classNames(
+                      "rounded-md border p-2 text-center text-xs font-medium cursor-pointer transition-colors",
+                      isSelected
+                        ? "border-theme-500 bg-theme-500/20 text-theme-900 dark:border-white/40 dark:bg-white/10 dark:text-theme-100"
+                        : "border-theme-300/50 bg-theme-50/30 text-theme-700 hover:bg-theme-50/70 dark:border-white/10 dark:bg-theme-900/30 dark:text-theme-300 dark:hover:bg-theme-900/50"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Активный текст
+              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
+                <input
+                  type="text"
+                  placeholder="#ffffff"
+                  value={pageStyles.activeColor ?? ""}
+                  onChange={(e) => updateStyle("activeColor", e.target.value)}
+                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
+                />
+                <input
+                  type="color"
+                  value={pageStyles.activeColor && pageStyles.activeColor.startsWith('#') && (pageStyles.activeColor.length === 4 || pageStyles.activeColor.length === 7) ? pageStyles.activeColor : "#ffffff"}
+                  onChange={(e) => updateStyle("activeColor", e.target.value)}
+                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+                />
+              </div>
+            </label>
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Неактивный текст
+              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
+                <input
+                  type="text"
+                  placeholder="#a0aec0"
+                  value={pageStyles.inactiveColor ?? ""}
+                  onChange={(e) => updateStyle("inactiveColor", e.target.value)}
+                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
+                />
+                <input
+                  type="color"
+                  value={pageStyles.inactiveColor && pageStyles.inactiveColor.startsWith('#') && (pageStyles.inactiveColor.length === 4 || pageStyles.inactiveColor.length === 7) ? pageStyles.inactiveColor : "#a0aec0"}
+                  onChange={(e) => updateStyle("inactiveColor", e.target.value)}
+                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+                />
+              </div>
+            </label>
+            <label className="block text-xs text-theme-600 dark:text-theme-300 col-span-2">
+              Цвет бордюра / Подчеркивания
+              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
+                <input
+                  type="text"
+                  placeholder="#3fb1db"
+                  value={pageStyles.borderColor ?? ""}
+                  onChange={(e) => updateStyle("borderColor", e.target.value)}
+                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
+                />
+                <input
+                  type="color"
+                  value={pageStyles.borderColor && pageStyles.borderColor.startsWith('#') && (pageStyles.borderColor.length === 4 || pageStyles.borderColor.length === 7) ? pageStyles.borderColor : "#3fb1db"}
+                  onChange={(e) => updateStyle("borderColor", e.target.value)}
+                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+                />
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col min-h-[300px]">
+          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Иконки страниц (вкладок)</h3>
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[400px]">
+            {tabsList.length === 0 ? (
+              <p className="text-xs text-theme-500 dark:text-theme-400">Нет вкладок. Создайте их в разметке групп.</p>
+            ) : (
+              tabsList.map((tabName) => {
+                const iconVal = pageIcons[tabName] ?? "";
+                return (
+                  <div key={tabName} className="flex flex-col gap-1.5 p-2 rounded-md border border-theme-300/10 dark:border-white/5 bg-theme-50/40 dark:bg-white/5">
+                    <span className="text-xs font-semibold text-theme-800 dark:text-theme-200">{tabName}</span>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="mdi-home, si-proxmox, etc."
+                        value={iconVal}
+                        onChange={(e) => updateIcon(tabName, e.target.value)}
+                        className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-xs"
+                      />
+                      {editor && typeof editor.selectIcon === "function" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            editor.selectIcon((selectedIcon) => {
+                              updateIcon(tabName, selectedIcon);
+                            });
+                          }}
+                          className="rounded-md border border-theme-300/50 bg-theme-100/50 hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 px-3 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                        >
+                          Выбрать
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const { setSettings } = useContext(SettingsContext);
-  const [activeFileName, setActiveFileName] = useState(tabs?.[0]?.fileName ?? "");
+  const { settings, setSettings } = useContext(SettingsContext);
+  const currentSettings = settings ?? initialSettings;
+  const [activeFileName, setActiveFileName] = useState("__page_styling__");
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])),
   );
@@ -5280,17 +5521,18 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
   }, [tabs]);
 
   useEffect(() => {
-    if (!tabs?.some((tab) => tab.fileName === activeFileName)) {
-      setActiveFileName(tabs?.[0]?.fileName ?? "");
+    if (activeFileName !== "__page_styling__" && !tabs?.some((tab) => tab.fileName === activeFileName)) {
+      setActiveFileName("__page_styling__");
     }
   }, [activeFileName, tabs]);
 
-  const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? tabs?.[0] ?? null;
+  const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? null;
   const activeContent = activeTab ? drafts[activeTab.fileName] ?? activeTab.content ?? "" : "";
-  const activeLanguage = detectEditorLanguage(activeTab?.format, activeTab?.fileName);
+  const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
 
   async function handleSave() {
-    if (!activeTab) {
+    const targetFileName = activeFileName === "__page_styling__" ? "settings.yaml" : activeTab?.fileName;
+    if (!targetFileName) {
       return;
     }
 
@@ -5302,8 +5544,8 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fileName: activeTab.fileName,
-          content: activeContent,
+          fileName: targetFileName,
+          content: drafts[targetFileName] ?? "",
         }),
       });
 
@@ -5318,7 +5560,7 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
 
       setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
       await refreshConfigData(mutate, ["/api/config/editor"]);
-      onSaved(`Сохранено: ${activeTab.label}`);
+      onSaved(activeFileName === "__page_styling__" ? "Стилизация страниц сохранена" : `Сохранено: ${activeTab.label}`);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -5329,7 +5571,7 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
   return (
     <EditorWindow
       storageKey="homepage-browser-editor-window-settings"
-      title="Ручная правка"
+      title="Ручная настройка и стили"
       onClose={onClose}
       defaultWidth={1120}
       defaultHeight={780}
@@ -5337,7 +5579,20 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
       minHeight={520}
     >
       <div>
-        <div className="flex flex-wrap gap-2 pb-1">
+        <div className="flex flex-wrap gap-2 pb-1.5 border-b border-theme-300/30 mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__page_styling__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__page_styling__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Стилизация страниц ✨</div>
+            <div className="truncate opacity-70">Настройки вкладок</div>
+          </button>
           {(tabs ?? []).map((tab) => (
             <button
               key={tab.fileName}
@@ -5345,7 +5600,7 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
               onClick={() => setActiveFileName(tab.fileName)}
               className={classNames(
                 "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                activeTab?.fileName === tab.fileName
+                activeFileName === tab.fileName
                   ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
                   : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
               )}
@@ -5358,7 +5613,17 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
       </div>
 
       <div className="mt-4 min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
-        {activeTab ? (
+        {activeFileName === "__page_styling__" ? (
+          <PageStylingEditor
+            settingsContent={drafts["settings.yaml"] ?? ""}
+            onChange={(newContent) =>
+              setDrafts((current) => ({
+                ...current,
+                "settings.yaml": newContent,
+              }))
+            }
+          />
+        ) : activeTab ? (
           <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
             <CodeEditor
               label="Содержимое файла"
@@ -5370,12 +5635,11 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
                   [activeTab.fileName]: value,
                 }))
               }
-            minHeightClassName="min-h-0"
-            fillAvailableHeight
-            zoomStorageKey="homepage-browser-editor-code-zoom-settings"
-            placeholder={activeTab.fileName}
-          />
-
+              minHeightClassName="min-h-0"
+              fillAvailableHeight
+              zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+              placeholder={activeTab.fileName}
+            />
           </div>
         ) : (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
@@ -5396,7 +5660,7 @@ function ConfigFilesModal({ tabs, onClose, onSaved }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={!activeTab || saving}
+            disabled={(activeFileName !== "__page_styling__" && !activeTab) || saving}
             className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
             {saving ? "Сохранение..." : "Сохранить"}
@@ -5864,12 +6128,69 @@ function isExplicitGroupDropTarget(event) {
 export function EditorPageTab({ tab }) {
   const { activeTab, setActiveTab } = useContext(TabContext);
   const { editMode, moveGroup, moveTab, setDraggedGroup } = useConfigEditor();
+  const { settings } = useContext(SettingsContext);
   const encodedTab = encodeTabName(tab);
   const matchesTab = decodeURIComponent(activeTab) === encodedTab;
+
+  const pageStyles = settings?.pageStyles ?? {};
+  const pageIcons = pageStyles.icons ?? {};
+  const iconName = pageIcons[tab];
+  const borderStyle = pageStyles.borderStyle ?? "none";
+  const activeColor = pageStyles.activeColor;
+  const inactiveColor = pageStyles.inactiveColor;
+  const borderColor = pageStyles.borderColor;
+
   const activateTab = useCallback(() => {
     setActiveTab(encodedTab);
     window.location.hash = `#${encodedTab}`;
   }, [encodedTab, setActiveTab]);
+
+  const iconEl = iconName ? (
+    <span className="mr-2 inline-flex items-center shrink-0 w-4 h-4" style={{ color: matchesTab ? activeColor : inactiveColor }}>
+      <ResolvedIcon icon={iconName} />
+    </span>
+  ) : null;
+
+  const buttonStyle = {};
+  if (matchesTab && activeColor) {
+    buttonStyle.color = activeColor;
+  } else if (!matchesTab && inactiveColor) {
+    buttonStyle.color = inactiveColor;
+  }
+
+  let buttonClasses = "";
+  if (borderStyle === "underline") {
+    buttonClasses = classNames(
+      "w-full rounded-none m-1 pb-1 transition-all",
+      matchesTab ? "border-b-2" : "hover:border-b-2 hover:border-theme-300/30 dark:hover:border-white/10",
+    );
+    if (matchesTab && (borderColor || activeColor)) {
+      buttonStyle.borderBottomColor = borderColor || activeColor;
+    }
+  } else if (borderStyle === "pill") {
+    buttonClasses = classNames(
+      "w-full rounded-full m-1 transition-all",
+      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+    );
+  } else if (borderStyle === "card") {
+    buttonClasses = classNames(
+      "w-full rounded-md m-1 border transition-all",
+      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+    );
+    buttonStyle.borderColor = matchesTab && borderColor ? borderColor : "rgba(156, 163, 175, 0.15)";
+  } else {
+    buttonClasses = classNames(
+      "w-full rounded-md m-1 transition-all",
+      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+    );
+  }
+
+  if (editMode) {
+    buttonClasses = classNames(
+      buttonClasses,
+      "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
+    );
+  }
 
   return (
     <li
@@ -5984,17 +6305,16 @@ export function EditorPageTab({ tab }) {
         role="tab"
         aria-controls={`#${tab}`}
         aria-selected={matchesTab ? "true" : "false"}
-        className={classNames(
-          "w-full rounded-md m-1",
-          matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
-          editMode &&
-            "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
-        )}
+        className={buttonClasses}
+        style={buttonStyle}
         onClick={() => {
           activateTab();
         }}
       >
-        {tab}
+        <span className="flex items-center justify-center w-full h-full">
+          {iconEl}
+          <span>{tab}</span>
+        </span>
       </button>
     </li>
   );
@@ -6871,7 +7191,12 @@ export function ConfigEditorProvider({ children }) {
         />
       )}
       {modal?.type === "settings-tabs" && (
-        <ConfigFilesModal tabs={data?.settingsTabs ?? []} onClose={() => setModal(null)} onSaved={handleSaved} />
+        <ConfigFilesModal
+          tabs={data?.settingsTabs ?? []}
+          settings={data?.settings}
+          onClose={() => setModal(null)}
+          onSaved={handleSaved}
+        />
       )}
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
