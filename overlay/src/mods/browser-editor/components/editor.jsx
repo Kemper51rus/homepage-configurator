@@ -4745,7 +4745,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       </div>
 
       <div className="mt-4 min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
-        {activeFileName === "__page_styling__" ? (
+        <div style={{ display: activeFileName === "__page_styling__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
           <PageStylingEditor
             settingsContent={drafts["settings.yaml"] ?? ""}
             onChange={(newContent) =>
@@ -4755,26 +4755,36 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
               }))
             }
           />
-        ) : activeTab ? (
-          <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
-            <CodeEditor
-              key={activeFileName}
-              label="Содержимое файла"
-              language={activeLanguage}
-              value={activeContent}
-              onChange={(value) =>
-                setDrafts((current) => ({
-                  ...current,
-                  [activeTab.fileName]: value,
-                }))
-              }
-              minHeightClassName="min-h-0"
-              fillAvailableHeight
-              zoomStorageKey="homepage-browser-editor-code-zoom-settings"
-              placeholder={activeTab.fileName}
-            />
-          </div>
-        ) : (
+        </div>
+        {(tabs ?? []).map((tab) => {
+          const active = activeFileName === tab.fileName;
+          return (
+            <div
+              key={tab.fileName}
+              style={{ display: active ? "flex" : "none" }}
+              className="flex-1 min-h-0 flex flex-col"
+            >
+              <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
+                <CodeEditor
+                  label="Содержимое файла"
+                  language={detectEditorLanguage(tab.format, tab.fileName)}
+                  value={drafts[tab.fileName] ?? ""}
+                  onChange={(value) =>
+                    setDrafts((current) => ({
+                      ...current,
+                      [tab.fileName]: value,
+                    }))
+                  }
+                  minHeightClassName="min-h-0"
+                  fillAvailableHeight
+                  zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+                  placeholder={tab.fileName}
+                />
+              </div>
+            </div>
+          );
+        })}
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
             В config-папке пока нет дополнительных файлов для редактирования.
           </div>
