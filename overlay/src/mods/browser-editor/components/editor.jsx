@@ -5636,7 +5636,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
                 : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
             )}
           >
-            <div className="truncate text-sm font-semibold leading-5">Стилизация страниц ✨</div>
+            <div className="truncate text-sm font-semibold leading-5">Стилизация страниц</div>
             <div className="truncate opacity-70">Настройки вкладок</div>
           </button>
           {(tabs ?? []).map((tab) => (
@@ -6194,14 +6194,14 @@ export function EditorPageTab({ tab }) {
   }, [encodedTab, setActiveTab]);
 
   const iconEl = iconName ? (
-    <span className="mr-2 inline-flex items-center shrink-0 w-4 h-4" style={{ color: matchesTab ? activeColor : inactiveColor }}>
+    <span className="mr-2 inline-flex items-center shrink-0 w-4 h-4" style={{ color: matchesTab ? (activeColor || borderColor) : inactiveColor }}>
       <ResolvedIcon icon={iconName} />
     </span>
   ) : null;
 
   const buttonStyle = {};
-  if (matchesTab && activeColor) {
-    buttonStyle.color = activeColor;
+  if (matchesTab && (activeColor || borderColor)) {
+    buttonStyle.color = activeColor || borderColor;
   } else if (!matchesTab && inactiveColor) {
     buttonStyle.color = inactiveColor;
   }
@@ -6218,14 +6218,24 @@ export function EditorPageTab({ tab }) {
   } else if (borderStyle === "pill") {
     buttonClasses = classNames(
       "w-full rounded-full m-1 transition-all",
-      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab ? "" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
+    if (matchesTab) {
+      const tintColor = borderColor && borderColor.startsWith('#') && (borderColor.length === 7 || borderColor.length === 4)
+        ? (borderColor.length === 4 ? borderColor + borderColor.substring(1) : borderColor) + "26"
+        : "rgba(59, 130, 246, 0.15)";
+      buttonStyle.backgroundColor = tintColor;
+    }
   } else if (borderStyle === "card") {
     buttonClasses = classNames(
       "w-full rounded-md m-1 border transition-all",
-      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab ? "bg-theme-100/10 dark:bg-white/5" : "border-transparent hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
-    buttonStyle.borderColor = matchesTab && borderColor ? borderColor : "rgba(156, 163, 175, 0.15)";
+    if (matchesTab && borderColor) {
+      buttonStyle.borderColor = borderColor;
+    } else if (matchesTab) {
+      buttonStyle.borderColor = "rgba(156, 163, 175, 0.3)";
+    }
   } else {
     buttonClasses = classNames(
       "w-full rounded-md m-1 transition-all",
@@ -6359,9 +6369,9 @@ export function EditorPageTab({ tab }) {
           activateTab();
         }}
       >
-        <span className="flex items-center justify-center w-full h-full">
+        <span className="flex items-center justify-center w-full h-full" style={buttonStyle}>
           {iconEl}
-          <span>{tab}</span>
+          <span style={buttonStyle}>{tab}</span>
         </span>
       </button>
     </li>
