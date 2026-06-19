@@ -589,7 +589,7 @@ index b69ddff5..c74277d5 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index a51313e0..fdc5008c 100644
+index a51313e0..dff36aac 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -786,14 +786,22 @@ index a51313e0..fdc5008c 100644
  
      return (
        <>
-@@ -317,27 +433,36 @@ function Home({ initialSettings }) {
+@@ -316,28 +432,43 @@ function Home({ initialSettings }) {
+           <div key="tabs" id="tabs" className="m-5 sm:m-9 sm:mt-4 sm:mb-0">
              <ul
                className={classNames(
-                 "sm:flex rounded-md bg-theme-100/20 dark:bg-white/5",
+-                "sm:flex rounded-md bg-theme-100/20 dark:bg-white/5",
++                "sm:flex rounded-md",
++                (!settings.pageStyles?.borderStyle ||
++                  settings.pageStyles?.borderStyle === "none" ||
++                  settings.pageStyles?.borderStyle === "outline")
++                  ? "bg-theme-100/20 dark:bg-white/5"
++                  : "bg-transparent",
 +                settings.pageStyles?.align === "center" && "sm:justify-center",
 +                settings.pageStyles?.align === "end" && "sm:justify-end",
 +                settings.pageStyles?.align === "between" && "sm:justify-between",
 +                settings.pageStyles?.borderStyle === "outline" && "border",
++                settings.pageStyles?.borderStyle === "underline" && "border-b",
                  settings.cardBlur !== undefined &&
                    `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
                )}
@@ -831,7 +839,7 @@ index a51313e0..fdc5008c 100644
                    maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
                    disableCollapse={settings.disableCollapse}
                    useEqualHeights={settings.useEqualHeights}
-@@ -345,50 +470,23 @@ function Home({ initialSettings }) {
+@@ -345,50 +476,23 @@ function Home({ initialSettings }) {
                  />
                ) : (
                  <BookmarksGroup
@@ -887,7 +895,7 @@ index a51313e0..fdc5008c 100644
      activeTab,
      services,
      bookmarks,
-@@ -399,6 +497,7 @@ function Home({ initialSettings }) {
+@@ -399,6 +503,7 @@ function Home({ initialSettings }) {
      settings.disableCollapse,
      settings.useEqualHeights,
      settings.cardBlur,
@@ -895,7 +903,7 @@ index a51313e0..fdc5008c 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -438,12 +537,13 @@ function Home({ initialSettings }) {
+@@ -438,12 +543,13 @@ function Home({ initialSettings }) {
  
        <Script src="/api/config/custom.js" />
  
@@ -915,7 +923,7 @@ index a51313e0..fdc5008c 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -465,11 +565,13 @@ function Home({ initialSettings }) {
+@@ -465,11 +571,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -933,7 +941,7 @@ index a51313e0..fdc5008c 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -482,11 +584,13 @@ function Home({ initialSettings }) {
+@@ -482,11 +590,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -951,7 +959,7 @@ index a51313e0..fdc5008c 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -496,7 +600,7 @@ function Home({ initialSettings }) {
+@@ -496,7 +606,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -960,7 +968,7 @@ index a51313e0..fdc5008c 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -509,7 +613,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +619,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>

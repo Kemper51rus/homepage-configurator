@@ -5309,6 +5309,51 @@ function PageStylingEditor({ settingsContent, onChange }) {
     onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
   };
 
+  const getBorderPreview = (styleVal) => {
+    switch (styleVal) {
+      case "none":
+        return (
+          <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
+            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white">Active</span>
+            <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
+          </div>
+        );
+      case "underline":
+        return (
+          <div className="mt-2 flex flex-col items-center justify-center rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
+            <div className="flex gap-1.5 w-full justify-center">
+              <span className="text-[10px] px-2 pb-0.5 border-b-2 border-theme-600 dark:border-white/50 text-theme-950 dark:text-white font-semibold">Active</span>
+              <span className="text-[10px] px-2 pb-0.5 opacity-60">Tab</span>
+            </div>
+            <div className="w-full border-t border-theme-300/30 dark:border-white/5 mt-0.5"></div>
+          </div>
+        );
+      case "outline":
+        return (
+          <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-theme-300/60 dark:border-white/20 w-full">
+            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">Active</span>
+            <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
+          </div>
+        );
+      case "pill":
+        return (
+          <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-theme-300/40 dark:bg-white/15 text-theme-950 dark:text-white font-semibold">Active</span>
+            <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
+          </div>
+        );
+      case "card":
+        return (
+          <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
+            <span className="text-[10px] px-2 py-0.5 rounded border border-theme-400/50 bg-theme-300/20 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">Active</span>
+            <span className="text-[10px] px-2 py-0.5 rounded border border-transparent opacity-60">Tab</span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   const borderStyles = [
     ["none", "Без рамки"],
     ["underline", "Подчеркивание"],
@@ -5380,7 +5425,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
           <div className="block text-xs text-theme-600 dark:text-theme-300">
             Эффект / Тип бордюра
-            <div className="mt-1.5 grid grid-cols-2 gap-2">
+            <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {borderStyles.map(([val, label]) => {
                 const isSelected = (pageStyles.borderStyle ?? "none") === val;
                 return (
@@ -5389,13 +5434,14 @@ function PageStylingEditor({ settingsContent, onChange }) {
                     type="button"
                     onClick={() => updateStyle("borderStyle", val)}
                     className={classNames(
-                      "rounded-md border p-2 text-center text-xs font-medium cursor-pointer transition-colors",
+                      "rounded-lg border p-3 flex flex-col justify-between text-left text-xs font-medium cursor-pointer transition-all",
                       isSelected
-                        ? "border-theme-500 bg-theme-500/20 text-theme-900 dark:border-white/40 dark:bg-white/10 dark:text-theme-100"
-                        : "border-theme-300/50 bg-theme-50/30 text-theme-700 hover:bg-theme-50/70 dark:border-white/10 dark:bg-theme-900/30 dark:text-theme-300 dark:hover:bg-theme-900/50"
+                        ? "border-theme-600 bg-theme-500/10 text-theme-950 shadow-sm dark:border-white/50 dark:bg-white/10 dark:text-white"
+                        : "border-theme-300/40 bg-theme-50/10 text-theme-650 hover:bg-theme-50/40 dark:border-white/5 dark:bg-theme-900/10 dark:text-theme-300 dark:hover:bg-theme-900/30"
                     )}
                   >
-                    {label}
+                    <span>{label}</span>
+                    {getBorderPreview(val)}
                   </button>
                 );
               })}
@@ -6130,7 +6176,9 @@ export function EditorPageTab({ tab }) {
   const { editMode, moveGroup, moveTab, setDraggedGroup } = useConfigEditor();
   const { settings } = useContext(SettingsContext);
   const encodedTab = encodeTabName(tab);
-  const matchesTab = decodeURIComponent(activeTab) === encodedTab;
+  const matchesTab = activeTab
+    ? decodeURIComponent(activeTab) === String(tab).replace(/\s+/g, "-").toLowerCase()
+    : false;
 
   const pageStyles = settings?.pageStyles ?? {};
   const pageIcons = pageStyles.icons ?? {};
