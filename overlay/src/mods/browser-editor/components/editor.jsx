@@ -2099,21 +2099,31 @@ function CodeEditorTheme() {
       }
 
       .homepage-editor-highlight,
-      .homepage-editor-textarea {
+      .homepage-editor-textarea,
+      .homepage-editor-code {
         margin: 0;
         border: 0;
         box-sizing: border-box;
-        font-family: inherit;
-        font-size: inherit;
+        font-family: inherit !important;
+        font-size: inherit !important;
         font-style: inherit;
         font-variant-ligatures: inherit;
         font-weight: inherit;
         letter-spacing: inherit;
-        line-height: inherit;
+        line-height: inherit !important;
         tab-size: 2;
         text-indent: inherit;
         text-rendering: inherit;
         text-transform: inherit;
+      }
+
+      .homepage-editor-code {
+        padding: 0 !important;
+        margin: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        display: block !important;
+        white-space: pre !important;
       }
 
       .homepage-editor-highlight {
@@ -2122,9 +2132,9 @@ function CodeEditorTheme() {
 
       .homepage-editor-highlight,
       .homepage-editor-highlight code {
-        white-space: pre;
-        overflow-wrap: normal;
-        word-break: normal;
+        white-space: pre !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
       }
 
       .homepage-editor-textarea {
@@ -2139,14 +2149,48 @@ function CodeEditorTheme() {
         -webkit-text-fill-color: transparent !important;
         text-shadow: none !important;
         caret-color: #111827 !important;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        white-space: pre !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: rgba(156, 163, 175, 0.4) transparent !important;
       }
 
       .homepage-editor-textarea::-webkit-scrollbar {
-        width: 0;
-        height: 0;
-        display: none;
+        width: 10px !important;
+        height: 10px !important;
+        display: block !important;
+      }
+
+      .homepage-editor-textarea::-webkit-scrollbar-track {
+        background: transparent !important;
+        display: block !important;
+      }
+
+      .homepage-editor-textarea::-webkit-scrollbar-thumb {
+        background: rgba(156, 163, 175, 0.4) !important;
+        border: 2px solid transparent !important;
+        background-clip: padding-box !important;
+        border-radius: 9999px !important;
+        display: block !important;
+      }
+
+      .homepage-editor-textarea::-webkit-scrollbar-thumb:hover {
+        background: rgba(156, 163, 175, 0.6) !important;
+        border: 2px solid transparent !important;
+        background-clip: padding-box !important;
+      }
+
+      .dark .homepage-editor-textarea::-webkit-scrollbar-thumb {
+        background: rgba(156, 163, 175, 0.3) !important;
+        border: 2px solid transparent !important;
+        background-clip: padding-box !important;
+      }
+
+      .dark .homepage-editor-textarea::-webkit-scrollbar-thumb:hover {
+        background: rgba(156, 163, 175, 0.5) !important;
+        border: 2px solid transparent !important;
+        background-clip: padding-box !important;
       }
 
       .dark .homepage-editor-textarea {
@@ -4714,6 +4758,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         ) : activeTab ? (
           <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
             <CodeEditor
+              key={activeFileName}
               label="Содержимое файла"
               language={activeLanguage}
               value={activeContent}
