@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
 import { TabContext } from "utils/contexts/tab";
+import { ThemeContext } from "utils/contexts/theme";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 import {
   bookmarkFields,
@@ -47,6 +48,9 @@ const ConfigEditorContext = createContext({
   openTopWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
+  iconSelectorCallback: null,
+  setIconSelectorCallback: () => {},
+  selectIcon: () => {},
 });
 
 const noopEditorContext = {
@@ -63,6 +67,9 @@ const noopEditorContext = {
   openTopWidget: () => {},
   openNewGroup: () => {},
   openNewItem: () => {},
+  iconSelectorCallback: null,
+  setIconSelectorCallback: () => {},
+  selectIcon: () => {},
 };
 
 const toolbarButtonClassName =
@@ -1780,6 +1787,39 @@ function upsertLayoutAtPath(layoutMap, path, updater) {
   return nextLayout;
 }
 
+/**
+ * Reorders the top-level keys of a layout object to match the visual order
+ * of groups in rawGroups (services.yaml array). This ensures settings.layout
+ * key order stays in sync with services.yaml after drag-and-drop.
+ *
+ * Groups not present in rawGroups (e.g. "Bookmarks") are preserved at the end.
+ */
+function reorderLayoutToMatchGroups(layout, rawGroups) {
+  if (!layout || typeof layout !== "object") return layout;
+
+  // Build ordered list of group names from the new services order
+  const serviceOrder = (rawGroups ?? []).map((node) => getEntryName(node)).filter(Boolean);
+
+  const reordered = {};
+
+  // 1. Add layout entries in services order
+  serviceOrder.forEach((name) => {
+    const matchedKey = Object.keys(layout).find((k) => namesEqual(k, name));
+    if (matchedKey && !(matchedKey in reordered)) {
+      reordered[matchedKey] = layout[matchedKey];
+    }
+  });
+
+  // 2. Append any remaining layout keys not in services (e.g. "Bookmarks")
+  Object.keys(layout).forEach((key) => {
+    if (!(key in reordered)) {
+      reordered[key] = layout[key];
+    }
+  });
+
+  return reordered;
+}
+
 function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, placement) {
   const { extracted, layout } = extractLayoutNode(settings?.layout ?? {}, sourceName);
   const sourceLayout = extracted ?? {};
@@ -1788,10 +1828,13 @@ function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, pl
       moved: true,
       settings: {
         ...(settings ?? {}),
-        layout: {
-          ...layout,
-          [sourceName]: sourceLayout,
-        },
+        layout: reorderLayoutToMatchGroups(
+          {
+            ...layout,
+            [sourceName]: sourceLayout,
+          },
+          rawGroups,
+        ),
       },
     };
   }
@@ -1817,7 +1860,9 @@ function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, pl
     moved: true,
     settings: {
       ...(settings ?? {}),
-      layout: nextLayout,
+      // Reorder top-level layout keys to match the new services order so that
+      // homepage renders groups in the correct visual order.
+      layout: reorderLayoutToMatchGroups(nextLayout, rawGroups),
     },
   };
 }
@@ -1858,6 +1903,20 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
 }
 
 function Field({ name, label, value, onChange, compact = false }) {
+  if (name === "showLink" || name === "showStats" || name === "ping") {
+    return (
+      <label className={classNames("flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer h-[28px] mt-4", compact && "text-[11px]")}>
+        <input
+          type="checkbox"
+          checked={value === true || value === "true"}
+          onChange={(event) => onChange(event.target.checked)}
+          className="h-4 w-4 rounded border-theme-300 dark:border-white/10"
+        />
+        {label}
+      </label>
+    );
+  }
+
   if (name === "titleColor") {
     return (
       <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
@@ -1883,9 +1942,9 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "titleAlign") {
     const alignments = [
-      ["left", "Left"],
-      ["center", "Center"],
-      ["right", "Right"],
+      ["left", "Лево"],
+      ["center", "Центр"],
+      ["right", "Право"],
     ];
     return (
       <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
@@ -1895,7 +1954,7 @@ function Field({ name, label, value, onChange, compact = false }) {
             <button
               key={alignVal}
               type="button"
-              onClick={() => onChange(alignVal)}
+              onClick={() => onChange(value === alignVal ? "" : alignVal)}
               className={classNames(
                 "flex-1 rounded-md border text-center text-[12px] font-medium transition-colors cursor-pointer",
                 value === alignVal
@@ -1913,12 +1972,21 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "titleSize") {
     const sizeOptions = [
-      ["", "Default"],
-      ["10px", "10px"], ["11px", "11px"], ["12px", "12px"], ["13px", "13px"],
-      ["14px", "14px"], ["15px", "15px"], ["16px", "16px"], ["18px", "18px"],
-      ["20px", "20px"], ["24px", "24px"],
-      ["0.75rem", "0.75rem"], ["0.85rem", "0.85rem"],
-      ["1rem", "1rem"], ["1.2rem", "1.2rem"],
+      ["", "По умолчанию"],
+      ["10px", "10px"],
+      ["11px", "11px"],
+      ["12px", "12px"],
+      ["13px", "13px"],
+      ["14px", "14px"],
+      ["15px", "15px"],
+      ["16px", "16px"],
+      ["18px", "18px"],
+      ["20px", "20px"],
+      ["24px", "24px"],
+      ["0.75rem", "0.75rem"],
+      ["0.85rem", "0.85rem"],
+      ["1rem", "1rem"],
+      ["1.2rem", "1.2rem"],
     ];
     return (
       <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
@@ -1929,7 +1997,9 @@ function Field({ name, label, value, onChange, compact = false }) {
           className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-[28px]"
         >
           {sizeOptions.map(([sizeVal, sizeLabel]) => (
-            <option key={sizeVal} value={sizeVal}>{sizeLabel}</option>
+            <option key={sizeVal} value={sizeVal}>
+              {sizeLabel}
+            </option>
           ))}
         </select>
       </label>
@@ -1938,11 +2008,11 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "titleFont") {
     const fonts = [
-      ["", "Default"],
+      ["", "По умолчанию"],
       ["Comfortaa", "Comfortaa"],
       ["Inter", "Inter"],
       ["Roboto", "Roboto"],
-      ["system-ui", "System"],
+      ["system-ui", "Системный"],
       ["Arial", "Arial"],
       ["Georgia", "Georgia"],
       ["Courier New", "Monospace"],
@@ -1956,9 +2026,46 @@ function Field({ name, label, value, onChange, compact = false }) {
           className="mt-1 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-[28px]"
         >
           {fonts.map(([fontVal, fontLabel]) => (
-            <option key={fontVal} value={fontVal}>{fontLabel}</option>
+            <option key={fontVal} value={fontVal}>
+              {fontLabel}
+            </option>
           ))}
         </select>
+      </label>
+    );
+  }
+
+  const editor = useConfigEditor();
+
+  if (name === "icon") {
+    return (
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
+        {label}
+        <div className="mt-1 flex gap-2">
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="si-keenetic, mdi-home, /api/config/icon/..."
+            className={classNames(
+              "flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1",
+              compact ? "text-[13px]" : "text-sm",
+            )}
+          />
+          {editor && typeof editor.selectIcon === "function" && (
+            <button
+              type="button"
+              onClick={() => {
+                editor.selectIcon((selectedIcon) => {
+                  onChange(selectedIcon);
+                });
+              }}
+              className="rounded-md border border-theme-300/50 bg-theme-100/50 hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 px-3 text-xs font-semibold transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+            >
+              Выбрать
+            </button>
+          )}
+        </div>
       </label>
     );
   }
@@ -2817,6 +2924,7 @@ function EditorWindow({
   autoFitTargetRef = null,
   windowApiRef = null,
   resizeDirections = ["left", "right", "bottom", "bottom-left", "bottom-right"],
+  wrapperClassName = "",
 }) {
   const bodyRef = useRef(null);
   const { panelRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
@@ -2901,7 +3009,7 @@ function EditorWindow({
   const canResizeBottomRight = resizeDirections.includes("bottom-right");
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className={classNames("fixed inset-0 z-[60] bg-black/50", wrapperClassName)} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div
         ref={panelRef}
         style={{
@@ -2912,7 +3020,7 @@ function EditorWindow({
           minWidth: `${minWidth}px`,
           minHeight: `${minHeight}px`,
         }}
-        className="editor-window fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
+        className="fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div
@@ -2981,14 +3089,11 @@ function EditorWindow({
   );
 }
 
-const isSmallViewport = () => typeof window !== "undefined" && (window.innerWidth < 2000 || window.innerHeight < 1200);
-
 function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const isServiceModal = modal.type === "services";
   const isBookmarkModal = modal.type === "bookmarks";
-  const windowApiRef = useRef(null);
-  const contentRef = useRef(null);
+  const bookmarkWindowApiRef = useRef(null);
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawEntryConfig =
     modal.mode === "edit"
@@ -3013,24 +3118,17 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   const [showAdvancedServiceFields, setShowAdvancedServiceFields] = useState(false);
   const [showAdvancedBookmarkFields, setShowAdvancedBookmarkFields] = useState(false);
   const title = isServiceModal ? "сервис" : "закладка";
-  const isSmall = isSmallViewport();
-  const bookmarkWindowWidth = isSmall ? 820 : 960;
-  const bookmarkCollapsedHeight = isSmall ? 550 : 650;
-  const bookmarkExpandedHeight = isSmall ? 550 : 650;
-  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v19";
-  const serviceCollapsedHeight = isSmall ? 620 : 750;
-  const serviceExpandedHeight = isSmall ? 780 : 910;
-  const itemModalDefaultHeight = isServiceModal
-    ? (showAdvancedServiceFields ? serviceExpandedHeight : serviceCollapsedHeight)
-    : (showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight);
-  const itemModalMinHeight = isServiceModal
-    ? (showAdvancedServiceFields ? (isSmall ? 780 : 910) : (isSmall ? 620 : 740))
-    : (showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight);
+  const bookmarkWindowWidth = 648;
+  const bookmarkCollapsedHeight = 379;
+  const bookmarkExpandedHeight = 760;
+  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v9";
+  const itemModalDefaultHeight = isServiceModal ? 840 : showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight;
+  const itemModalMinHeight = isServiceModal ? 780 : showAdvancedBookmarkFields ? 620 : 360;
   const primaryTypeFields =
     isServiceModal
       ? typeFields.filter(([key]) => !collapsedServiceFieldKeys.has(key))
       : isBookmarkModal
-        ? typeFields.filter(([key]) => !collapsedBookmarkFieldKeys.has(key))
+        ? typeFields.filter(([key]) => !collapsedBookmarkFieldKeys.has(key) && key !== "href" && key !== "showLink")
       : typeFields;
   const advancedServiceFields =
     isServiceModal
@@ -3170,46 +3268,25 @@ function ItemModal({ modal, data, onClose, onSaved }) {
     }
   }
 
-  const handleAdvancedServiceToggle = useCallback(
-    (expanded) => {
-      setShowAdvancedServiceFields(expanded);
-
-      const currentRect = windowApiRef.current?.windowRect;
-      if (currentRect) {
-        const targetHeight = expanded ? Math.max(currentRect.height, serviceExpandedHeight) : serviceCollapsedHeight;
-        windowApiRef.current?.setWindowRect((current) =>
-          current
-            ? clampEditorWindow(
-                {
-                  ...current,
-                  height: targetHeight,
-                },
-                isSmallViewport() ? 680 : 760,
-                expanded ? (isSmallViewport() ? 780 : 910) : (isSmallViewport() ? 620 : 740),
-              )
-            : current,
-        );
-      }
-    },
-    [serviceCollapsedHeight, serviceExpandedHeight],
-  );
-
   const handleAdvancedBookmarkToggle = useCallback(
     (expanded) => {
-      setShowAdvancedBookmarkFields(expanded);
+      if (!isBookmarkModal) {
+        setShowAdvancedBookmarkFields(expanded);
+        return;
+      }
 
-      const currentRect = windowApiRef.current?.windowRect;
+      const currentRect = bookmarkWindowApiRef.current?.windowRect;
       if (currentRect) {
         const targetHeight = expanded ? Math.max(currentRect.height, bookmarkExpandedHeight) : bookmarkCollapsedHeight;
-        windowApiRef.current?.setWindowRect((current) =>
+        bookmarkWindowApiRef.current?.setWindowRect((current) =>
           current
             ? clampEditorWindow(
                 {
                   ...current,
                   height: targetHeight,
                 },
-                isSmallViewport() ? 680 : 760,
-                isSmallViewport() ? 550 : 650,
+                620,
+                expanded ? 520 : 360,
               )
             : current,
         );
@@ -3221,17 +3298,69 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           window.localStorage.setItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY, "100");
         }
       }
+
+      setShowAdvancedBookmarkFields(expanded);
     },
-    [bookmarkCollapsedHeight, bookmarkExpandedHeight],
+    [bookmarkCollapsedHeight, bookmarkExpandedHeight, isBookmarkModal],
   );
 
-  const mainFieldsBlock = (
+  const fieldsBlock = (
     <div className="space-y-3">
       <Field label="Имя" value={name} onChange={setName} compact={isServiceModal} />
-      <div className="grid min-w-0 gap-2 grid-cols-2">
+      {(isServiceModal || isBookmarkModal) && (
+        <ServiceCardColorField
+          value={form.fields.id ?? ""}
+          itemName={name}
+          onChange={(value) =>
+            setForm((current) => ({
+              ...current,
+              fields: {
+                ...current.fields,
+                id: value,
+              },
+            }))
+          }
+        />
+      )}
+      {isBookmarkModal && (
+        <div className="grid grid-cols-3 gap-3 items-end">
+          <div className="col-span-2">
+            <Field
+              name="href"
+              label="URL"
+              value={form.fields.href ?? ""}
+              onChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  fields: {
+                    ...current.fields,
+                    href: value,
+                  },
+                }))
+              }
+            />
+          </div>
+          <Field
+            name="showLink"
+            label="Отображать ссылку"
+            value={form.fields.showLink ?? ""}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                fields: {
+                  ...current.fields,
+                  showLink: value,
+                },
+              }))
+            }
+          />
+        </div>
+      )}
+      <div className={classNames("grid min-w-0 gap-2", isServiceModal ? "grid-cols-3" : "md:grid-cols-2")}>
         {primaryTypeFields.map(([key, label]) => (
           <Field
             key={key}
+            name={key}
             label={label}
             value={form.fields[key] ?? ""}
             compact={isServiceModal}
@@ -3253,16 +3382,17 @@ function ItemModal({ modal, data, onClose, onSaved }) {
             <input
               type="checkbox"
               checked={showAdvancedServiceFields}
-              onChange={(event) => handleAdvancedServiceToggle(event.target.checked)}
+              onChange={(event) => setShowAdvancedServiceFields(event.target.checked)}
               className="h-4 w-4"
             />
             Дополнительные поля
           </label>
           {showAdvancedServiceFields && (
-            <div className="mt-3 grid min-w-0 gap-2 grid-cols-2">
+            <div className="mt-3 grid min-w-0 gap-2 grid-cols-3">
               {advancedServiceFields.map(([key, label]) => (
                 <Field
                   key={key}
+                  name={key}
                   label={label}
                   value={form.fields[key] ?? ""}
                   compact
@@ -3281,6 +3411,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           )}
         </div>
       )}
+
       {isBookmarkModal && (
         <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
           <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200">
@@ -3297,6 +3428,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
               {advancedBookmarkFields.map(([key, label]) => (
                 <Field
                   key={key}
+                  name={key}
                   label={label}
                   value={form.fields[key] ?? ""}
                   onChange={(value) =>
@@ -3314,91 +3446,6 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           )}
         </div>
       )}
-    </div>
-  );
-
-  const styleFieldsBlock = (
-    <div className="space-y-4">
-      {(isServiceModal || isBookmarkModal) && (
-        <ServiceCardColorField
-          value={form.fields.id ?? ""}
-          itemName={name}
-          onChange={(value) =>
-            setForm((current) => ({
-              ...current,
-              fields: {
-                ...current.fields,
-                id: value,
-              },
-            }))
-          }
-        />
-      )}
-      <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10 bg-theme-100/5 dark:bg-white/5">
-        <p className="mb-3 text-xs font-semibold text-theme-700 dark:text-theme-200">Настройки заголовка (Title style)</p>
-        <div className="space-y-3">
-          <Field
-            name="titleColor"
-            label="Цвет заголовка"
-            value={form.fields.titleColor ?? ""}
-            compact={isServiceModal}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                fields: {
-                  ...current.fields,
-                  titleColor: value,
-                },
-              }))
-            }
-          />
-          <Field
-            name="titleAlign"
-            label="Выравнивание"
-            value={form.fields.titleAlign ?? ""}
-            compact={isServiceModal}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                fields: {
-                  ...current.fields,
-                  titleAlign: value,
-                },
-              }))
-            }
-          />
-          <Field
-            name="titleSize"
-            label="Размер шрифта"
-            value={form.fields.titleSize ?? ""}
-            compact={isServiceModal}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                fields: {
-                  ...current.fields,
-                  titleSize: value,
-                },
-              }))
-            }
-          />
-          <Field
-            name="titleFont"
-            label="Шрифт"
-            value={form.fields.titleFont ?? ""}
-            compact={isServiceModal}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                fields: {
-                  ...current.fields,
-                  titleFont: value,
-                },
-              }))
-            }
-          />
-        </div>
-      </div>
     </div>
   );
 
@@ -3443,72 +3490,57 @@ function ItemModal({ modal, data, onClose, onSaved }) {
 
   return (
     <EditorWindow
-      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}-v19`}
+      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}`}
       title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
       onClose={onClose}
-      defaultWidth={isServiceModal ? (isSmall ? 920 : 1100) : bookmarkWindowWidth}
+      defaultWidth={isServiceModal ? 1040 : bookmarkWindowWidth}
       defaultHeight={itemModalDefaultHeight}
-      minWidth={isSmall ? 680 : 760}
+      minWidth={isServiceModal ? 760 : 620}
       minHeight={itemModalMinHeight}
-      windowApiRef={windowApiRef}
+      windowApiRef={isBookmarkModal ? bookmarkWindowApiRef : null}
     >
       {isBookmarkModal ? (
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div ref={contentRef} className="flex min-w-0 flex-1 min-h-0 flex-col pr-1 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6 flex-1 min-h-0">
-              <div className="flex flex-col min-w-0 space-y-3 flex-1 min-h-0">
-                {mainFieldsBlock}
-                {showAdvancedBookmarkFields && (
-                  <div className="flex min-w-0 flex-1 min-h-0 flex-col border-t border-theme-300/30 dark:border-white/5 pt-3">
-                    <CodeEditor
-                      label="Другие YAML-ключи"
-                      language="yaml"
-                      value={form.extraYaml}
-                      onChange={(value) =>
-                        setForm((current) => ({
-                          ...current,
-                          extraYaml: value,
-                        }))
-                      }
-                      minHeightClassName="min-h-[6rem]"
-                      fillAvailableHeight
-                      zoomStorageKey={BOOKMARK_YAML_ZOOM_STORAGE_KEY}
-                      placeholder="custom:\n  key: value"
-                    />
-                  </div>
-                )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            {fieldsBlock}
+            {showAdvancedBookmarkFields && (
+              <div className="mt-3 flex min-h-0 min-w-0 flex-col">
+                <CodeEditor
+                  label="Другие YAML-ключи"
+                  language="yaml"
+                  value={form.extraYaml}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      extraYaml: value,
+                    }))
+                  }
+                  minHeightClassName="h-[20rem] min-h-[20rem]"
+                  zoomStorageKey={BOOKMARK_YAML_ZOOM_STORAGE_KEY}
+                  placeholder="custom:\n  key: value"
+                />
               </div>
-              <div className="flex flex-col min-w-0 space-y-3 border-t md:border-t-0 md:border-l border-theme-300/30 dark:border-white/5 md:pl-4">
-                {styleFieldsBlock}
-              </div>
-            </div>
+            )}
             {errorBlock && <div className="mt-4">{errorBlock}</div>}
           </div>
           <div className="mt-4 shrink-0">{footerBlock}</div>
         </div>
       ) : (
         <>
-          <div ref={contentRef} className="flex min-w-0 flex-1 min-h-0 flex-col pr-1 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-6">
-              <div className="flex flex-col min-w-0 space-y-3">
-                {mainFieldsBlock}
-                <div className="mt-3">
-                  <WidgetTemplateSelector
-                    extraYaml={form.extraYaml}
-                    onChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        extraYaml: value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col min-w-0 space-y-3 border-t md:border-t-0 md:border-l border-theme-300/30 dark:border-white/5 md:pl-4">
-                {styleFieldsBlock}
-              </div>
-            </div>
-            <div className="flex min-w-0 flex-1 min-h-0 flex-col border-t border-theme-300/30 dark:border-white/5 pt-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {fieldsBlock}
+            {isServiceModal && (
+              <WidgetTemplateSelector
+                extraYaml={form.extraYaml}
+                onChange={(nextYaml) =>
+                  setForm((current) => ({
+                    ...current,
+                    extraYaml: nextYaml,
+                  }))
+                }
+              />
+            )}
+            <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
               <CodeEditor
                 label="Расширенный YAML"
                 language="yaml"
@@ -3519,7 +3551,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
                     extraYaml: value,
                   }))
                 }
-                minHeightClassName="min-h-[6rem]"
+                minHeightClassName="min-h-[20rem]"
                 fillAvailableHeight
                 zoomStorageKey="homepage-browser-editor-code-zoom-item-services"
                 placeholder="widget:\n  type: customapi\n  url: http://example.local"
@@ -3807,163 +3839,163 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
   const widget = parsed?.widget;
 
   const allWidgetTypes = [
-    "adguard-home",
-    "apcups",
-    "arcane",
-    "argocd",
-    "atsumeru",
-    "audiobookshelf",
-    "authentik",
-    "autobrr",
-    "azuredevops",
-    "backrest",
-    "bazarr",
-    "beszel",
-    "booklore",
-    "caddy",
-    "calendar",
-    "calibre-web",
-    "changedetectionio",
-    "channelsdvrserver",
-    "checkmk",
-    "cloudflared",
-    "coin-market-cap",
-    "crowdsec",
-    "customapi",
-    "deluge",
-    "develancacheui",
-    "diskstation",
-    "dispatcharr",
-    "dockhand",
-    "downloadstation",
-    "emby",
-    "esphome",
-    "evcc",
-    "filebrowser",
-    "fileflows",
-    "firefly",
-    "flood",
-    "freshrss",
-    "frigate",
-    "fritzbox",
-    "gamedig",
-    "gatus",
-    "ghostfolio",
-    "gitea",
-    "gitlab",
-    "glances",
-    "gluetun",
-    "gotify",
-    "grafana",
-    "hdhomerun",
-    "headscale",
-    "healthchecks",
-    "homeassistant",
-    "homebox",
-    "homebridge",
-    "iframe",
-    "immich",
-    "jackett",
-    "jdownloader",
-    "jellyfin",
-    "jellystat",
-    "karakeep",
-    "kavita",
-    "komga",
-    "komodo",
-    "kopia",
-    "lidarr",
-    "linkwarden",
-    "lubelogger",
-    "mailcow",
-    "mastodon",
-    "mealie",
-    "medusa",
-    "mikrotik",
-    "minecraft",
-    "miniflux",
-    "mjpeg",
-    "moonraker",
-    "mylar",
-    "myspeed",
-    "navidrome",
-    "netalertx",
-    "netdata",
-    "nextcloud",
-    "nextdns",
-    "nginx-proxy-manager",
-    "ntfy",
-    "nzbget",
-    "octoprint",
-    "omada",
-    "ombi",
-    "opendtu",
-    "openmediavault",
-    "openwrt",
-    "opnsense",
-    "pangolin",
-    "paperlessngx",
-    "peanut",
-    "pfsense",
-    "photoprism",
-    "pihole",
-    "plantit",
-    "plex",
-    "plex-tautulli",
-    "portainer",
-    "prometheus",
-    "prometheusmetric",
-    "prowlarr",
-    "proxmox",
-    "proxmoxbackupserver",
-    "pterodactyl",
-    "pyload",
-    "qbittorrent",
-    "qnap",
-    "radarr",
-    "readarr",
-    "romm",
-    "rutorrent",
-    "sabnzbd",
-    "scrutiny",
-    "seerr",
-    "slskd",
-    "sonarr",
-    "sparkyfitness",
-    "speedtest-tracker",
-    "spoolman",
-    "stash",
-    "stocks",
-    "suwayomi",
-    "swagdashboard",
-    "syncthing-relay-server",
-    "tailscale",
-    "tandoor",
-    "tdarr",
-    "technitium",
-    "torrsyncarr",
-    "tracearr",
-    "traefik",
-    "transmission",
-    "trilium",
-    "truenas",
-    "tubearchivist",
-    "unifi-controller",
-    "unifi-drive",
-    "unmanic",
-    "unraid",
-    "uptime-kuma",
-    "uptimerobot",
-    "urbackup",
-    "vikunja",
-    "wallos",
-    "watchtower",
-    "wgeasy",
-    "whatsupdocker",
-    "xteve",
-    "yourspotify",
-    "zabbix"
-  ];
+  "adguard-home",
+  "apcups",
+  "arcane",
+  "argocd",
+  "atsumeru",
+  "audiobookshelf",
+  "authentik",
+  "autobrr",
+  "azuredevops",
+  "backrest",
+  "bazarr",
+  "beszel",
+  "booklore",
+  "caddy",
+  "calendar",
+  "calibre-web",
+  "changedetectionio",
+  "channelsdvrserver",
+  "checkmk",
+  "cloudflared",
+  "coin-market-cap",
+  "crowdsec",
+  "customapi",
+  "deluge",
+  "develancacheui",
+  "diskstation",
+  "dispatcharr",
+  "dockhand",
+  "downloadstation",
+  "emby",
+  "esphome",
+  "evcc",
+  "filebrowser",
+  "fileflows",
+  "firefly",
+  "flood",
+  "freshrss",
+  "frigate",
+  "fritzbox",
+  "gamedig",
+  "gatus",
+  "ghostfolio",
+  "gitea",
+  "gitlab",
+  "glances",
+  "gluetun",
+  "gotify",
+  "grafana",
+  "hdhomerun",
+  "headscale",
+  "healthchecks",
+  "homeassistant",
+  "homebox",
+  "homebridge",
+  "iframe",
+  "immich",
+  "jackett",
+  "jdownloader",
+  "jellyfin",
+  "jellystat",
+  "karakeep",
+  "kavita",
+  "komga",
+  "komodo",
+  "kopia",
+  "lidarr",
+  "linkwarden",
+  "lubelogger",
+  "mailcow",
+  "mastodon",
+  "mealie",
+  "medusa",
+  "mikrotik",
+  "minecraft",
+  "miniflux",
+  "mjpeg",
+  "moonraker",
+  "mylar",
+  "myspeed",
+  "navidrome",
+  "netalertx",
+  "netdata",
+  "nextcloud",
+  "nextdns",
+  "nginx-proxy-manager",
+  "ntfy",
+  "nzbget",
+  "octoprint",
+  "omada",
+  "ombi",
+  "opendtu",
+  "openmediavault",
+  "openwrt",
+  "opnsense",
+  "pangolin",
+  "paperlessngx",
+  "peanut",
+  "pfsense",
+  "photoprism",
+  "pihole",
+  "plantit",
+  "plex",
+  "plex-tautulli",
+  "portainer",
+  "prometheus",
+  "prometheusmetric",
+  "prowlarr",
+  "proxmox",
+  "proxmoxbackupserver",
+  "pterodactyl",
+  "pyload",
+  "qbittorrent",
+  "qnap",
+  "radarr",
+  "readarr",
+  "romm",
+  "rutorrent",
+  "sabnzbd",
+  "scrutiny",
+  "seerr",
+  "slskd",
+  "sonarr",
+  "sparkyfitness",
+  "speedtest-tracker",
+  "spoolman",
+  "stash",
+  "stocks",
+  "suwayomi",
+  "swagdashboard",
+  "syncthing-relay-server",
+  "tailscale",
+  "tandoor",
+  "tdarr",
+  "technitium",
+  "torrsyncarr",
+  "tracearr",
+  "traefik",
+  "transmission",
+  "trilium",
+  "truenas",
+  "tubearchivist",
+  "unifi-controller",
+  "unifi-drive",
+  "unmanic",
+  "unraid",
+  "uptime-kuma",
+  "uptimerobot",
+  "urbackup",
+  "vikunja",
+  "wallos",
+  "watchtower",
+  "wgeasy",
+  "whatsupdocker",
+  "xteve",
+  "yourspotify",
+  "zabbix"
+];
 
   let currentType = "";
   if (widget) {
@@ -3989,7 +4021,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
         try {
           const templateObj = yaml.load(templateStr);
           Object.assign(obj, templateObj);
-        } catch (e) {
+        } catch {
           obj.widget = {
             type: newType,
             url: "http://ip-address:port",
@@ -4006,7 +4038,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     try {
       const nextYaml = Object.keys(obj).length ? yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }) : "";
       onChange(nextYaml);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -4019,7 +4051,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     try {
       const nextYaml = yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false });
       onChange(nextYaml);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -4122,7 +4154,6 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     </div>
   );
 }
-
 function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const fileInputRef = useRef(null);
@@ -4277,6 +4308,961 @@ function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
     </EditorWindow>
   );
 }
+
+
+let selfhstIconsCache = null;
+
+function IconsManagerModal({ onClose, onSaved, settings }) {
+  const { mutate } = useSWRConfig();
+  const { theme } = useContext(ThemeContext);
+  const editor = useConfigEditor();
+  const iconSelectorCallback = editor?.iconSelectorCallback;
+  const setIconSelectorCallback = editor?.setIconSelectorCallback;
+
+  const [activeTab, setActiveTab] = useState("list");
+  const [icons, setIcons] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [downloadName, setDownloadName] = useState("");
+  const [repoName, setRepoName] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [repoSearchQuery, setRepoSearchQuery] = useState("");
+  const [repoSearchResults, setRepoSearchResults] = useState([]);
+  const [searchingRepo, setSearchingRepo] = useState(false);
+  const [localizing, setLocalizing] = useState(false);
+  const [editingRepoIdx, setEditingRepoIdx] = useState(null);
+  const [libSearchQuery, setLibSearchQuery] = useState("");
+  const [libSearchResults, setLibSearchResults] = useState([]);
+  const [searchingLib, setSearchingLib] = useState(false);
+  const [itemColors, setItemColors] = useState({});
+  const fileInputRef = useRef(null);
+
+  const loadIcons = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/config/icon/list");
+      if (res.ok) {
+        const data = await res.json();
+        setIcons(data.icons || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIcons();
+  }, [loadIcons]);
+
+  const iconRepos = settings?.iconRepositories || [
+    {
+      name: "Dashboard Icons (walkxcode)",
+      url: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/"
+    }
+  ];
+
+  const systemRepos = [
+    {
+      name: "Dashboard Icons (walkxcode / homarr)",
+      url: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/",
+      prefix: "нет",
+      isSystem: true
+    },
+    {
+      name: "Simple Icons",
+      url: "https://cdn.jsdelivr.net/npm/simple-icons/icons/",
+      prefix: "si-",
+      isSystem: true
+    },
+    {
+      name: "Material Design Icons",
+      url: "https://cdn.jsdelivr.net/npm/@mdi/svg/svg/",
+      prefix: "mdi-",
+      isSystem: true
+    },
+    {
+      name: "selfh.st/icons",
+      url: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/",
+      prefix: "sh-",
+      isSystem: true
+    }
+  ];
+
+  const customRepos = settings?.iconRepositories || [];
+  const filteredSystemRepos = systemRepos.filter(sys => 
+    !customRepos.some(cust => cust.url.trim().replace(/\/+$/, "") === sys.url.trim().replace(/\/+$/, ""))
+  );
+  const displayedRepos = [...filteredSystemRepos, ...customRepos];
+
+  async function saveRepos(nextRepos) {
+    try {
+      const response = await editorWriteFetch("/api/config/editor", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file: "settings",
+          data: {
+            ...settings,
+            iconRepositories: nextRepos
+          }
+        }),
+      });
+      if (response.ok) {
+        const nextData = await response.json();
+        await mutate("/api/config/editor", nextData, false);
+        onSaved("Список репозиториев сохранен");
+      }
+    } catch (err) {
+      setError("Ошибка сохранения настроек");
+    }
+  }
+
+  async function deleteIcon(name) {
+    if (!window.confirm(`Вы уверены, что хотите удалить иконку ${name}?`)) return;
+    try {
+      const res = await fetch(`/api/config/icon/${name}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        onSaved("Иконка удалена");
+        loadIcons();
+      } else {
+        const text = await res.text();
+        setError(text || "Ошибка удаления");
+      }
+    } catch (err) {
+      setError("Ошибка удаления");
+    }
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    setError("");
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/config/icon/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, dataUrl })
+      });
+
+      if (res.ok) {
+        onSaved("Иконка загружена");
+        loadIcons();
+        setActiveTab("list");
+      } else {
+        const text = await res.text();
+        setError(text || "Ошибка загрузки");
+      }
+    } catch (err) {
+      setError("Ошибка загрузки");
+    } finally {
+      setLoading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleDownloadFromUrl() {
+    if (!downloadUrl || !downloadName) {
+      setError("Заполните ссылку и название файла");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/config/icon/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: downloadUrl, name: downloadName })
+      });
+      if (res.ok) {
+        onSaved("Иконка успешно скачана");
+        loadIcons();
+        setDownloadUrl("");
+        setDownloadName("");
+        setActiveTab("list");
+      } else {
+        const text = await res.text();
+        setError(text || "Ошибка скачивания");
+      }
+    } catch (err) {
+      setError("Ошибка скачивания");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function parseGithubRepo(url) {
+    const cleanUrl = url.trim().replace(/\/+$/, "");
+    let match = cleanUrl.match(/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)(?:\/(.*))?/);
+    if (match) {
+      return { user: match[1], repo: match[2], version: match[3], path: match[4] ? "/" + match[4] : "" };
+    }
+    match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (match) {
+      const repoName = match[2].replace(/\.git$/, "");
+      const treeMatch = cleanUrl.match(/github\.com\/[^\/]+\/[^\/]+\/tree\/([^\/]+)(?:\/(.*))?/);
+      return { 
+        user: match[1], 
+        repo: repoName, 
+        version: treeMatch ? treeMatch[1] : "main", 
+        path: treeMatch && treeMatch[2] ? "/" + treeMatch[2] : "" 
+      };
+    }
+    match = cleanUrl.match(/cdn\.jsdelivr\.net\/gh\/([^\/]+)\/([^\/@]+)(?:@([^\/]+))?(?:\/(.*))?/);
+    if (match) {
+      return { 
+        user: match[1], 
+        repo: match[2], 
+        version: match[3] || "main", 
+        path: match[4] ? "/" + match[4] : "" 
+      };
+    }
+    return null;
+  }
+
+  async function handleRepoSearch() {
+    if (!repoSearchQuery.trim()) return;
+    setSearchingRepo(true);
+    setError("");
+    const results = [];
+    const term = repoSearchQuery.toLowerCase().trim();
+
+    for (const repo of iconRepos) {
+      const parsed = parseGithubRepo(repo.url);
+      if (parsed) {
+        try {
+          const pathPart = parsed.path ? parsed.path.replace(/^\//, "") : "";
+          const apiUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/contents/${pathPart}?ref=${parsed.version}`;
+          const res = await fetch(apiUrl);
+          if (res.ok) {
+            const files = await res.json();
+            if (Array.isArray(files)) {
+              const matches = files.filter(f => f.type === "file" && f.name.toLowerCase().includes(term));
+              matches.forEach(m => {
+                let rawUrl = m.download_url;
+                if (!rawUrl) {
+                  const urlPath = pathPart ? pathPart + "/" : "";
+                  rawUrl = `https://raw.githubusercontent.com/${parsed.user}/${parsed.repo}/${parsed.version}/${urlPath}${m.name}`;
+                }
+                results.push({
+                  name: m.name,
+                  url: rawUrl,
+                  repo: repo.name
+                });
+              });
+            }
+          } else {
+            console.error(`Failed searching repo ${repo.name} via GitHub:`, res.status);
+          }
+        } catch (err) {
+          console.error(`Failed searching repo ${repo.name}:`, err);
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      iconRepos.forEach(repo => {
+        const ext = term.endsWith(".png") || term.endsWith(".svg") ? "" : ".png";
+        const fileName = `${term}${ext}`;
+        results.push({
+          name: fileName,
+          url: `${repo.url}${fileName}`,
+          repo: repo.name,
+          isFallback: true
+        });
+      });
+    }
+
+    setRepoSearchResults(results);
+    setSearchingRepo(false);
+  }
+
+  async function handleLibSearch() {
+    if (!libSearchQuery.trim()) return;
+    setSearchingLib(true);
+    setError("");
+    const results = [];
+    let query = libSearchQuery.toLowerCase().trim();
+
+    if (query.startsWith("si-")) {
+      query = query.replace("si-", "");
+    } else if (query.startsWith("mdi-")) {
+      query = query.replace("mdi-", "");
+    } else if (query.startsWith("sh-")) {
+      query = query.replace("sh-", "");
+    }
+
+    try {
+      const promises = [
+        fetch(`https://api.iconify.design/search?query=${query}&prefix=simple-icons&limit=64`).then(r => r.ok ? r.json() : null),
+        fetch(`https://api.iconify.design/search?query=${query}&prefix=mdi&limit=64`).then(r => r.ok ? r.json() : null),
+        (async () => {
+          if (selfhstIconsCache) return selfhstIconsCache;
+          try {
+            const res = await fetch(`https://api.github.com/repos/selfhst/icons/contents/svg?ref=main`);
+            if (res.ok) {
+              const data = await res.json();
+              selfhstIconsCache = data;
+              return data;
+            }
+          } catch (e) {
+            console.error("Failed fetching selfhst/icons directory:", e);
+          }
+          return null;
+        })()
+      ];
+
+      const [siData, mdiData, shFiles] = await Promise.all(promises);
+
+      if (siData && siData.icons) {
+        siData.icons.forEach(name => {
+          const cleanName = name.replace("simple-icons:", "");
+          results.push({
+            name: `si-${cleanName}`,
+            url: `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
+            type: "si"
+          });
+        });
+      }
+
+      if (mdiData && mdiData.icons) {
+        mdiData.icons.forEach(name => {
+          const cleanName = name.replace("mdi:", "");
+          results.push({
+            name: `mdi-${cleanName}`,
+            url: `https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
+            type: "mdi"
+          });
+        });
+      }
+
+      if (Array.isArray(shFiles)) {
+        const matches = shFiles.filter(f => f.type === "file" && f.name.toLowerCase().includes(query));
+        matches.forEach(m => {
+          const cleanName = m.name.replace(".svg", "");
+          results.push({
+            name: `sh-${cleanName}`,
+            url: m.download_url || `https://raw.githubusercontent.com/selfhst/icons/main/svg/${m.name}`,
+            type: "sh"
+          });
+        });
+      }
+    } catch (err) {
+      console.error("Libraries search failed:", err);
+      setError("Ошибка поиска по библиотекам");
+    }
+
+    setLibSearchResults(results);
+    setSearchingLib(false);
+  }
+
+  async function handleDownloadRepoIcon(item) {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/config/icon/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: item.url, name: item.name })
+      });
+      if (res.ok) {
+        onSaved(`Иконка ${item.name} успешно сохранена`);
+        loadIcons();
+      } else {
+        const text = await res.text();
+        setError(text || "Не удалось скачать. Проверьте имя и ссылку.");
+      }
+    } catch (err) {
+      setError("Ошибка при скачивании");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLocalize() {
+    setLocalizing(true);
+    setError("");
+    try {
+      const response = await editorWriteFetch("/api/config/editor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "localize-icons" }),
+      });
+
+      if (!response.ok) {
+        setError(await response.text());
+        return;
+      }
+
+      const nextData = await response.json();
+      await mutate("/api/config/editor", nextData, false);
+
+      const result = nextData.iconLocalization;
+      if (!result?.updated) {
+        onSaved("Иконки со ссылками не найдены в конфигурации");
+        return;
+      }
+
+      const skipped = result.skipped ? `, пропущено ${result.skipped}` : "";
+      onSaved(`Локализовано: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`);
+      loadIcons();
+    } catch (err) {
+      setError("Ошибка локализации");
+    } finally {
+      setLocalizing(false);
+    }
+  }
+
+  const filteredLocalIcons = icons.filter(name => name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <EditorWindow
+      storageKey="homepage-browser-editor-window-icons-v2"
+      title="Менеджер иконок"
+      onClose={onClose}
+      defaultWidth={620}
+      defaultHeight={480}
+      minWidth={450}
+      minHeight={350}
+      wrapperClassName="!z-[70]"
+    >
+      <div className="flex border-b border-theme-300/30 dark:border-white/5 pb-2 mb-3 gap-3 text-[11px] font-semibold uppercase tracking-wider">
+        <button
+          type="button"
+          onClick={() => setActiveTab("list")}
+          className={activeTab === "list" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
+        >
+          Локальные ({icons.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("upload")}
+          className={activeTab === "upload" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
+        >
+          Загрузить файл
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("url")}
+          className={activeTab === "url" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
+        >
+          Скачать по URL
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("repos")}
+          className={activeTab === "repos" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
+        >
+          Репозитории
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("libs")}
+          className={activeTab === "libs" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
+        >
+          Библиотеки (MDI / SI / SH)
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 flex flex-col">
+        {activeTab === "list" && (
+          <div className="flex-1 min-h-0 flex flex-col space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Поиск локальных иконок..."
+                className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+              <button
+                type="button"
+                onClick={handleLocalize}
+                disabled={localizing}
+                className="shrink-0 rounded-md border border-theme-300/50 bg-theme-100/50 hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                {localizing ? "Синхронизация..." : "Локализовать из конфигов"}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10">
+              {filteredLocalIcons.length === 0 ? (
+                <div className="text-center text-xs text-theme-400 dark:text-theme-500 italic py-8">
+                  Локальные иконки не найдены
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {filteredLocalIcons.map(name => {
+                    const iconPath = `/api/config/icon/${name}`;
+                    const localIconName = `/api/config/icon/${name}`;
+                    return (
+                      <div 
+                        key={name}
+                        onClick={() => {
+                          if (iconSelectorCallback) {
+                            iconSelectorCallback(localIconName);
+                            setIconSelectorCallback(null);
+                            onClose();
+                          }
+                        }}
+                        className={classNames(
+                          "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
+                          iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
+                        )}
+                      >
+                        <img src={iconPath} alt={name} className="h-10 w-10 object-contain" onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} />
+                        <span className="text-[10px] break-all text-center select-all font-mono" title={name}>
+                          {name}
+                        </span>
+                        {iconSelectorCallback ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              iconSelectorCallback(localIconName);
+                              setIconSelectorCallback(null);
+                              onClose();
+                            }}
+                            className="w-full text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2 rounded mt-1 transition-colors"
+                          >
+                            Выбрать
+                          </button>
+                        ) : (
+                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteIcon(name);
+                              }}
+                              className="bg-rose-500 hover:bg-rose-600 text-white rounded p-1"
+                              title="Удалить"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="text-[10px] text-theme-400 dark:text-theme-500">
+              Используйте имя <code className="bg-theme-100 dark:bg-white/5 px-1 py-0.5 rounded select-all font-mono">/api/config/icon/название_файла</code> в поле &quot;Иконка&quot;.
+            </div>
+          </div>
+        )}
+
+        {activeTab === "upload" && (
+          <div className="flex-1 flex flex-col justify-center items-center p-6 border border-dashed border-theme-300/50 dark:border-white/10 rounded-md bg-theme-50/10 dark:bg-black/5 space-y-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            <div className="text-center">
+              <svg className="w-10 h-10 mx-auto text-theme-400 dark:text-theme-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="text-xs font-semibold">Выберите файл изображения иконки</p>
+              <p className="text-[10px] text-theme-400 dark:text-theme-500 mt-1">Поддерживаются PNG, SVG, JPG, WebP и др.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="rounded-md bg-theme-700 px-4 py-2 text-xs text-white disabled:opacity-60 hover:bg-theme-850 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white transition-colors"
+            >
+              Выбрать и загрузить
+            </button>
+          </div>
+        )}
+
+        {activeTab === "url" && (
+          <div className="flex-1 flex flex-col space-y-3 p-4 border border-theme-300/20 dark:border-white/5 rounded-md bg-theme-50/10 dark:bg-black/5">
+            <div className="flex flex-col space-y-1">
+              <label className="text-[10px] font-semibold">Ссылка на удаленную иконку (URL)</label>
+              <input
+                type="text"
+                value={downloadUrl}
+                onChange={e => {
+                  setDownloadUrl(e.target.value);
+                  if (e.target.value && !downloadName) {
+                    const base = e.target.value.split("/").pop() || "";
+                    if (base.includes(".")) {
+                      setDownloadName(base);
+                    }
+                  }
+                }}
+                placeholder="https://example.com/logo.png"
+                className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <label className="text-[10px] font-semibold">Имя сохраняемого файла</label>
+              <input
+                type="text"
+                value={downloadName}
+                onChange={e => setDownloadName(e.target.value)}
+                placeholder="my-logo.png"
+                className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadFromUrl}
+              disabled={loading}
+              className="w-full rounded-md bg-theme-700 px-4 py-2 text-xs text-white disabled:opacity-60 hover:bg-theme-850 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white transition-colors mt-2"
+            >
+              Скачать и сохранить
+            </button>
+          </div>
+        )}
+
+        {activeTab === "repos" && (
+          <div className="flex-1 min-h-0 flex flex-col space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={repoSearchQuery}
+                onChange={e => setRepoSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleRepoSearch(); }}
+                placeholder="Поиск иконки в репозитории (например: proxmox)"
+                className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+              <button
+                type="button"
+                onClick={handleRepoSearch}
+                disabled={searchingRepo}
+                className="rounded-md bg-theme-700 hover:bg-theme-850 px-4 py-1.5 text-xs text-white dark:bg-theme-200 dark:hover:bg-white dark:text-theme-900 transition-colors"
+              >
+                Поиск
+              </button>
+            </div>
+
+            {repoSearchResults.length > 0 ? (
+              <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {repoSearchResults.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        if (iconSelectorCallback) {
+                          iconSelectorCallback(item.name);
+                          setIconSelectorCallback(null);
+                          onClose();
+                        }
+                      }}
+                      className={classNames(
+                        "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
+                        iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
+                      )}
+                    >
+                      <img src={item.url} alt={item.name} className="h-10 w-10 object-contain" onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} />
+                      <span className="text-[10px] break-all text-center select-all font-mono" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="text-[9px] text-theme-400 dark:text-theme-500 text-center truncate w-full">
+                        {item.repo}
+                      </span>
+                      {iconSelectorCallback ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            iconSelectorCallback(item.name);
+                            setIconSelectorCallback(null);
+                            onClose();
+                          }}
+                          className="w-full text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2 rounded mt-1 transition-colors"
+                        >
+                          Выбрать
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadRepoIcon(item);
+                          }}
+                          disabled={loading}
+                          className="w-full text-[10px] font-semibold bg-theme-200 dark:bg-white/10 hover:bg-theme-300 dark:hover:bg-white/20 py-1 px-2 rounded mt-1 transition-colors disabled:opacity-50"
+                        >
+                          Скачать локально
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10 flex flex-col">
+                <span className="text-xs font-semibold mb-2">Подключенные репозитории:</span>
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                  {displayedRepos.map((repo, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 rounded border border-theme-300/10 dark:border-white/5 bg-theme-50/50 dark:bg-white/5">
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold truncate">{repo.name}</span>
+                          {repo.isSystem && (
+                            <span className="text-[9px] bg-theme-200 dark:bg-white/10 px-1.5 py-0.2 rounded font-medium opacity-85">
+                              Системный
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-theme-400 dark:text-theme-500 truncate">{repo.url}</span>
+                        {repo.prefix && (
+                          <span className="text-[9px] text-theme-400 dark:text-theme-500 font-mono">
+                            Префикс: <code className="bg-theme-100 dark:bg-white/5 px-0.5 rounded">{repo.prefix}</code>
+                          </span>
+                        )}
+                      </div>
+                      {!repo.isSystem && (
+                        <div className="flex gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const customIdx = customRepos.findIndex(r => r.url === repo.url);
+                              if (customIdx !== -1) {
+                                setEditingRepoIdx(customIdx);
+                                setRepoName(repo.name);
+                                setRepoUrl(repo.url);
+                              }
+                            }}
+                            className="text-theme-600 dark:text-theme-400 hover:text-theme-700 text-xs font-semibold px-2 py-1"
+                          >
+                            Редактировать
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = customRepos.filter(r => r.url !== repo.url);
+                              saveRepos(next);
+                            }}
+                            className="text-rose-500 hover:text-rose-600 text-xs font-semibold px-2 py-1"
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 border-t border-theme-300/20 dark:border-white/5 pt-2 flex flex-col space-y-2">
+                  <span className="text-xs font-semibold">
+                    {editingRepoIdx !== null ? "Редактировать репозиторий:" : "Подключить новый репозиторий:"}
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={repoName}
+                      onChange={e => setRepoName(e.target.value)}
+                      placeholder="Название"
+                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                    />
+                    <input
+                      type="text"
+                      value={repoUrl}
+                      onChange={e => setRepoUrl(e.target.value)}
+                      placeholder="Базовый URL (с / в конце)"
+                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!repoName || !repoUrl) return;
+                        if (editingRepoIdx !== null) {
+                          const next = [...iconRepos];
+                          next[editingRepoIdx] = { name: repoName, url: repoUrl };
+                          saveRepos(next);
+                          setEditingRepoIdx(null);
+                        } else {
+                          const next = [...iconRepos, { name: repoName, url: repoUrl }];
+                          saveRepos(next);
+                        }
+                        setRepoName("");
+                        setRepoUrl("");
+                      }}
+                      className="flex-1 rounded bg-theme-200 dark:bg-white/10 hover:bg-theme-350 dark:hover:bg-white/20 py-1.5 text-xs font-semibold transition-colors"
+                    >
+                      {editingRepoIdx !== null ? "Сохранить изменения" : "Добавить репозиторий"}
+                    </button>
+                    {editingRepoIdx !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRepoIdx(null);
+                          setRepoName("");
+                          setRepoUrl("");
+                        }}
+                        className="rounded bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 text-xs font-semibold transition-colors"
+                      >
+                        Отмена
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "libs" && (
+          <div className="flex-1 min-h-0 flex flex-col space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={libSearchQuery}
+                onChange={e => setLibSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleLibSearch(); }}
+                placeholder="Поиск в MDI, Simple Icons, Selfh.st (например: home, plex, immich)"
+                className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              />
+              <button
+                type="button"
+                onClick={handleLibSearch}
+                disabled={searchingLib}
+                className="rounded-md bg-theme-700 hover:bg-theme-850 px-4 py-1.5 text-xs text-white dark:bg-theme-200 dark:hover:bg-white dark:text-theme-900 transition-colors"
+              >
+                {searchingLib ? "Поиск..." : "Поиск"}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10">
+              {libSearchResults.length === 0 ? (
+                <div className="text-center text-xs text-theme-400 dark:text-theme-500 italic py-8">
+                  Введите запрос для поиска иконок в библиотеках MDI, Simple Icons и selfh.st.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {libSearchResults.map((item, idx) => {
+                    const itemColor = itemColors[idx] || "";
+                    const displayColor = itemColor || (theme === "dark" ? "#ffffff" : "#000000");
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (iconSelectorCallback) {
+                            const finalName = itemColor ? `${item.name}-${itemColor}` : item.name;
+                            iconSelectorCallback(finalName);
+                            setIconSelectorCallback(null);
+                            onClose();
+                          }
+                        }}
+                        className={classNames(
+                          "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
+                          iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
+                        )}
+                      >
+                        {itemColor ? (
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              background: displayColor,
+                              mask: `url(${item.url}) no-repeat center / contain`,
+                              WebkitMask: `url(${item.url}) no-repeat center / contain`,
+                            }}
+                          />
+                        ) : (
+                          <img 
+                            src={item.url} 
+                            alt={item.name} 
+                            className={classNames("h-10 w-10 object-contain", item.type !== "sh" && "dark:invert")}
+                            onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} 
+                          />
+                        )}
+                        <span className="text-[10px] break-all text-center select-all font-mono" title={item.name}>
+                          {item.name}
+                        </span>
+                        {(item.type === "si" || item.type === "mdi") && (
+                          <div className="flex items-center gap-1 mt-1 text-[10px]" onClick={e => e.stopPropagation()}>
+                            <label className="flex items-center gap-1 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={!!itemColor}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setItemColors(prev => ({ ...prev, [idx]: "#3eadff" }));
+                                  } else {
+                                    setItemColors(prev => {
+                                      const copy = { ...prev };
+                                      delete copy[idx];
+                                      return copy;
+                                    });
+                                  }
+                                }}
+                                className="h-3 w-3 rounded-sm border-theme-300 dark:border-white/10"
+                              />
+                              <span>Цвет:</span>
+                            </label>
+                            {!!itemColor && (
+                              <input
+                                type="color"
+                                value={itemColor}
+                                onChange={e => setItemColors(prev => ({ ...prev, [idx]: e.target.value }))}
+                                className="w-5 h-4 p-0 border border-theme-300/40 bg-transparent rounded cursor-pointer shrink-0"
+                              />
+                            )}
+                          </div>
+                        )}
+                        {iconSelectorCallback && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const finalName = itemColor ? `${item.name}-${itemColor}` : item.name;
+                              iconSelectorCallback(finalName);
+                              setIconSelectorCallback(null);
+                              onClose();
+                            }}
+                            className="w-full text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white py-1 px-2 rounded mt-1 transition-colors"
+                          >
+                            Выбрать
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-3 rounded-md bg-rose-100 p-2 text-xs text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
+      </div>
+    </EditorWindow>
+  );
+}
+
 
 function ConfigFilesModal({ tabs, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
@@ -4693,29 +5679,29 @@ function GroupModal({ modal, data, onClose, onSaved }) {
             Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
           </p>
           <div className="mt-3 border-t border-theme-300/30 pt-3">
-            <p className="mb-2 text-xs font-medium text-theme-600 dark:text-theme-300">Title style</p>
+            <p className="mb-2 text-xs font-medium text-theme-600 dark:text-theme-300">Стиль заголовка</p>
             <div className="grid gap-3 md:grid-cols-2">
               <Field
                 name="titleColor"
-                label="Title color"
+                label="Цвет заголовка"
                 value={form.titleColor}
                 onChange={(value) => setForm((current) => ({ ...current, titleColor: value }))}
               />
               <Field
                 name="titleAlign"
-                label="Title alignment"
+                label="Выравнивание заголовка"
                 value={form.titleAlign}
                 onChange={(value) => setForm((current) => ({ ...current, titleAlign: value }))}
               />
               <Field
                 name="titleSize"
-                label="Title font size"
+                label="Размер шрифта заголовка"
                 value={form.titleSize}
                 onChange={(value) => setForm((current) => ({ ...current, titleSize: value }))}
               />
               <Field
                 name="titleFont"
-                label="Title font"
+                label="Шрифт заголовка"
                 value={form.titleFont}
                 onChange={(value) => setForm((current) => ({ ...current, titleFont: value }))}
               />
@@ -5125,6 +6111,24 @@ export function useEditableGroupHeader(type, groupName, layout) {
     return {};
   }
 
+  /** Returns "before" when cursor is in the top half of the element, "after" otherwise. */
+  function getDropPlacement(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  }
+
+  /** Sets a CSS data-attribute so the group header shows a drop-line indicator. */
+  function updateDropIndicator(event) {
+    const el = event.currentTarget;
+    if (el) {
+      el.setAttribute("data-drop-placement", getDropPlacement(event));
+    }
+  }
+
+  function clearDropIndicator(event) {
+    event.currentTarget?.removeAttribute("data-drop-placement");
+  }
+
   return {
     draggable: true,
     onDragStart: (event) => {
@@ -5142,13 +6146,19 @@ export function useEditableGroupHeader(type, groupName, layout) {
     onDragOver: (event) => {
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
+      updateDropIndicator(event);
+    },
+    onDragLeave: (event) => {
+      clearDropIndicator(event);
     },
     onDrop: (event) => {
       event.preventDefault();
       event.stopPropagation();
+      clearDropIndicator(event);
       const dragged = readGroupDragPayload(event);
       if (dragged?.scope === "group" && dragged.type === type) {
-        moveGroup(type, dragged.groupName, groupName, "before");
+        const placement = getDropPlacement(event);
+        moveGroup(type, dragged.groupName, groupName, placement);
       }
     },
     onClick: (event) => {
@@ -5428,11 +6438,13 @@ export function ConfigEditorProvider({ children }) {
   const [editMode, setEditMode] = useState(false);
   const [editButtonVisible, setEditButtonVisible] = useState(false);
   const [modal, setModal] = useState(null);
+  const [iconSelectorCallback, setIconSelectorCallback] = useState(null);
+  const [iconsManagerOpen, setIconsManagerOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [iconsSaving, setIconsSaving] = useState(false);
   const editButtonHideTimeoutRef = useRef(null);
   const backgroundButtonRef = useRef(null);
-  const { data } = useSWR(enabled && (editMode || modal) ? "/api/config/editor" : null);
+  const { data } = useSWR(enabled && (editMode || modal || iconsManagerOpen) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
 
   function handleSaved(message) {
@@ -5708,8 +6720,14 @@ export function ConfigEditorProvider({ children }) {
           scope: "group",
         }),
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
+      iconSelectorCallback,
+      setIconSelectorCallback,
+      selectIcon: (callback) => {
+        setIconSelectorCallback(() => callback);
+        setIconsManagerOpen(true);
+      },
     }),
-    [activePageName, data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings],
+    [activePageName, data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings, iconSelectorCallback, iconsManagerOpen],
   );
 
   const showEditButton = useCallback(() => {
@@ -5779,62 +6797,6 @@ export function ConfigEditorProvider({ children }) {
 
   return (
     <ConfigEditorContext.Provider value={value}>
-      <style>{`
-        @media (max-width: 2000px), (max-height: 1200px) {
-          .editor-window {
-            font-size: 13px !important;
-          }
-          .editor-window h2 {
-            font-size: 15px !important;
-          }
-          .editor-window input,
-          .editor-window select,
-          .editor-window textarea {
-            font-size: 13px !important;
-            padding-top: 4px !important;
-            padding-bottom: 4px !important;
-            padding-left: 8px !important;
-            padding-right: 8px !important;
-          }
-          .editor-window label {
-            font-size: 11px !important;
-          }
-          .editor-window button {
-            font-size: 12px !important;
-            padding-top: 4px !important;
-            padding-bottom: 4px !important;
-            padding-left: 8px !important;
-            padding-right: 8px !important;
-          }
-          .editor-window .p-4 {
-            padding: 10px !important;
-          }
-          .editor-window .gap-6 {
-            gap: 12px !important;
-          }
-          .editor-window .space-y-3 > :not([hidden]) ~ :not([hidden]) {
-            margin-top: 6px !important;
-          }
-          .editor-window .space-y-4 > :not([hidden]) ~ :not([hidden]) {
-            margin-top: 8px !important;
-          }
-          .editor-window .mt-4 {
-            margin-top: 8px !important;
-          }
-          .editor-window .mt-3 {
-            margin-top: 6px !important;
-          }
-          .editor-window .pt-3 {
-            padding-top: 6px !important;
-          }
-          .editor-window .mb-3 {
-            margin-bottom: 6px !important;
-          }
-          .editor-window .react-simple-code-editor {
-            font-size: 12px !important;
-          }
-        }
-      `}</style>
       {children}
       {editMode ? (
         <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
@@ -5860,8 +6822,8 @@ export function ConfigEditorProvider({ children }) {
           <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
             Новая группа
           </button>
-          <button type="button" onClick={localizeIcons} disabled={iconsSaving} className={toolbarButtonClassName}>
-            {iconsSaving ? "Иконки..." : "Иконки"}
+          <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
+            Иконки
           </button>
           <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
             Ручная правка
@@ -5919,11 +6881,22 @@ export function ConfigEditorProvider({ children }) {
       )}
       {modal?.type !== "background" &&
         modal?.type !== "settings-tabs" &&
+        modal?.type !== "icons-manager" &&
         modal?.scope !== "group" &&
         modal?.scope !== "top-widget" &&
         modal &&
         data && (
         <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
+      {iconsManagerOpen && (
+        <IconsManagerModal
+          settings={data?.settings}
+          onClose={() => {
+            setIconsManagerOpen(false);
+            setIconSelectorCallback(null);
+          }}
+          onSaved={handleSaved}
+        />
       )}
     </ConfigEditorContext.Provider>
   );
