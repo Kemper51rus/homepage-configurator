@@ -6914,7 +6914,6 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
               </div>
 
               {/* Weather config moved to WeatherWidgetModal */}
-              </div>
             </div>
           </div>
 
