@@ -14,10 +14,14 @@ export const serviceFields = [
   ["proxmoxNode", "Узел Proxmox"],
   ["proxmoxVMID", "Proxmox VMID"],
   ["proxmoxType", "Тип Proxmox"],
+  ["titleColor", "Цвет заголовка (HEX/CSS)"],
+  ["titleSize", "Размер заголовка (напр. 14px)"],
+  ["titleAlign", "Выравнивание заголовка (left/center/right)"],
+  ["titleFont", "Шрифт заголовка"],
 ];
 
-export const collapsedServiceFieldKeys = new Set(["id", "description", "abbr", "target", "weight", "ping", "siteMonitor", "showStats"]);
-export const collapsedBookmarkFieldKeys = new Set(["id", "description", "abbr", "target"]);
+export const collapsedServiceFieldKeys = new Set(["id", "description", "abbr", "target", "weight", "ping", "siteMonitor", "showStats", "titleColor", "titleSize", "titleAlign", "titleFont"]);
+export const collapsedBookmarkFieldKeys = new Set(["id", "description", "abbr", "target", "titleColor", "titleSize", "titleAlign", "titleFont"]);
 
 export const bookmarkFields = [
   ["id", "ID"],
@@ -26,6 +30,11 @@ export const bookmarkFields = [
   ["description", "Описание"],
   ["abbr", "Сокращение"],
   ["target", "Цель"],
+  ["showLink", "Отображать ссылку"],
+  ["titleColor", "Цвет заголовка (HEX/CSS)"],
+  ["titleSize", "Размер заголовка (напр. 14px)"],
+  ["titleAlign", "Выравнивание заголовка (left/center/right)"],
+  ["titleFont", "Шрифт заголовка"],
 ];
 
 export const serviceCardColorOptions = [
@@ -50,8 +59,8 @@ export const serviceCardColorOptions = [
 ];
 
 export const knownFields = {
-  bookmarks: [...bookmarkFields.map(([key]) => key), "titleColor", "titleAlign", "titleSize", "titleFont"],
-  services: [...serviceFields.map(([key]) => key), "titleColor", "titleAlign", "titleSize", "titleFont"],
+  bookmarks: bookmarkFields.map(([key]) => key),
+  services: serviceFields.map(([key]) => key),
 };
 
 function slugifyCardName(value) {
@@ -134,7 +143,10 @@ export function valueToInput(value) {
 }
 
 export function parseInputValue(value) {
-  const trimmed = value.trim();
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null) return undefined;
+  const str = String(value);
+  const trimmed = str.trim();
   if (!trimmed) return undefined;
   if (trimmed === "true") return true;
   if (trimmed === "false") return false;

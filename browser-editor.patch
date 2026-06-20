@@ -94,10 +94,10 @@ index 88d4d7e..af3ee26 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..7fd57bb 100644
+index 7ea16bb..edeeeb5 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,88 @@
+@@ -1,24 +1,100 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
@@ -106,15 +106,10 @@ index 7ea16bb..7fd57bb 100644
  import { SettingsContext } from "utils/contexts/settings";
  
 +function bookmarkDescription(bookmark) {
-+  if (bookmark.description) {
-+    return bookmark.description;
++  if (bookmark.showLink === true || bookmark.showLink === "true") {
++    return bookmark.description || bookmark.href || "";
 +  }
-+
-+  try {
-+    return new URL(bookmark.href).hostname;
-+  } catch {
-+    return bookmark.href ?? "";
-+  }
++  return bookmark.description ?? "";
 +}
 +
  export default function Item({ bookmark, iconOnly = false }) {
@@ -170,6 +165,23 @@ index 7ea16bb..7fd57bb 100644
 +      resizeObserver?.disconnect();
 +    };
 +  }, [editMode, bookmark.name, iconOnly]);
++
++  const bookmarkNameStyle = {};
++  if (bookmark.titleColor) bookmarkNameStyle.color = bookmark.titleColor;
++  if (bookmark.titleSize) bookmarkNameStyle.fontSize = bookmark.titleSize;
++  if (bookmark.titleAlign) bookmarkNameStyle.textAlign = bookmark.titleAlign;
++  if (bookmark.titleFont) bookmarkNameStyle.fontFamily = bookmark.titleFont;
++
++  const bookmarkTextStyle = {};
++  if (bookmark.titleAlign) {
++    if (bookmark.titleAlign === "center") {
++      bookmarkTextStyle.justifyContent = "center";
++    } else if (bookmark.titleAlign === "right") {
++      bookmarkTextStyle.justifyContent = "flex-end";
++    } else if (bookmark.titleAlign === "left") {
++      bookmarkTextStyle.justifyContent = "flex-start";
++    }
++  }
  
    return (
      <li
@@ -191,7 +203,23 @@ index 7ea16bb..7fd57bb 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -53,6 +117,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -44,15 +120,26 @@ export default function Item({ bookmark, iconOnly = false }) {
+               )}
+               {!bookmark.icon && bookmark.abbr}
+             </div>
+-            <div className="flex-1 overflow-hidden flex items-center justify-between rounded-r-md bookmark-text">
+-              <div className="pl-3 py-2 text-xs bookmark-name">{bookmark.name}</div>
+-              <div className="shrink truncate px-2 py-2 text-theme-500 dark:text-theme-300 text-xs bookmark-description">
+-                {description}
+-              </div>
++            <div style={bookmarkTextStyle} className="flex-1 overflow-hidden flex items-center justify-between rounded-r-md bookmark-text">
++              <div style={bookmarkNameStyle} className="pl-3 py-2 text-xs bookmark-name">{bookmark.name}</div>
++              {description && (
++                <div className="shrink truncate px-2 py-2 text-theme-500 dark:text-theme-300 text-xs bookmark-description">
++                  {description}
++                </div>
++              )}
+             </div>
            </div>
          )}
        </a>
@@ -200,7 +228,7 @@ index 7ea16bb..7fd57bb 100644
 +          type="button"
 +          {...itemProps}
 +          style={overlayStyle}
-+          className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          className="absolute z-40 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${bookmark.name}`}
 +        />
 +      )}
@@ -249,6 +277,120 @@ index f24794d..23c8c3b 100644
      </ul>
    );
  }
+diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
+index 77ba911..9360b16 100644
+--- a/src/components/resolvedicon.jsx
++++ b/src/components/resolvedicon.jsx
+@@ -1,8 +1,34 @@
+ import Image from "next/image";
+-import { useContext } from "react";
++import { useContext, useState, useEffect } from "react";
+ import { SettingsContext } from "utils/contexts/settings";
+ import { ThemeContext } from "utils/contexts/theme";
+ 
++function FallbackImage({ srcList, alt, width, height, style }) {
++  const [srcIndex, setSrcIndex] = useState(0);
++
++  useEffect(() => {
++    setSrcIndex(0);
++  }, [srcList]);
++
++  const handleNext = () => {
++    if (srcIndex < srcList.length - 1) {
++      setSrcIndex((prev) => prev + 1);
++    }
++  };
++
++  return (
++    <Image
++      src={srcList[srcIndex]}
++      width={width}
++      height={height}
++      style={style}
++      alt={alt}
++      onError={handleNext}
++      unoptimized
++    />
++  );
++}
++
+ const iconSetURLs = {
+   mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
+   si: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/",
+@@ -95,49 +121,34 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+     );
+   }
+ 
+-  // fallback to dashboard-icons
+-  if (icon.endsWith(".svg")) {
+-    const iconName = icon.replace(".svg", "");
+-    return (
+-      <Image
+-        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${iconName}.svg`}
+-        width={width}
+-        height={height}
+-        style={{
+-          width,
+-          height,
+-          objectFit: "contain",
+-          maxHeight: "100%",
+-          maxWidth: "100%",
+-        }}
+-        alt={alt}
+-      />
+-    );
+-  }
++  // Resolve custom repositories and fallbacks
++  const repos = settings.iconRepositories || [];
++  const candidateURLs = [];
+ 
+-  if (icon.endsWith(".webp")) {
+-    const iconName = icon.replace(".webp", "");
+-    return (
+-      <Image
+-        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${iconName}.webp`}
+-        width={width}
+-        height={height}
+-        style={{
+-          width,
+-          height,
+-          objectFit: "contain",
+-          maxHeight: "100%",
+-          maxWidth: "100%",
+-        }}
+-        alt={alt}
+-      />
+-    );
++  repos.forEach((repo) => {
++    let baseUrl = repo.url;
++    if (!baseUrl.endsWith("/")) {
++      baseUrl += "/";
++    }
++    candidateURLs.push(`${baseUrl}${icon}`);
++  });
++
++  const baseIconName = icon.replace(".svg", "").replace(".webp", "").replace(".png", "");
++  
++  if (icon.endsWith(".svg")) {
++    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${baseIconName}.svg`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
++  } else if (icon.endsWith(".webp")) {
++    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${baseIconName}.webp`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
++  } else {
++    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${baseIconName}.png`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
+   }
+ 
+-  const iconName = icon.replace(".png", "");
+   return (
+-    <Image
+-      src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${iconName}.png`}
++    <FallbackImage
++      srcList={candidateURLs}
+       width={width}
+       height={height}
+       style={{
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
 index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
@@ -447,7 +589,7 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index a51313e..5d1343f 100644
+index a51313e..9c320f2 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -534,7 +676,7 @@ index a51313e..5d1343f 100644
 +          type="button"
 +          {...widgetProps}
 +          style={overlayStyle}
-+          className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          className="absolute z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
 +        />
 +      )}
@@ -545,15 +687,7 @@ index a51313e..5d1343f 100644
  // Normalize language codes so older config values like zh-CN still point to Crowdin-provided ones
  const LANGUAGE_ALIASES = {
    "zh-cn": "zh-Hans",
-@@ -226,6 +295,7 @@ function Home({ initialSettings }) {
-   const { data: services } = useSWR("/api/services");
-   const { data: bookmarks } = useSWR("/api/bookmarks");
-   const { data: widgets } = useSWR("/api/widgets");
-+  const { data: hashData } = useSWR("/api/hash");
- 
-   const servicesAndBookmarks = [...bookmarks.map((bg) => bg.bookmarks).flat(), ...getAllServices(services)].filter(
-     (i) => i?.href,
-@@ -277,14 +347,8 @@ function Home({ initialSettings }) {
+@@ -277,14 +346,8 @@ function Home({ initialSettings }) {
    });
  
    const tabs = useMemo(
@@ -570,7 +704,7 @@ index a51313e..5d1343f 100644
    );
  
    useEffect(() => {
-@@ -294,21 +358,74 @@ function Home({ initialSettings }) {
+@@ -294,21 +357,74 @@ function Home({ initialSettings }) {
      }
    });
  
@@ -593,10 +727,7 @@ index a51313e..5d1343f 100644
 +
 +      return getGroupLayout(settings.layout ?? {}, type, groupName);
 +    };
- 
--    const layoutGroups = Object.keys(settings.layout ?? {})
--      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
--      .filter(tabGroupFilter);
++
 +    const tabGroupFilter = (type, groupName) =>
 +      [activeTab, ""].includes(slugifyAndEncode(getLayoutForGroup(type, groupName)?.tab));
 +    const undefinedGroupFilter = (type, groupName) => getLayoutForGroup(type, groupName) === undefined;
@@ -613,7 +744,10 @@ index a51313e..5d1343f 100644
 +        if (serviceMap.has(groupName)) {
 +          return { type: "services", group: serviceMap.get(groupName) };
 +        }
-+
+ 
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
+-      .filter(tabGroupFilter);
 +        if (bookmarkMap.has(groupName)) {
 +          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
 +        }
@@ -652,7 +786,31 @@ index a51313e..5d1343f 100644
  
      return (
        <>
-@@ -325,19 +442,19 @@ function Home({ initialSettings }) {
+@@ -316,28 +432,42 @@ function Home({ initialSettings }) {
+           <div key="tabs" id="tabs" className="m-5 sm:m-9 sm:mt-4 sm:mb-0">
+             <ul
+               className={classNames(
+-                "sm:flex rounded-md bg-theme-100/20 dark:bg-white/5",
++                "sm:flex rounded-md",
++                (!settings.pageStyles?.borderStyle ||
++                  settings.pageStyles?.borderStyle === "none" ||
++                  settings.pageStyles?.borderStyle === "outline")
++                  ? "bg-theme-100/20 dark:bg-white/5"
++                  : "bg-transparent",
++                settings.pageStyles?.align === "center" && "sm:justify-center",
++                settings.pageStyles?.align === "end" && "sm:justify-end",
++                settings.pageStyles?.align === "between" && "sm:justify-between",
++                settings.pageStyles?.borderStyle === "outline" && "border",
+                 settings.cardBlur !== undefined &&
+                   `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+               )}
++              style={{
++                fontFamily: settings.pageStyles?.fontFamily,
++                fontSize: settings.pageStyles?.fontSize,
++                borderColor: settings.pageStyles?.borderColor,
++              }}
+               id="myTab"
+               data-tabs-toggle="#myTabContent"
                role="tablist"
              >
                {tabs.map((tab) => (
@@ -680,7 +838,7 @@ index a51313e..5d1343f 100644
                    maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
                    disableCollapse={settings.disableCollapse}
                    useEqualHeights={settings.useEqualHeights}
-@@ -345,50 +462,23 @@ function Home({ initialSettings }) {
+@@ -345,50 +475,23 @@ function Home({ initialSettings }) {
                  />
                ) : (
                  <BookmarksGroup
@@ -736,7 +894,7 @@ index a51313e..5d1343f 100644
      activeTab,
      services,
      bookmarks,
-@@ -399,6 +489,7 @@ function Home({ initialSettings }) {
+@@ -399,6 +502,7 @@ function Home({ initialSettings }) {
      settings.disableCollapse,
      settings.useEqualHeights,
      settings.cardBlur,
@@ -744,15 +902,86 @@ index a51313e..5d1343f 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -408,6 +499,7 @@ function Home({ initialSettings }) {
-     <>
-       <Head>
-         <title>{initialSettings.title || "Homepage"}</title>
-+        <link rel="stylesheet" href={`/api/config/custom.css?v=${hashData?.hash || "initial"}`} />
-         <meta
-           name="description"
-           content={
-@@ -438,12 +530,13 @@ function Home({ initialSettings }) {
+@@ -434,16 +538,92 @@ function Home({ initialSettings }) {
+         <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="color-scheme" content="dark light"></meta>
++        
++        <link rel="preconnect" href="https://fonts.googleapis.com" />
++        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
++        <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
++
++        <style>{`
++          #tabs ul li button.tab-style-pill {
++            border-radius: 9999px !important;
++          }
++          #tabs ul li button.tab-style-pill[aria-selected="true"] {
++            background-color: var(--pill-bg-color, rgba(59, 130, 246, 0.15)) !important;
++          }
++          #tabs ul li button.tab-style-card {
++            border-radius: 0.375rem !important;
++          }
++          #tabs ul li button.tab-style-card[aria-selected="true"] {
++            background-color: rgba(156, 163, 175, 0.1) !important;
++          }
++          #tabs ul li button.tab-style-underline {
++            border-radius: 0px !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline[aria-selected="true"] {
++            border-bottom-width: 2px !important;
++            border-radius: 0px !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded {
++            position: relative !important;
++            border-radius: 0px !important;
++            border-bottom: none !important;
++            overflow: visible !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"] {
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded::after {
++            content: "" !important;
++            display: block !important;
++            position: absolute !important;
++            bottom: 2px !important;
++            left: 12.5% !important;
++            width: 75% !important;
++            height: 3px !important;
++            border-radius: 9999px !important;
++            background-color: transparent !important;
++            z-index: 10 !important;
++            transition: all 0.2s ease-in-out !important;
++            transform: scaleX(0) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]::after {
++            background-color: var(--underline-color, currentColor) !important;
++            transform: scaleX(1) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded:hover::after {
++            background-color: var(--underline-hover-color, rgba(156, 163, 175, 0.3)) !important;
++            transform: scaleX(0.7) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]:hover::after {
++            transform: scaleX(1) !important;
++          }
++          
++          ${settings.pageStyles?.fontFamily ? `
++            #tabs ul, #tabs ul li button, #tabs ul li button span {
++              font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
++            }
++          ` : ''}
++          
++          ${settings.pageStyles?.fontSize ? `
++            #tabs ul li button, #tabs ul li button span {
++              font-size: ${settings.pageStyles.fontSize} !important;
++            }
++          ` : ''}
++        `}</style>
+       </Head>
  
        <Script src="/api/config/custom.js" />
  
@@ -772,7 +1001,7 @@ index a51313e..5d1343f 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -465,11 +558,13 @@ function Home({ initialSettings }) {
+@@ -465,11 +645,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -790,7 +1019,7 @@ index a51313e..5d1343f 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -482,11 +577,13 @@ function Home({ initialSettings }) {
+@@ -482,11 +664,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -808,7 +1037,7 @@ index a51313e..5d1343f 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -496,7 +593,7 @@ function Home({ initialSettings }) {
+@@ -496,7 +680,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -817,7 +1046,7 @@ index a51313e..5d1343f 100644
  
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-@@ -509,7 +606,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +693,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>
