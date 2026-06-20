@@ -6264,7 +6264,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
             <div className="flex gap-1.5 w-full justify-center">
               <span className="text-[10px] px-2 pb-1 relative text-theme-950 dark:text-white font-semibold">
                 Active
-                <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-theme-600 dark:bg-white/50"></span>
+                <span className="absolute bottom-0 left-0 right-0 h-[4px] rounded-full bg-theme-600 dark:bg-white/50"></span>
               </span>
               <span className="text-[10px] px-2 pb-1 opacity-60">Tab</span>
             </div>
@@ -7773,7 +7773,8 @@ export function EditorPageTab({ tab }) {
   if (editMode && borderStyle === "none") {
     buttonClasses = classNames(
       buttonClasses,
-      "border border-theme-400/70 bg-theme-100/10 text-theme-800 transition-colors hover:border-theme-500/80 hover:bg-theme-200/40 hover:text-theme-900 dark:border-white/25 dark:bg-white/5 dark:text-theme-100 dark:hover:border-white/40 dark:hover:bg-white/10",
+      "border border-theme-400/70 text-theme-800 transition-colors hover:border-theme-500/80 hover:text-theme-900 dark:border-white/25 dark:text-theme-100 dark:hover:border-white/40",
+      pageStyles.hideTabBackground ? "bg-transparent hover:bg-theme-200/10 dark:hover:bg-white/5" : "bg-theme-100/10 hover:bg-theme-200/40 dark:bg-white/5 dark:hover:bg-white/10"
     );
   }
 
