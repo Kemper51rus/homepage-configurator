@@ -6664,13 +6664,30 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         throw new Error(await response.text());
       }
 
-      const nextData = await response.json();
+      let nextData;
+      if (targetFileName === "settings.yaml" && drafts["widgets.yaml"] !== undefined) {
+        const widgetsResponse = await editorWriteFetch("/api/config/editor", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: "widgets.yaml",
+            content: drafts["widgets.yaml"] ?? "",
+          }),
+        });
+        if (!widgetsResponse.ok) {
+          throw new Error("Не удалось сохранить widgets.yaml: " + (await widgetsResponse.text()));
+        }
+        nextData = await widgetsResponse.json();
+      } else {
+        nextData = await response.json();
+      }
+
       if (nextData?.settings) {
         setSettings(nextData.settings);
       }
 
       setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
-      await refreshConfigData(mutate, ["/api/config/editor"]);
+      await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
       onSaved(activeFileName === "__page_styling__" ? "Стилизация страниц сохранена" : `Сохранено: ${activeTab.label}`);
     } catch (saveError) {
       setError(saveError.message);
