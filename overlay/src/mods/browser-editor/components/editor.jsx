@@ -3604,6 +3604,16 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                   />
                   Скрыть фон виджета погоды (сделать прозрачным)
                 </label>
+
+                <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer p-1 col-span-2 mt-1">
+                  <input
+                    type="checkbox"
+                    checked={weatherStyle.hideDescription ?? false}
+                    onChange={(e) => updateWeatherStyle("hideDescription", e.target.checked)}
+                    className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+                  />
+                  Скрыть описание состояния погоды (например, "переменная облачность")
+                </label>
               </div>
             </div>
 
