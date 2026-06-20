@@ -6043,19 +6043,46 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
 
   useEffect(() => {
     if (weatherWidgetObj && weatherWidgetConfig) {
-      setWeatherLoc(weatherWidgetConfig.location ?? "");
+      if (weatherWidgetConfig.latitude !== undefined && weatherWidgetConfig.longitude !== undefined) {
+        setWeatherLoc(`${weatherWidgetConfig.latitude}, ${weatherWidgetConfig.longitude}`);
+      } else {
+        setWeatherLoc(weatherWidgetConfig.location ?? "");
+      }
       setWeatherUnits(weatherWidgetConfig.units ?? "metric");
-      setWeatherProv(weatherWidgetConfig.provider ?? weatherWidgetKey ?? "openweathermap");
+      setWeatherProv(weatherWidgetKey === "weather" ? (weatherWidgetConfig.provider ?? "openweathermap") : weatherWidgetKey);
     }
-  }, [hasWeatherWidget, weatherWidgetKey, weatherWidgetConfig.location, weatherWidgetConfig.units, weatherWidgetConfig.provider]);
+  }, [hasWeatherWidget, weatherWidgetKey, weatherWidgetConfig.location, weatherWidgetConfig.latitude, weatherWidgetConfig.longitude, weatherWidgetConfig.units, weatherWidgetConfig.provider]);
 
   const updateWeatherWidget = (updatedFields) => {
     if (widgetsParseError) return;
 
     const nextWidgets = [...widgetsList];
-    const key = weatherWidgetKey || "weather";
+    const prov = updatedFields.provider ?? weatherProv;
+    const key = prov === "weather" ? "openweathermap" : prov;
     const currentConf = weatherWidgetConfig || {};
-    const nextConf = { ...currentConf, ...updatedFields };
+
+    const locInput = updatedFields.location !== undefined ? updatedFields.location : weatherLoc;
+    const locParsed = {};
+    if (locInput && locInput.trim()) {
+      const parts = locInput.split(",");
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0].trim());
+        const lon = parseFloat(parts[1].trim());
+        if (!isNaN(lat) && !isNaN(lon)) {
+          locParsed.latitude = lat;
+          locParsed.longitude = lon;
+        } else {
+          locParsed.location = locInput.trim();
+        }
+      } else {
+        locParsed.location = locInput.trim();
+      }
+    }
+
+    const nextConf = {
+      units: updatedFields.units ?? weatherUnits,
+      ...locParsed
+    };
 
     const newWidget = { [key]: nextConf };
 
@@ -6470,10 +6497,10 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                     </p>
                     <div className="flex gap-2 items-end">
                       <div className="flex-1">
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Город / Местоположение</label>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Координаты или город</label>
                         <input
                           type="text"
-                          placeholder="Moscow"
+                          placeholder="51.53, 46.03 или Moscow"
                           value={weatherLoc}
                           onChange={(e) => setWeatherLoc(e.target.value)}
                           className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
@@ -6482,7 +6509,7 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                       <button
                         type="button"
                         onClick={() => {
-                          const loc = weatherLoc.trim() || "Moscow";
+                          const loc = weatherLoc.trim() || "51.53, 46.03";
                           updateWeatherWidget({ provider: weatherProv, location: loc, units: weatherUnits });
                         }}
                         className="rounded-md bg-theme-600 text-white hover:bg-theme-700 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
@@ -6490,6 +6517,9 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                         ➕ Добавить виджет погоды
                       </button>
                     </div>
+                    <span className="text-[9px] text-theme-500 dark:text-theme-400 block mt-1">
+                      💡 Укажите координаты (например, <code>51.53, 46.03</code>) для стабильной работы виджета (название города работает только при активном HTTPS).
+                    </span>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -6522,7 +6552,7 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Город / Координаты</label>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Координаты или город</label>
                         <input
                           type="text"
                           value={weatherLoc}
@@ -6531,7 +6561,7 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                             updateWeatherWidget({ location: e.target.value });
                           }}
                           className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                          placeholder="Moscow"
+                          placeholder="51.53, 46.03 или Moscow"
                         />
                       </div>
                       <div>
@@ -6549,6 +6579,9 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                         </select>
                       </div>
                     </div>
+                    <span className="text-[9px] text-theme-500 dark:text-theme-400 block mt-1">
+                      💡 Укажите координаты (например, <code>51.53, 46.03</code>) для стабильной работы виджета (название города работает только при активном HTTPS).
+                    </span>
                   </div>
                 )}
               </div>
