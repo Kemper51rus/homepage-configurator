@@ -1903,6 +1903,79 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
   };
 }
 
+function ColorInput({ value, onChange, placeholder = "#ffffff", compact = false }) {
+  const [localValue, setLocalValue] = useState(value ?? "");
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    setLocalValue(value ?? "");
+  }, [value]);
+
+  const commitValue = useCallback((val) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (val !== value) {
+      onChange(val);
+    }
+  }, [onChange, value]);
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      commitValue(val);
+    }, 400);
+  };
+
+  const handleColorChange = (e) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      commitValue(val);
+    }, 120);
+  };
+
+  const handleBlur = () => {
+    commitValue(localValue);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const pickerValue = localValue && localValue.startsWith('#') && (localValue.length === 4 || localValue.length === 7)
+    ? localValue
+    : "#ffffff";
+
+  return (
+    <div className={classNames("mt-1 flex items-center gap-1.5", compact ? "h-[28px]" : "h-[32px]")}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={localValue}
+        onChange={handleTextChange}
+        onBlur={handleBlur}
+        className={classNames(
+          "flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 h-full",
+          compact ? "text-[13px]" : "text-sm"
+        )}
+      />
+      <input
+        type="color"
+        value={pickerValue}
+        onChange={handleColorChange}
+        onBlur={handleBlur}
+        className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+      />
+    </div>
+  );
+}
+
 function Field({ name, label, value, onChange, compact = false }) {
   if (name === "showLink" || name === "showStats" || name === "ping") {
     return (
@@ -1922,21 +1995,12 @@ function Field({ name, label, value, onChange, compact = false }) {
     return (
       <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
-        <div className="mt-1 flex items-center gap-1.5 h-[28px]">
-          <input
-            type="text"
-            placeholder="#ffffff"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-[13px] h-full"
-          />
-          <input
-            type="color"
-            value={value && value.startsWith('#') && (value.length === 4 || value.length === 7) ? value : "#ffffff"}
-            onChange={(event) => onChange(event.target.value)}
-            className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-          />
-        </div>
+        <ColorInput
+          value={value}
+          onChange={onChange}
+          placeholder="#ffffff"
+          compact={true}
+        />
       </label>
     );
   }
@@ -3020,21 +3084,12 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
 
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Цвет часов
-              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
-                <input
-                  type="text"
-                  placeholder="#ffffff"
-                  value={clockStyle.color ?? ""}
-                  onChange={(e) => updateClockStyle("color", e.target.value)}
-                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
-                />
-                <input
-                  type="color"
-                  value={clockStyle.color && clockStyle.color.startsWith('#') && (clockStyle.color.length === 4 || clockStyle.color.length === 7) ? clockStyle.color : "#ffffff"}
-                  onChange={(e) => updateClockStyle("color", e.target.value)}
-                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-                />
-              </div>
+              <ColorInput
+                value={clockStyle.color ?? ""}
+                onChange={(val) => updateClockStyle("color", val)}
+                placeholder="#ffffff"
+                compact={false}
+              />
             </label>
 
             <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer pt-2">
@@ -5874,57 +5929,30 @@ function PageStylingEditor({ settingsContent, onChange }) {
           <div className="grid grid-cols-2 gap-3 pt-2">
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Активный текст
-              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
-                <input
-                  type="text"
-                  placeholder="#ffffff"
-                  value={pageStyles.activeColor ?? ""}
-                  onChange={(e) => updateStyle("activeColor", e.target.value)}
-                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
-                />
-                <input
-                  type="color"
-                  value={pageStyles.activeColor && pageStyles.activeColor.startsWith('#') && (pageStyles.activeColor.length === 4 || pageStyles.activeColor.length === 7) ? pageStyles.activeColor : "#ffffff"}
-                  onChange={(e) => updateStyle("activeColor", e.target.value)}
-                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-                />
-              </div>
+              <ColorInput
+                value={pageStyles.activeColor ?? ""}
+                onChange={(val) => updateStyle("activeColor", val)}
+                placeholder="#ffffff"
+                compact={false}
+              />
             </label>
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Неактивный текст
-              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
-                <input
-                  type="text"
-                  placeholder="#a0aec0"
-                  value={pageStyles.inactiveColor ?? ""}
-                  onChange={(e) => updateStyle("inactiveColor", e.target.value)}
-                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
-                />
-                <input
-                  type="color"
-                  value={pageStyles.inactiveColor && pageStyles.inactiveColor.startsWith('#') && (pageStyles.inactiveColor.length === 4 || pageStyles.inactiveColor.length === 7) ? pageStyles.inactiveColor : "#a0aec0"}
-                  onChange={(e) => updateStyle("inactiveColor", e.target.value)}
-                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-                />
-              </div>
+              <ColorInput
+                value={pageStyles.inactiveColor ?? ""}
+                onChange={(val) => updateStyle("inactiveColor", val)}
+                placeholder="#a0aec0"
+                compact={false}
+              />
             </label>
             <label className="block text-xs text-theme-600 dark:text-theme-300 col-span-2">
               Цвет бордюра / Подчеркивания
-              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
-                <input
-                  type="text"
-                  placeholder="#3fb1db"
-                  value={pageStyles.borderColor ?? ""}
-                  onChange={(e) => updateStyle("borderColor", e.target.value)}
-                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
-                />
-                <input
-                  type="color"
-                  value={pageStyles.borderColor && pageStyles.borderColor.startsWith('#') && (pageStyles.borderColor.length === 4 || pageStyles.borderColor.length === 7) ? pageStyles.borderColor : "#3fb1db"}
-                  onChange={(e) => updateStyle("borderColor", e.target.value)}
-                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-                />
-              </div>
+              <ColorInput
+                value={pageStyles.borderColor ?? ""}
+                onChange={(val) => updateStyle("borderColor", val)}
+                placeholder="#3fb1db"
+                compact={false}
+              />
             </label>
           </div>
         </div>
@@ -5984,21 +6012,12 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Цвет иконок погоды
-              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
-                <input
-                  type="text"
-                  placeholder="#ffffff"
-                  value={pageStyles.weatherIconColor ?? ""}
-                  onChange={(e) => updateStyle("weatherIconColor", e.target.value)}
-                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
-                />
-                <input
-                  type="color"
-                  value={pageStyles.weatherIconColor && pageStyles.weatherIconColor.startsWith('#') && (pageStyles.weatherIconColor.length === 4 || pageStyles.weatherIconColor.length === 7) ? pageStyles.weatherIconColor : "#ffffff"}
-                  onChange={(e) => updateStyle("weatherIconColor", e.target.value)}
-                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
-                />
-              </div>
+              <ColorInput
+                value={pageStyles.weatherIconColor ?? ""}
+                onChange={(val) => updateStyle("weatherIconColor", val)}
+                placeholder="#ffffff"
+                compact={false}
+              />
             </label>
           </div>
         </div>
