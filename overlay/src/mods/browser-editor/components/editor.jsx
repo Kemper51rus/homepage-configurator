@@ -6000,14 +6000,51 @@ function PageStylingEditor({ settingsContent, onChange }) {
         <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 md:col-span-2">
           <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">☀️ Внешний вид виджета погоды</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer p-1">
-              <input
-                type="checkbox"
-                checked={pageStyles.hideWeatherBackground ?? false}
-                onChange={(e) => updateStyle("hideWeatherBackground", e.target.checked)}
-                className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Размер шрифта текста
+              <select
+                value={pageStyles.weatherFontSize ?? ""}
+                onChange={(e) => updateStyle("weatherFontSize", e.target.value)}
+                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              >
+                <option value="">По умолчанию (14px)</option>
+                <option value="12px">Очень маленький (12px)</option>
+                <option value="13px">Маленький (13px)</option>
+                <option value="14px">Стандартный (14px)</option>
+                <option value="15px">Средний (15px)</option>
+                <option value="16px">Увеличенный (16px)</option>
+                <option value="18px">Крупный (18px)</option>
+                <option value="20px">Очень крупный (20px)</option>
+                <option value="24px">Огромный (24px)</option>
+              </select>
+            </label>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Размер иконки погоды
+              <select
+                value={pageStyles.weatherIconSize ?? ""}
+                onChange={(e) => updateStyle("weatherIconSize", e.target.value)}
+                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              >
+                <option value="">По умолчанию (40px)</option>
+                <option value="24px">Очень маленькая (24px)</option>
+                <option value="32px">Маленькая (32px)</option>
+                <option value="40px">Стандартная (40px)</option>
+                <option value="48px">Средняя (48px)</option>
+                <option value="56px">Увеличенная (56px)</option>
+                <option value="64px">Крупная (64px)</option>
+                <option value="80px">Очень крупная (80px)</option>
+              </select>
+            </label>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Цвет текста погоды
+              <ColorInput
+                value={pageStyles.weatherTextColor ?? ""}
+                onChange={(val) => updateStyle("weatherTextColor", val)}
+                placeholder="#ffffff"
+                compact={false}
               />
-              Скрыть фон виджета погоды (сделать прозрачным)
             </label>
 
             <label className="block text-xs text-theme-600 dark:text-theme-300">
@@ -6018,6 +6055,16 @@ function PageStylingEditor({ settingsContent, onChange }) {
                 placeholder="#ffffff"
                 compact={false}
               />
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer p-1 col-span-2 mt-2">
+              <input
+                type="checkbox"
+                checked={pageStyles.hideWeatherBackground ?? false}
+                onChange={(e) => updateStyle("hideWeatherBackground", e.target.checked)}
+                className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+              />
+              Скрыть фон виджета погоды (сделать прозрачным)
             </label>
           </div>
         </div>
