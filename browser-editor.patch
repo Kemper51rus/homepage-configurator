@@ -601,7 +601,7 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 81a957a..7b50d37 100644
+index 81a957a..b47113e 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -431,11 +431,13 @@ function Home({ initialSettings }) {
@@ -650,3 +650,19 @@ index 81a957a..7b50d37 100644
              transform: scaleX(0) !important;
            }
            #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]::after {
+@@ -601,6 +603,15 @@ function Home({ initialSettings }) {
+             transform: scaleX(1) !important;
+           }
+           
++          ${settings.pageStyles?.hideTabBackground ? `
++            #tabs ul {
++              background-color: transparent !important;
++              background: transparent !important;
++              border-color: transparent !important;
++              box-shadow: none !important;
++            }
++          ` : ''}
++          
+           ${settings.pageStyles?.fontFamily ? `
+             #tabs ul, #tabs ul li button, #tabs ul li button span {
+               font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
