@@ -5968,6 +5968,40 @@ function PageStylingEditor({ settingsContent, onChange }) {
             )}
           </div>
         </div>
+
+        <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 md:col-span-2">
+          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">☀️ Внешний вид виджета погоды</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer p-1">
+              <input
+                type="checkbox"
+                checked={pageStyles.hideWeatherBackground ?? false}
+                onChange={(e) => updateStyle("hideWeatherBackground", e.target.checked)}
+                className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+              />
+              Скрыть фон виджета погоды (сделать прозрачным)
+            </label>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Цвет иконок погоды
+              <div className="mt-1 flex items-center gap-1.5 h-[32px]">
+                <input
+                  type="text"
+                  placeholder="#ffffff"
+                  value={pageStyles.weatherIconColor ?? ""}
+                  onChange={(e) => updateStyle("weatherIconColor", e.target.value)}
+                  className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-sm h-full"
+                />
+                <input
+                  type="color"
+                  value={pageStyles.weatherIconColor && pageStyles.weatherIconColor.startsWith('#') && (pageStyles.weatherIconColor.length === 4 || pageStyles.weatherIconColor.length === 7) ? pageStyles.weatherIconColor : "#ffffff"}
+                  onChange={(e) => updateStyle("weatherIconColor", e.target.value)}
+                  className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
+                />
+              </div>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -6041,6 +6075,48 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
   const [weatherUnits, setWeatherUnits] = useState("metric");
   const [weatherProv, setWeatherProv] = useState("openweathermap");
 
+  const [geocodeResults, setGeocodeResults] = useState([]);
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [geocodeError, setGeocodeError] = useState("");
+
+  const handleGeocodeSearch = async () => {
+    if (!weatherLoc.trim()) return;
+    setGeocodeLoading(true);
+    setGeocodeError("");
+    setGeocodeResults([]);
+    try {
+      const activeApiKey = weatherProv === "openweathermap" 
+        ? (weatherProviders.openweathermap ?? "") 
+        : (weatherProviders.weatherapi ?? "");
+
+      const response = await fetch("/api/config/editor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "geocode",
+          provider: weatherProv,
+          q: weatherLoc,
+          apiKey: activeApiKey
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const results = await response.json();
+      if (!results || results.length === 0) {
+        setGeocodeError("Ничего не найдено");
+      } else {
+        setGeocodeResults(results);
+      }
+    } catch (err) {
+      setGeocodeError(err.message || "Ошибка поиска");
+    } finally {
+      setGeocodeLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (weatherWidgetObj && weatherWidgetConfig) {
       if (weatherWidgetConfig.latitude !== undefined && weatherWidgetConfig.longitude !== undefined) {
@@ -6080,6 +6156,7 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
     }
 
     const nextConf = {
+      provider: prov,
       units: updatedFields.units ?? weatherUnits,
       ...locParsed
     };
@@ -6495,17 +6572,76 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                     <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <span>⚠️ Виджет погоды не добавлен на дашборд (в widgets.yaml).</span>
                     </p>
-                    <div className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Координаты или город</label>
-                        <input
-                          type="text"
-                          placeholder="51.53, 46.03 или Moscow"
-                          value={weatherLoc}
-                          onChange={(e) => setWeatherLoc(e.target.value)}
-                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                        />
+                    <div className="grid grid-cols-3 gap-2 items-end">
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Поставщик</label>
+                        <select
+                          value={weatherProv}
+                          onChange={(e) => setWeatherProv(e.target.value)}
+                          className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
+                        >
+                          <option value="openweathermap">OpenWeatherMap</option>
+                          <option value="weatherapi">WeatherAPI</option>
+                        </select>
                       </div>
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Название города / Координаты</label>
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            placeholder="Saratov или 51.53, 46.03"
+                            value={weatherLoc}
+                            onChange={(e) => setWeatherLoc(e.target.value)}
+                            className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGeocodeSearch}
+                            disabled={geocodeLoading}
+                            className="px-2 rounded-md bg-theme-100 hover:bg-theme-200 dark:bg-white/5 dark:hover:bg-white/10 text-xs font-semibold border border-theme-300/50 dark:border-white/10 transition-colors disabled:opacity-50 cursor-pointer h-[28px] flex items-center justify-center shrink-0"
+                          >
+                            {geocodeLoading ? "..." : "🔍 Поиск"}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Единицы</label>
+                        <select
+                          value={weatherUnits}
+                          onChange={(e) => setWeatherUnits(e.target.value)}
+                          className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
+                        >
+                          <option value="metric">Метрические (°C)</option>
+                          <option value="imperial">Имперские (°F)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {geocodeError && (
+                      <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-1 font-medium">
+                        ⚠️ {geocodeError}
+                      </div>
+                    )}
+
+                    {geocodeResults.length > 0 && (
+                      <div className="mt-1 max-h-36 overflow-y-auto border border-theme-300/50 dark:border-white/10 rounded-md bg-white dark:bg-theme-900 text-xs divide-y divide-theme-200 dark:divide-white/5 shadow-md">
+                        {geocodeResults.map((res, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => {
+                              setWeatherLoc(`${res.lat}, ${res.lon}`);
+                              setGeocodeResults([]);
+                            }}
+                            className="p-2 cursor-pointer hover:bg-theme-50 dark:hover:bg-white/5 transition-colors flex justify-between items-center"
+                          >
+                            <span className="font-medium text-theme-900 dark:text-theme-100">{res.name}</span>
+                            <span className="text-[10px] text-theme-500 dark:text-theme-400 font-mono shrink-0">{res.lat.toFixed(4)}, {res.lon.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end mt-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -6517,8 +6653,9 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                         ➕ Добавить виджет погоды
                       </button>
                     </div>
+
                     <span className="text-[9px] text-theme-500 dark:text-theme-400 block mt-1">
-                      💡 Укажите координаты (например, <code>51.53, 46.03</code>) для стабильной работы виджета (название города работает только при активном HTTPS).
+                      💡 Используйте кнопку «Поиск», чтобы найти точные координаты города. Для стабильной работы виджета погоды в Homepage рекомендуется указывать числовые координаты.
                     </span>
                   </div>
                 ) : (
@@ -6536,51 +6673,88 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-2 items-end">
                       <div>
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Поставщик</label>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Поставщик</label>
                         <select
                           value={weatherProv}
                           onChange={(e) => {
                             setWeatherProv(e.target.value);
                             updateWeatherWidget({ provider: e.target.value });
                           }}
-                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                          className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
                         >
                           <option value="openweathermap">OpenWeatherMap</option>
                           <option value="weatherapi">WeatherAPI</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Координаты или город</label>
-                        <input
-                          type="text"
-                          value={weatherLoc}
-                          onChange={(e) => {
-                            setWeatherLoc(e.target.value);
-                            updateWeatherWidget({ location: e.target.value });
-                          }}
-                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                          placeholder="51.53, 46.03 или Moscow"
-                        />
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Название города / Координаты</label>
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            value={weatherLoc}
+                            onChange={(e) => {
+                              setWeatherLoc(e.target.value);
+                              updateWeatherWidget({ location: e.target.value });
+                            }}
+                            className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
+                            placeholder="Saratov или 51.53, 46.03"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGeocodeSearch}
+                            disabled={geocodeLoading}
+                            className="px-2 rounded-md bg-theme-100 hover:bg-theme-200 dark:bg-white/5 dark:hover:bg-white/10 text-xs font-semibold border border-theme-300/50 dark:border-white/10 transition-colors disabled:opacity-50 cursor-pointer h-[28px] flex items-center justify-center shrink-0"
+                            title="Поиск координат города"
+                          >
+                            {geocodeLoading ? "..." : "🔍 Поиск"}
+                          </button>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Единицы</label>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400 mb-1">Единицы</label>
                         <select
                           value={weatherUnits}
                           onChange={(e) => {
                             setWeatherUnits(e.target.value);
                             updateWeatherWidget({ units: e.target.value });
                           }}
-                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                          className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
                         >
                           <option value="metric">Метрические (°C)</option>
                           <option value="imperial">Имперские (°F)</option>
                         </select>
                       </div>
                     </div>
+
+                    {geocodeError && (
+                      <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-1 font-medium">
+                        ⚠️ {geocodeError}
+                      </div>
+                    )}
+
+                    {geocodeResults.length > 0 && (
+                      <div className="mt-1 max-h-36 overflow-y-auto border border-theme-300/50 dark:border-white/10 rounded-md bg-white dark:bg-theme-900 text-xs divide-y divide-theme-200 dark:divide-white/5 shadow-md">
+                        {geocodeResults.map((res, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => {
+                              setWeatherLoc(`${res.lat}, ${res.lon}`);
+                              updateWeatherWidget({ location: `${res.lat}, ${res.lon}` });
+                              setGeocodeResults([]);
+                            }}
+                            className="p-2 cursor-pointer hover:bg-theme-50 dark:hover:bg-white/5 transition-colors flex justify-between items-center"
+                          >
+                            <span className="font-medium text-theme-900 dark:text-theme-100">{res.name}</span>
+                            <span className="text-[10px] text-theme-500 dark:text-theme-400 font-mono shrink-0">{res.lat.toFixed(4)}, {res.lon.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <span className="text-[9px] text-theme-500 dark:text-theme-400 block mt-1">
-                      💡 Укажите координаты (например, <code>51.53, 46.03</code>) для стабильной работы виджета (название города работает только при активном HTTPS).
+                      💡 Используйте кнопку «Поиск», чтобы найти точные координаты города. Для стабильной работы виджета погоды в Homepage рекомендуется указывать числовые координаты.
                     </span>
                   </div>
                 )}
