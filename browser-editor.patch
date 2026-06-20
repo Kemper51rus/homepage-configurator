@@ -94,10 +94,10 @@ index 88d4d7e..af3ee26 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..edeeeb5 100644
+index 7ea16bb..7fd57bb 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,100 @@
+@@ -1,24 +1,88 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
@@ -106,10 +106,15 @@ index 7ea16bb..edeeeb5 100644
  import { SettingsContext } from "utils/contexts/settings";
  
 +function bookmarkDescription(bookmark) {
-+  if (bookmark.showLink === true || bookmark.showLink === "true") {
-+    return bookmark.description || bookmark.href || "";
++  if (bookmark.description) {
++    return bookmark.description;
 +  }
-+  return bookmark.description ?? "";
++
++  try {
++    return new URL(bookmark.href).hostname;
++  } catch {
++    return bookmark.href ?? "";
++  }
 +}
 +
  export default function Item({ bookmark, iconOnly = false }) {
@@ -165,23 +170,6 @@ index 7ea16bb..edeeeb5 100644
 +      resizeObserver?.disconnect();
 +    };
 +  }, [editMode, bookmark.name, iconOnly]);
-+
-+  const bookmarkNameStyle = {};
-+  if (bookmark.titleColor) bookmarkNameStyle.color = bookmark.titleColor;
-+  if (bookmark.titleSize) bookmarkNameStyle.fontSize = bookmark.titleSize;
-+  if (bookmark.titleAlign) bookmarkNameStyle.textAlign = bookmark.titleAlign;
-+  if (bookmark.titleFont) bookmarkNameStyle.fontFamily = bookmark.titleFont;
-+
-+  const bookmarkTextStyle = {};
-+  if (bookmark.titleAlign) {
-+    if (bookmark.titleAlign === "center") {
-+      bookmarkTextStyle.justifyContent = "center";
-+    } else if (bookmark.titleAlign === "right") {
-+      bookmarkTextStyle.justifyContent = "flex-end";
-+    } else if (bookmark.titleAlign === "left") {
-+      bookmarkTextStyle.justifyContent = "flex-start";
-+    }
-+  }
  
    return (
      <li
@@ -203,23 +191,7 @@ index 7ea16bb..edeeeb5 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -44,15 +120,26 @@ export default function Item({ bookmark, iconOnly = false }) {
-               )}
-               {!bookmark.icon && bookmark.abbr}
-             </div>
--            <div className="flex-1 overflow-hidden flex items-center justify-between rounded-r-md bookmark-text">
--              <div className="pl-3 py-2 text-xs bookmark-name">{bookmark.name}</div>
--              <div className="shrink truncate px-2 py-2 text-theme-500 dark:text-theme-300 text-xs bookmark-description">
--                {description}
--              </div>
-+            <div style={bookmarkTextStyle} className="flex-1 overflow-hidden flex items-center justify-between rounded-r-md bookmark-text">
-+              <div style={bookmarkNameStyle} className="pl-3 py-2 text-xs bookmark-name">{bookmark.name}</div>
-+              {description && (
-+                <div className="shrink truncate px-2 py-2 text-theme-500 dark:text-theme-300 text-xs bookmark-description">
-+                  {description}
-+                </div>
-+              )}
-             </div>
+@@ -53,6 +117,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -228,7 +200,7 @@ index 7ea16bb..edeeeb5 100644
 +          type="button"
 +          {...itemProps}
 +          style={overlayStyle}
-+          className="absolute z-40 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          className="absolute z-[70] pointer-events-auto cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
 +          aria-label={`Edit ${bookmark.name}`}
 +        />
 +      )}
@@ -277,120 +249,6 @@ index f24794d..23c8c3b 100644
      </ul>
    );
  }
-diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index 77ba911..9360b16 100644
---- a/src/components/resolvedicon.jsx
-+++ b/src/components/resolvedicon.jsx
-@@ -1,8 +1,34 @@
- import Image from "next/image";
--import { useContext } from "react";
-+import { useContext, useState, useEffect } from "react";
- import { SettingsContext } from "utils/contexts/settings";
- import { ThemeContext } from "utils/contexts/theme";
- 
-+function FallbackImage({ srcList, alt, width, height, style }) {
-+  const [srcIndex, setSrcIndex] = useState(0);
-+
-+  useEffect(() => {
-+    setSrcIndex(0);
-+  }, [srcList]);
-+
-+  const handleNext = () => {
-+    if (srcIndex < srcList.length - 1) {
-+      setSrcIndex((prev) => prev + 1);
-+    }
-+  };
-+
-+  return (
-+    <Image
-+      src={srcList[srcIndex]}
-+      width={width}
-+      height={height}
-+      style={style}
-+      alt={alt}
-+      onError={handleNext}
-+      unoptimized
-+    />
-+  );
-+}
-+
- const iconSetURLs = {
-   mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
-   si: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/",
-@@ -95,49 +121,34 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
-     );
-   }
- 
--  // fallback to dashboard-icons
--  if (icon.endsWith(".svg")) {
--    const iconName = icon.replace(".svg", "");
--    return (
--      <Image
--        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${iconName}.svg`}
--        width={width}
--        height={height}
--        style={{
--          width,
--          height,
--          objectFit: "contain",
--          maxHeight: "100%",
--          maxWidth: "100%",
--        }}
--        alt={alt}
--      />
--    );
--  }
-+  // Resolve custom repositories and fallbacks
-+  const repos = settings.iconRepositories || [];
-+  const candidateURLs = [];
- 
--  if (icon.endsWith(".webp")) {
--    const iconName = icon.replace(".webp", "");
--    return (
--      <Image
--        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${iconName}.webp`}
--        width={width}
--        height={height}
--        style={{
--          width,
--          height,
--          objectFit: "contain",
--          maxHeight: "100%",
--          maxWidth: "100%",
--        }}
--        alt={alt}
--      />
--    );
-+  repos.forEach((repo) => {
-+    let baseUrl = repo.url;
-+    if (!baseUrl.endsWith("/")) {
-+      baseUrl += "/";
-+    }
-+    candidateURLs.push(`${baseUrl}${icon}`);
-+  });
-+
-+  const baseIconName = icon.replace(".svg", "").replace(".webp", "").replace(".png", "");
-+  
-+  if (icon.endsWith(".svg")) {
-+    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${baseIconName}.svg`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
-+  } else if (icon.endsWith(".webp")) {
-+    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${baseIconName}.webp`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
-+  } else {
-+    candidateURLs.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${baseIconName}.png`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
-   }
- 
--  const iconName = icon.replace(".png", "");
-   return (
--    <Image
--      src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${iconName}.png`}
-+    <FallbackImage
-+      srcList={candidateURLs}
-       width={width}
-       height={height}
-       style={{
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
 index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
@@ -576,6 +434,160 @@ index 1acf94d..531ba65 100644
      </ul>
    );
  }
+diff --git a/src/components/widgets/datetime/datetime.jsx b/src/components/widgets/datetime/datetime.jsx
+index f0bae0b..a868fad 100644
+--- a/src/components/widgets/datetime/datetime.jsx
++++ b/src/components/widgets/datetime/datetime.jsx
+@@ -1,5 +1,5 @@
+ import { useTranslation } from "next-i18next/pages";
+-import { useEffect, useState } from "react";
++import { useEffect, useState, useMemo } from "react";
+ 
+ import Container from "../widget/container";
+ import Raw from "../widget/raw";
+@@ -17,25 +17,133 @@ const textSizes = {
+ 
+ export default function DateTime({ options }) {
+   const { text_size: textSize, locale, format } = options;
++  const clockStyle = options?.clockStyle ?? {};
+   const { i18n } = useTranslation();
+-  const [date, setDate] = useState("");
+   const dateLocale = locale ?? i18n.language;
+ 
++  const [time, setTime] = useState(() => new Date());
++
+   useEffect(() => {
+-    const dateFormat = new Intl.DateTimeFormat(dateLocale, { ...format });
+-    setDate(dateFormat.format(new Date()));
+     const interval = setInterval(() => {
+-      setDate(dateFormat.format(new Date()));
++      setTime(new Date());
+     }, 1000);
+     return () => clearInterval(interval);
+-  }, [date, setDate, dateLocale, format]);
++  }, []);
++
++  const clockType = clockStyle.type ?? "digital-one-line";
++
++  // Formatted date and time strings
++  const formattedTime = useMemo(() => {
++    try {
++      return new Intl.DateTimeFormat(dateLocale, {
++        hour: "numeric",
++        minute: "numeric",
++        second: "numeric",
++        hour12: false,
++      }).format(time);
++    } catch {
++      return time.toLocaleTimeString(dateLocale);
++    }
++  }, [time, dateLocale]);
++
++  const formattedDate = useMemo(() => {
++    try {
++      return new Intl.DateTimeFormat(dateLocale, {
++        dateStyle: "medium",
++      }).format(time);
++    } catch {
++      return time.toLocaleDateString(dateLocale);
++    }
++  }, [time, dateLocale]);
++
++  const defaultFormatted = useMemo(() => {
++    try {
++      const dateFormat = new Intl.DateTimeFormat(dateLocale, { ...format });
++      return dateFormat.format(time);
++    } catch {
++      return time.toLocaleString(dateLocale);
++    }
++  }, [time, dateLocale, format]);
++
++  // SVG Analog clock calculations
++  const hourDeg = (time.getHours() % 12) * 30 + time.getMinutes() * 0.5;
++  const minuteDeg = time.getMinutes() * 6 + time.getSeconds() * 0.1;
++  const secondDeg = time.getSeconds() * 6;
++
++  const align = clockStyle.align ?? "right";
++  const noBackground = clockStyle.noBackground ?? false;
++
++  const rowAlignClass = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
++  const colAlignClass = align === "left" ? "items-start text-left" : align === "center" ? "items-center text-center" : "items-end text-right";
++
++  // Layout selection
++  const renderClockContent = () => {
++    const textColor = clockStyle.color || "";
++    const textStyle = {
++      color: textColor ? textColor : undefined,
++      fontFamily: clockStyle.fontFamily || undefined,
++      fontSize: clockStyle.fontSize || undefined,
++    };
++
++    switch (clockType) {
++      case "only-time":
++        return (
++          <span className="tabular-nums" style={textStyle}>
++            {formattedTime}
++          </span>
++        );
++      case "only-date":
++        return (
++          <span style={textStyle}>
++            {formattedDate}
++          </span>
++        );
++      case "digital-two-lines-date-time":
++        return (
++          <div className={`flex flex-col leading-tight ${colAlignClass}`}>
++            <span style={{ ...textStyle, fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined }} className="opacity-80">
++              {formattedDate}
++            </span>
++            <span style={textStyle} className="font-semibold tabular-nums">
++              {formattedTime}
++            </span>
++          </div>
++        );
++      case "digital-two-lines-time-date":
++        return (
++          <div className={`flex flex-col leading-tight ${colAlignClass}`}>
++            <span style={textStyle} className="font-semibold tabular-nums">
++              {formattedTime}
++            </span>
++            <span style={{ ...textStyle, fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined }} className="opacity-80">
++              {formattedDate}
++            </span>
++          </div>
++        );
++      case "digital-one-line":
++      default:
++        // Use standard inline format or custom format
++        const defaultStyle = {
++          color: textColor ? textColor : undefined,
++          fontFamily: clockStyle.fontFamily || undefined,
++          fontSize: clockStyle.fontSize || undefined,
++        };
++        return (
++          <span className="tabular-nums" style={defaultStyle}>
++            {clockStyle.type && clockStyle.type !== "analog" ? `${formattedDate}, ${formattedTime}` : defaultFormatted}
++          </span>
++        );
++    }
++  };
++
++  const additionalClassNames = `information-widget-datetime ${noBackground ? "!bg-transparent !shadow-none !border-none !p-0 !backdrop-blur-none" : ""}`;
+ 
+   return (
+-    <Container options={options} additionalClassNames="information-widget-datetime">
++    <Container options={options} additionalClassNames={additionalClassNames}>
+       <Raw>
+-        <div className="flex flex-row items-center grow justify-end">
+-          <span className={`text-theme-800 dark:text-theme-200 tabular-nums ${textSizes[textSize || "lg"]}`}>
+-            {date}
++        <div className={`flex flex-row items-center grow ${rowAlignClass}`}>
++          <span className={`text-theme-800 dark:text-theme-200 ${textSizes[textSize || "lg"]}`}>
++            {renderClockContent()}
+           </span>
+         </div>
+       </Raw>
 diff --git a/src/pages/api/config/[path].js b/src/pages/api/config/[path].js
 index b69ddff..c74277d 100644
 --- a/src/pages/api/config/[path].js

@@ -2896,7 +2896,6 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
     ["digital-two-lines-time-date", "Две линии: Время сверху"],
     ["only-time", "Только время"],
     ["only-date", "Только дата"],
-    ["analog", "Аналоговые часы (стрелочные)"],
   ];
 
   const previewStyle = {
@@ -2904,6 +2903,10 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
     fontFamily: clockStyle.fontFamily || undefined,
     fontSize: clockStyle.fontSize || "24px",
   };
+
+  const align = clockStyle.align ?? "right";
+  const justifyClass = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
+  const colAlignClass = align === "left" ? "items-start text-left" : align === "center" ? "items-center text-center" : "items-end text-right";
 
   const renderPreviewClock = () => {
     switch (clockType) {
@@ -2913,7 +2916,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
         return <span className="text-theme-900 dark:text-theme-100" style={previewStyle}>{formattedDate}</span>;
       case "digital-two-lines-date-time":
         return (
-          <div className="flex flex-col items-center leading-tight text-center text-theme-900 dark:text-theme-100">
+          <div className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}>
             <span style={{ ...previewStyle, fontSize: `calc(${previewStyle.fontSize} * 0.75)` }} className="opacity-80">
               {formattedDate}
             </span>
@@ -2924,40 +2927,13 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
         );
       case "digital-two-lines-time-date":
         return (
-          <div className="flex flex-col items-center leading-tight text-center text-theme-900 dark:text-theme-100">
+          <div className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}>
             <span style={previewStyle} className="font-semibold tabular-nums">
               {formattedTime}
             </span>
             <span style={{ ...previewStyle, fontSize: `calc(${previewStyle.fontSize} * 0.75)` }} className="opacity-80">
               {formattedDate}
             </span>
-          </div>
-        );
-      case "analog":
-        const analogColor = clockStyle.color || "currentColor";
-        return (
-          <div className="flex items-center justify-center w-24 h-24">
-            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md text-theme-900 dark:text-theme-100" style={{ color: analogColor }}>
-              <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-              {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg) => (
-                <line
-                  key={deg}
-                  x1="50"
-                  y1="8"
-                  x2="50"
-                  y2={deg % 90 === 0 ? "14" : "11"}
-                  stroke="currentColor"
-                  strokeWidth={deg % 90 === 0 ? "2.5" : "1.5"}
-                  className={deg % 90 === 0 ? "opacity-75" : "opacity-40"}
-                  transform={`rotate(${deg} 50 50)`}
-                />
-              ))}
-              <circle cx="50" cy="50" r="3" fill="currentColor" />
-              <line x1="50" y1="50" x2="50" y2="28" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" transform={`rotate(${hourDeg} 50 50)`} />
-              <line x1="50" y1="50" x2="50" y2="18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" transform={`rotate(${minuteDeg} 50 50)`} />
-              <line x1="50" y1="50" x2="50" y2="12" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" transform={`rotate(${secondDeg} 50 50)`} />
-              <circle cx="50" cy="50" r="1.5" fill="#ef4444" />
-            </svg>
           </div>
         );
       case "digital-one-line":
@@ -2978,9 +2954,9 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col space-y-6 overflow-y-auto pr-1">
         {/* Live Preview Section */}
-        <div className="flex flex-col items-center justify-center rounded-lg border border-theme-300/40 bg-theme-100/10 p-6 dark:border-white/5 dark:bg-white/5 min-h-[140px] shrink-0">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-theme-300/40 p-6 dark:border-white/10 min-h-[140px] shrink-0">
           <div className="text-[10px] uppercase tracking-widest opacity-40 mb-3">Предпросмотр</div>
-          <div className="flex items-center justify-center w-full min-h-[80px]">
+          <div className={`flex items-center w-full min-h-[80px] px-4 ${justifyClass}`}>
             {renderPreviewClock()}
           </div>
         </div>
@@ -3000,6 +2976,19 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                 {clockTypes.map(([val, label]) => (
                   <option key={val} value={val}>{label}</option>
                 ))}
+              </select>
+            </label>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Выравнивание
+              <select
+                value={clockStyle.align ?? "right"}
+                onChange={(e) => updateClockStyle("align", e.target.value)}
+                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+              >
+                <option value="left">Влево (Left)</option>
+                <option value="center">По центру (Center)</option>
+                <option value="right">Вправо (Right)</option>
               </select>
             </label>
 
@@ -3046,6 +3035,16 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                   className="w-8 h-full p-0.5 rounded-md border border-theme-300/50 bg-transparent cursor-pointer dark:border-white/10"
                 />
               </div>
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer pt-2">
+              <input
+                type="checkbox"
+                checked={clockStyle.noBackground ?? false}
+                onChange={(e) => updateClockStyle("noBackground", e.target.checked)}
+                className="rounded border-theme-300 text-theme-600 shadow-sm dark:border-white/10 dark:bg-theme-900"
+              />
+              Скрыть фон виджета (Без фона)
             </label>
           </div>
 
