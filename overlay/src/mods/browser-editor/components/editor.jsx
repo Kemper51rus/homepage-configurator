@@ -5973,7 +5973,18 @@ function PageStylingEditor({ settingsContent, onChange }) {
   );
 }
 
-function SettingsVisualEditor({ content, onChange }) {
+const cleanBackgroundObject = (conf) => {
+  if (typeof conf.background === "object" && conf.background !== null) {
+    const keys = Object.keys(conf.background);
+    if (keys.length === 1 && keys[0] === "image") {
+      conf.background = conf.background.image;
+    } else if (keys.length === 0) {
+      delete conf.background;
+    }
+  }
+};
+
+function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChange }) {
   const [parsedConfig, setParsedConfig] = useState({});
   const [yamlError, setYamlError] = useState("");
   const [lastValidConfig, setLastValidConfig] = useState({});
@@ -6001,9 +6012,67 @@ function SettingsVisualEditor({ content, onChange }) {
   const bgBlurVal = isBgObject ? lastValidConfig.background.blur ?? "" : "";
   const bgOpacityVal = isBgObject ? lastValidConfig.background.opacity ?? "" : "";
   const bgBrightnessVal = isBgObject ? lastValidConfig.background.brightness ?? "" : "";
+  const bgSaturateVal = isBgObject ? lastValidConfig.background.saturate ?? "" : "";
   const weatherProviders = lastValidConfig.providers ?? {};
   const pwaSettings = lastValidConfig.pwa ?? {};
   const pwaEnabled = pwaSettings.enabled ?? false;
+
+  // widgets.yaml weather widget mapping helper
+  let widgetsList = [];
+  let widgetsParseError = false;
+  try {
+    widgetsList = yaml.load(widgetsContent) ?? [];
+    if (!Array.isArray(widgetsList)) {
+      widgetsList = [];
+    }
+  } catch (e) {
+    widgetsParseError = true;
+  }
+
+  const weatherWidgetIndex = widgetsList.findIndex(
+    w => w && typeof w === "object" && (w.weather !== undefined || w.openweathermap !== undefined || w.weatherapi !== undefined)
+  );
+  const hasWeatherWidget = weatherWidgetIndex !== -1;
+  const weatherWidgetObj = hasWeatherWidget ? widgetsList[weatherWidgetIndex] : null;
+  const weatherWidgetKey = weatherWidgetObj ? Object.keys(weatherWidgetObj)[0] : "weather";
+  const weatherWidgetConfig = weatherWidgetObj ? weatherWidgetObj[weatherWidgetKey] : {};
+
+  const [weatherLoc, setWeatherLoc] = useState("");
+  const [weatherUnits, setWeatherUnits] = useState("metric");
+  const [weatherProv, setWeatherProv] = useState("openweathermap");
+
+  useEffect(() => {
+    if (weatherWidgetObj && weatherWidgetConfig) {
+      setWeatherLoc(weatherWidgetConfig.location ?? "");
+      setWeatherUnits(weatherWidgetConfig.units ?? "metric");
+      setWeatherProv(weatherWidgetConfig.provider ?? weatherWidgetKey ?? "openweathermap");
+    }
+  }, [hasWeatherWidget, weatherWidgetKey, weatherWidgetConfig.location, weatherWidgetConfig.units, weatherWidgetConfig.provider]);
+
+  const updateWeatherWidget = (updatedFields) => {
+    if (widgetsParseError) return;
+
+    const nextWidgets = [...widgetsList];
+    const key = weatherWidgetKey || "weather";
+    const currentConf = weatherWidgetConfig || {};
+    const nextConf = { ...currentConf, ...updatedFields };
+
+    const newWidget = { [key]: nextConf };
+
+    if (hasWeatherWidget) {
+      nextWidgets[weatherWidgetIndex] = newWidget;
+    } else {
+      nextWidgets.push(newWidget);
+    }
+
+    onWidgetsChange(yaml.dump(nextWidgets, { lineWidth: -1, noRefs: true, sortKeys: false }));
+  };
+
+  const removeWeatherWidget = () => {
+    if (widgetsParseError || !hasWeatherWidget) return;
+    const nextWidgets = widgetsList.filter((_, idx) => idx !== weatherWidgetIndex);
+    onWidgetsChange(yaml.dump(nextWidgets, { lineWidth: -1, noRefs: true, sortKeys: false }));
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden">
@@ -6111,12 +6180,9 @@ function SettingsVisualEditor({ content, onChange }) {
                   })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
-                  <option value="">По умолчанию (default)</option>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                  <option value="slate">Slate</option>
-                  <option value="nord">Nord</option>
-                  <option value="dracula">Dracula</option>
+                  <option value="">По умолчанию (системная)</option>
+                  <option value="light">Светлая тема (light)</option>
+                  <option value="dark">Темная тема (dark)</option>
                 </select>
               </label>
               <label className="block text-xs text-theme-600 dark:text-theme-300">
@@ -6165,11 +6231,11 @@ function SettingsVisualEditor({ content, onChange }) {
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">Без размытия</option>
-                  <option value="sm">sm</option>
-                  <option value="md">md</option>
-                  <option value="lg">lg</option>
-                  <option value="xl">xl</option>
-                  <option value="2xl">2xl</option>
+                  <option value="sm">Слабое (sm)</option>
+                  <option value="md">Среднее (md)</option>
+                  <option value="lg">Сильное (lg)</option>
+                  <option value="xl">Очень сильное (xl)</option>
+                  <option value="2xl">Экстремальное (2xl)</option>
                 </select>
               </label>
               <label className="block text-xs text-theme-600 dark:text-theme-300">
@@ -6204,12 +6270,13 @@ function SettingsVisualEditor({ content, onChange }) {
                         if (useObj) {
                           const oldBg = conf.background;
                           conf.background = {
-                            image: typeof oldBg === "string" ? oldBg : "",
-                            blur: "",
-                            opacity: "",
+                            image: typeof oldBg === "string" ? oldBg : (oldBg?.image ?? ""),
                           };
                         } else {
                           conf.background = typeof conf.background === "object" && conf.background !== null ? conf.background.image ?? "" : "";
+                          if (conf.background === "") {
+                            delete conf.background;
+                          }
                         }
                         return conf;
                       });
@@ -6232,6 +6299,9 @@ function SettingsVisualEditor({ content, onChange }) {
                     } else {
                       conf.background = val;
                     }
+                    if (conf.background === "") {
+                      delete conf.background;
+                    }
                     return conf;
                   })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
@@ -6240,62 +6310,104 @@ function SettingsVisualEditor({ content, onChange }) {
               </label>
 
               {isBgObject && (
-                <div className="grid grid-cols-3 gap-3 pt-1">
-                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                    Размытие (blur)
-                    <select
-                      value={bgBlurVal}
-                      onChange={(e) => updateConfig(conf => {
-                        conf.background = conf.background || {};
-                        if (e.target.value === "") delete conf.background.blur;
-                        else conf.background.blur = e.target.value;
-                        return conf;
-                      })}
-                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                    >
-                      <option value="">Без размытия</option>
-                      <option value="sm">sm</option>
-                      <option value="md">md</option>
-                      <option value="lg">lg</option>
-                      <option value="xl">xl</option>
-                    </select>
-                  </label>
-                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                    Яркость (%)
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={bgBrightnessVal}
-                      onChange={(e) => updateConfig(conf => {
-                        conf.background = conf.background || {};
-                        const val = e.target.value;
-                        if (val === "") delete conf.background.brightness;
-                        else conf.background.brightness = parseInt(val, 10);
-                        return conf;
-                      })}
-                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                      placeholder="100"
-                    />
-                  </label>
-                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                    Прозрачность (%)
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={bgOpacityVal}
-                      onChange={(e) => updateConfig(conf => {
-                        conf.background = conf.background || {};
-                        const val = e.target.value;
-                        if (val === "") delete conf.background.opacity;
-                        else conf.background.opacity = parseInt(val, 10);
-                        return conf;
-                      })}
-                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-                      placeholder="100"
-                    />
-                  </label>
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-3 gap-3">
+                    <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                      Размытие фона (blur)
+                      <select
+                        value={bgBlurVal}
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.blur;
+                          else conf.background.blur = e.target.value;
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
+                        className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                      >
+                        <option value="">Без размытия</option>
+                        <option value="sm">Слабое (sm)</option>
+                        <option value="md">Среднее (md)</option>
+                        <option value="lg">Сильное (lg)</option>
+                        <option value="xl">Очень сильное (xl)</option>
+                        <option value="2xl">Экстремальное (2xl)</option>
+                        <option value="3xl">Максимальное (3xl)</option>
+                      </select>
+                    </label>
+
+                    <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                      Яркость фона
+                      <select
+                        value={bgBrightnessVal}
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.brightness;
+                          else conf.background.brightness = parseInt(e.target.value, 10);
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
+                        className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                      >
+                        <option value="">Обычная (100%)</option>
+                        <option value="50">Очень темно (50%)</option>
+                        <option value="75">Темно (75%)</option>
+                        <option value="90">Чуть темнее (90%)</option>
+                        <option value="95">Немного темнее (95%)</option>
+                        <option value="105">Немного светлее (105%)</option>
+                        <option value="110">Чуть светлее (110%)</option>
+                        <option value="125">Светло (125%)</option>
+                        <option value="150">Очень светло (150%)</option>
+                        <option value="200">Максимально светло (200%)</option>
+                      </select>
+                    </label>
+
+                    <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                      Насыщенность
+                      <select
+                        value={bgSaturateVal}
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.saturate;
+                          else conf.background.saturate = parseInt(e.target.value, 10);
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
+                        className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                      >
+                        <option value="">Обычная (100%)</option>
+                        <option value="0">Черно-белая (0%)</option>
+                        <option value="50">Приглушенная (50%)</option>
+                        <option value="150">Яркая (150%)</option>
+                        <option value="200">Супер-яркая (200%)</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                      Видимость фонового рисунка: {bgOpacityVal !== "" ? `${bgOpacityVal}%` : "100%"}
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={bgOpacityVal !== "" ? bgOpacityVal : 100}
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          const val = parseInt(e.target.value, 10);
+                          if (val === 100) delete conf.background.opacity;
+                          else conf.background.opacity = val;
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
+                        className="w-full h-1 bg-theme-200 rounded-lg appearance-none cursor-pointer dark:bg-theme-700 mt-2"
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
@@ -6308,11 +6420,11 @@ function SettingsVisualEditor({ content, onChange }) {
             <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Интеграции и API поставщиков</h4>
 
             <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
-              <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200 block">Погода (Weather APIs)</span>
+              <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200 block">Погода (Weather API и Виджет)</span>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 mb-2">
                 <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                  OpenWeatherMap Key
+                  OpenWeatherMap Key (в settings.yaml)
                   <input
                     type="text"
                     value={weatherProviders.openweathermap ?? ""}
@@ -6328,7 +6440,7 @@ function SettingsVisualEditor({ content, onChange }) {
                   />
                 </label>
                 <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                  WeatherAPI Key
+                  WeatherAPI Key (в settings.yaml)
                   <input
                     type="text"
                     value={weatherProviders.weatherapi ?? ""}
@@ -6344,6 +6456,102 @@ function SettingsVisualEditor({ content, onChange }) {
                   />
                 </label>
               </div>
+
+              {/* Weather widget configuration */}
+              <div className="border-t border-theme-300/20 dark:border-white/5 pt-3 mt-3">
+                {widgetsParseError ? (
+                  <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                    ⚠️ Не удалось распарсить widgets.yaml. Пожалуйста, исправьте ошибки синтаксиса в файле widgets.yaml.
+                  </div>
+                ) : !hasWeatherWidget ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <span>⚠️ Виджет погоды не добавлен на дашборд (в widgets.yaml).</span>
+                    </p>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Город / Местоположение</label>
+                        <input
+                          type="text"
+                          placeholder="Moscow"
+                          value={weatherLoc}
+                          onChange={(e) => setWeatherLoc(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const loc = weatherLoc.trim() || "Moscow";
+                          updateWeatherWidget({ provider: weatherProv, location: loc, units: weatherUnits });
+                        }}
+                        className="rounded-md bg-theme-600 text-white hover:bg-theme-700 px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                      >
+                        ➕ Добавить виджет погоды
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <span>✅ Виджет погоды активен на дашборде</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={removeWeatherWidget}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300 underline cursor-pointer"
+                      >
+                        Удалить виджет
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Поставщик</label>
+                        <select
+                          value={weatherProv}
+                          onChange={(e) => {
+                            setWeatherProv(e.target.value);
+                            updateWeatherWidget({ provider: e.target.value });
+                          }}
+                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                        >
+                          <option value="openweathermap">OpenWeatherMap</option>
+                          <option value="weatherapi">WeatherAPI</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Город / Координаты</label>
+                        <input
+                          type="text"
+                          value={weatherLoc}
+                          onChange={(e) => {
+                            setWeatherLoc(e.target.value);
+                            updateWeatherWidget({ location: e.target.value });
+                          }}
+                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                          placeholder="Moscow"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-theme-500 dark:text-theme-400">Единицы</label>
+                        <select
+                          value={weatherUnits}
+                          onChange={(e) => {
+                            setWeatherUnits(e.target.value);
+                            updateWeatherWidget({ units: e.target.value });
+                          }}
+                          className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-1 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                        >
+                          <option value="metric">Метрические (°C)</option>
+                          <option value="imperial">Имперские (°F)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -6355,7 +6563,7 @@ function SettingsVisualEditor({ content, onChange }) {
 
             <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200">Progressive Web App</span>
+                <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200">Progressive Web App (PWA)</span>
                 <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
                   <input
                     type="checkbox"
@@ -6373,6 +6581,13 @@ function SettingsVisualEditor({ content, onChange }) {
                   Включить PWA
                 </label>
               </div>
+
+              {pwaEnabled && (
+                <div className="text-[10px] leading-normal text-amber-600 dark:text-amber-400/90 border border-amber-300/20 bg-amber-500/5 p-2.5 rounded-md mt-2">
+                  <p className="font-semibold mb-1">ℹ️ Ограничение браузера по безопасности:</p>
+                  Кнопка установки PWA появится в браузере только если ваш сайт работает по безопасному протоколу <strong>HTTPS</strong> или открыт по адресу <strong>localhost / 127.0.0.1</strong>. При доступе по обычному IP-адресу (например, http://192.168.1.73) браузер блокирует работу PWA.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -6536,6 +6751,13 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
                     setDrafts((current) => ({
                       ...current,
                       "settings.yaml": value,
+                    }))
+                  }
+                  widgetsContent={drafts["widgets.yaml"] ?? ""}
+                  onWidgetsChange={(value) =>
+                    setDrafts((current) => ({
+                      ...current,
+                      "widgets.yaml": value,
                     }))
                   }
                 />
