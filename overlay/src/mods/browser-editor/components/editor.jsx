@@ -7886,6 +7886,7 @@ export function EditorPageTab({ tab }) {
       )}
     >
       <button
+        suppressHydrationWarning={true}
         id={`${tab}-tab`}
         type="button"
         role="tab"
