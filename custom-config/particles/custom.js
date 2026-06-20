@@ -95,12 +95,13 @@
   };
 
   function ready(callback) {
+    const run = () => setTimeout(callback, 200);
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", callback, { once: true });
+      document.addEventListener("DOMContentLoaded", run, { once: true });
       return;
     }
 
-    callback();
+    run();
   }
 
   function clamp(value, min, max) {
