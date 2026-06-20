@@ -3311,6 +3311,18 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
     return response.json();
   }
 
+  const fonts = [
+    ["", "По умолчанию"],
+    ["Comfortaa", "Comfortaa"],
+    ["Inter", "Inter"],
+    ["Roboto", "Roboto"],
+    ["Outfit", "Outfit"],
+    ["system-ui", "Системный"],
+    ["Arial", "Arial"],
+    ["Georgia", "Georgia"],
+    ["Courier New", "Monospace"],
+  ];
+
   const fontSizes = [
     ["", "По умолчанию (14px)"],
     ["12px", "Очень мелкий (12px)"],
@@ -3354,14 +3366,14 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
       name: "Колонки (Сплит)",
       desc: "Иконка с описанием слева, температура и город справа",
       preview: (
-        <div className="flex items-center justify-between rounded bg-theme-100/30 dark:bg-black/20 p-2 text-[10px] w-full max-w-[200px] border border-theme-300/30 dark:border-white/5 gap-2">
-          <div className="flex flex-col items-center text-center justify-center shrink-0">
+        <div className="flex items-center justify-center rounded bg-theme-100/30 dark:bg-black/20 p-2 text-[10px] w-full max-w-[200px] border border-theme-300/30 dark:border-white/5 gap-2">
+          <div className="flex flex-col items-center text-center justify-center flex-1">
             <div className="text-xl">☀️</div>
-            <span className="opacity-60 text-[8px] leading-tight">Ясно</span>
+            <span className="opacity-60 text-[8px] leading-tight text-center">Ясно</span>
           </div>
-          <div className="flex flex-col text-right justify-center grow">
-            <span className="font-bold text-xs">22°C</span>
-            <span className="opacity-70 text-[9px]">Москва</span>
+          <div className="flex flex-col items-center text-center justify-center flex-1">
+            <span className="font-bold text-xs text-center">22°C</span>
+            <span className="opacity-70 text-[9px] text-center">Москва</span>
           </div>
         </div>
       )
@@ -3403,28 +3415,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
             <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Основные параметры</h3>
 
-            <div>
-              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">Поставщик</label>
-              <select
-                value={weatherProv}
-                onChange={(e) => {
-                  const prov = e.target.value;
-                  if (widgetKey === "weather") {
-                    updateWidgetOption("provider", prov);
-                  }
-                }}
-                disabled={widgetKey !== "weather"}
-                className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-              >
-                <option value="openweathermap">OpenWeatherMap</option>
-                <option value="weatherapi">WeatherAPI</option>
-              </select>
-              {widgetKey !== "weather" && (
-                <span className="text-[9px] text-theme-400 mt-0.5 block">
-                  Зафиксировано типом виджета: {widgetKey}
-                </span>
-              )}
-            </div>
+
 
             <div>
               <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">Отображаемое название города (Label)</label>
@@ -3556,6 +3547,19 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
               {/* Layout customizations */}
               <div className="grid gap-3 grid-cols-2 border-t border-theme-300/20 dark:border-white/5 pt-3">
                 <div>
+                  <label className="block text-xs text-theme-600 dark:text-theme-300">Шрифт текста погоды</label>
+                  <select
+                    value={weatherStyle.fontFamily ?? ""}
+                    onChange={(e) => updateWeatherStyle("fontFamily", e.target.value)}
+                    className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
+                  >
+                    {fonts.map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-xs text-theme-600 dark:text-theme-300">Размер шрифта текста</label>
                   <select
                     value={weatherStyle.fontSize ?? ""}
@@ -3568,7 +3572,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                   </select>
                 </div>
 
-                <div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs text-theme-600 dark:text-theme-300">Размер иконки погоды</label>
                   <select
                     value={weatherStyle.iconSize ?? ""}
