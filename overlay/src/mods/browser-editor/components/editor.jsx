@@ -5973,6 +5973,433 @@ function PageStylingEditor({ settingsContent, onChange }) {
   );
 }
 
+function SettingsVisualEditor({ content, onChange }) {
+  const [parsedConfig, setParsedConfig] = useState({});
+  const [yamlError, setYamlError] = useState("");
+  const [lastValidConfig, setLastValidConfig] = useState({});
+
+  useEffect(() => {
+    try {
+      const obj = yaml.load(content) ?? {};
+      setParsedConfig(obj);
+      setLastValidConfig(obj);
+      setYamlError("");
+    } catch (err) {
+      setYamlError(err.message);
+    }
+  }, [content]);
+
+  const updateConfig = (updater) => {
+    const next = updater({ ...lastValidConfig });
+    setLastValidConfig(next);
+    setParsedConfig(next);
+    onChange(yaml.dump(next, { lineWidth: -1, noRefs: true, sortKeys: false }));
+  };
+
+  const isBgObject = typeof lastValidConfig.background === "object" && lastValidConfig.background !== null;
+  const bgImageVal = isBgObject ? lastValidConfig.background.image ?? "" : lastValidConfig.background ?? "";
+  const bgBlurVal = isBgObject ? lastValidConfig.background.blur ?? "" : "";
+  const bgOpacityVal = isBgObject ? lastValidConfig.background.opacity ?? "" : "";
+  const bgBrightnessVal = isBgObject ? lastValidConfig.background.brightness ?? "" : "";
+  const weatherProviders = lastValidConfig.providers ?? {};
+  const pwaSettings = lastValidConfig.pwa ?? {};
+  const pwaEnabled = pwaSettings.enabled ?? false;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden">
+      {/* Left panel: Visual controls */}
+      <div className="lg:col-span-7 flex flex-col min-h-0 border border-theme-300/30 rounded-xl dark:border-white/10 bg-theme-50/10 dark:bg-white/5 p-4 overflow-y-auto">
+        <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100 mb-4 flex items-center gap-2">
+          ⚙️ Панель настроек дашборда
+          {yamlError && (
+            <span className="text-[10px] bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full font-normal">
+              Ошибка YAML (поля заморожены)
+            </span>
+          )}
+        </h3>
+
+        {/* Visual Fields Form */}
+        <div className={yamlError ? "opacity-60 pointer-events-none space-y-6" : "space-y-6"}>
+          {/* General Section */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Общие параметры</h4>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Заголовок дашборда (title)
+              <input
+                type="text"
+                value={lastValidConfig.title ?? ""}
+                onChange={(e) => updateConfig(conf => { conf.title = e.target.value; return conf; })}
+                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                placeholder="Homepage"
+              />
+            </label>
+
+            <label className="block text-xs text-theme-600 dark:text-theme-300">
+              Описание (meta description)
+              <input
+                type="text"
+                value={lastValidConfig.description ?? ""}
+                onChange={(e) => updateConfig(conf => { conf.description = e.target.value; return conf; })}
+                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                placeholder="Dashboard description"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Язык (language)
+                <input
+                  type="text"
+                  value={lastValidConfig.language ?? ""}
+                  onChange={(e) => updateConfig(conf => { conf.language = e.target.value; return conf; })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                  placeholder="ru, en"
+                />
+              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Локаль дат (locale)
+                <input
+                  type="text"
+                  value={lastValidConfig.locale ?? ""}
+                  onChange={(e) => updateConfig(conf => { conf.locale = e.target.value; return conf; })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                  placeholder="ru-RU, en-US"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Start URL
+                <input
+                  type="text"
+                  value={lastValidConfig.startUrl ?? ""}
+                  onChange={(e) => updateConfig(conf => { conf.startUrl = e.target.value; return conf; })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                  placeholder="/"
+                />
+              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Favicon
+                <input
+                  type="text"
+                  value={lastValidConfig.favicon ?? ""}
+                  onChange={(e) => updateConfig(conf => { conf.favicon = e.target.value; return conf; })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                  placeholder="/favicon.ico"
+                />
+              </label>
+            </div>
+          </div>
+
+          <hr className="border-theme-300/20 dark:border-white/5" />
+
+          {/* Theme & Design Section */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Тема и Оформление</h4>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Тема (theme)
+                <select
+                  value={lastValidConfig.theme ?? ""}
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.theme;
+                    else conf.theme = e.target.value;
+                    return conf;
+                  })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                >
+                  <option value="">По умолчанию (default)</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="slate">Slate</option>
+                  <option value="nord">Nord</option>
+                  <option value="dracula">Dracula</option>
+                </select>
+              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Цвет акцента (color)
+                <select
+                  value={lastValidConfig.color ?? ""}
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.color;
+                    else conf.color = e.target.value;
+                    return conf;
+                  })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                >
+                  <option value="">По умолчанию</option>
+                  <option value="slate">Slate</option>
+                  <option value="gray">Gray</option>
+                  <option value="zinc">Zinc</option>
+                  <option value="red">Red</option>
+                  <option value="orange">Orange</option>
+                  <option value="amber">Amber</option>
+                  <option value="yellow">Yellow</option>
+                  <option value="green">Green</option>
+                  <option value="teal">Teal</option>
+                  <option value="cyan">Cyan</option>
+                  <option value="sky">Sky</option>
+                  <option value="blue">Blue</option>
+                  <option value="indigo">Indigo</option>
+                  <option value="violet">Violet</option>
+                  <option value="purple">Purple</option>
+                  <option value="pink">Pink</option>
+                  <option value="rose">Rose</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Размытие карточек (cardBlur)
+                <select
+                  value={lastValidConfig.cardBlur ?? ""}
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.cardBlur;
+                    else conf.cardBlur = e.target.value;
+                    return conf;
+                  })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                >
+                  <option value="">Без размытия</option>
+                  <option value="sm">sm</option>
+                  <option value="md">md</option>
+                  <option value="lg">lg</option>
+                  <option value="xl">xl</option>
+                  <option value="2xl">2xl</option>
+                </select>
+              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300">
+                Стиль заголовков (headerStyle)
+                <select
+                  value={lastValidConfig.headerStyle ?? ""}
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.headerStyle;
+                    else conf.headerStyle = e.target.value;
+                    return conf;
+                  })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                >
+                  <option value="">По умолчанию</option>
+                  <option value="clean">Clean</option>
+                  <option value="underlined">Underlined</option>
+                </select>
+              </label>
+            </div>
+
+            {/* Background options */}
+            <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-theme-700 dark:text-theme-200">Фоновое изображение</span>
+                <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isBgObject}
+                    onChange={(e) => {
+                      const useObj = e.target.checked;
+                      updateConfig(conf => {
+                        if (useObj) {
+                          const oldBg = conf.background;
+                          conf.background = {
+                            image: typeof oldBg === "string" ? oldBg : "",
+                            blur: "",
+                            opacity: "",
+                          };
+                        } else {
+                          conf.background = typeof conf.background === "object" && conf.background !== null ? conf.background.image ?? "" : "";
+                        }
+                        return conf;
+                      });
+                    }}
+                    className="rounded border-theme-300 text-theme-600 shadow-sm dark:border-white/10 dark:bg-theme-900"
+                  />
+                  Фильтры и прозрачность
+                </label>
+              </div>
+
+              <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                Путь или URL фона (image)
+                <input
+                  type="text"
+                  value={bgImageVal}
+                  onChange={(e) => updateConfig(conf => {
+                    const val = e.target.value;
+                    if (typeof conf.background === "object" && conf.background !== null) {
+                      conf.background.image = val;
+                    } else {
+                      conf.background = val;
+                    }
+                    return conf;
+                  })}
+                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                  placeholder="/api/config/background"
+                />
+              </label>
+
+              {isBgObject && (
+                <div className="grid grid-cols-3 gap-3 pt-1">
+                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                    Размытие (blur)
+                    <select
+                      value={bgBlurVal}
+                      onChange={(e) => updateConfig(conf => {
+                        conf.background = conf.background || {};
+                        if (e.target.value === "") delete conf.background.blur;
+                        else conf.background.blur = e.target.value;
+                        return conf;
+                      })}
+                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                    >
+                      <option value="">Без размытия</option>
+                      <option value="sm">sm</option>
+                      <option value="md">md</option>
+                      <option value="lg">lg</option>
+                      <option value="xl">xl</option>
+                    </select>
+                  </label>
+                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                    Яркость (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={bgBrightnessVal}
+                      onChange={(e) => updateConfig(conf => {
+                        conf.background = conf.background || {};
+                        const val = e.target.value;
+                        if (val === "") delete conf.background.brightness;
+                        else conf.background.brightness = parseInt(val, 10);
+                        return conf;
+                      })}
+                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                      placeholder="100"
+                    />
+                  </label>
+                  <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                    Прозрачность (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={bgOpacityVal}
+                      onChange={(e) => updateConfig(conf => {
+                        conf.background = conf.background || {};
+                        const val = e.target.value;
+                        if (val === "") delete conf.background.opacity;
+                        else conf.background.opacity = parseInt(val, 10);
+                        return conf;
+                      })}
+                      className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                      placeholder="100"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <hr className="border-theme-300/20 dark:border-white/5" />
+
+          {/* API Keys Providers */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Интеграции и API поставщиков</h4>
+
+            <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
+              <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200 block">Погода (Weather APIs)</span>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                  OpenWeatherMap Key
+                  <input
+                    type="text"
+                    value={weatherProviders.openweathermap ?? ""}
+                    onChange={(e) => updateConfig(conf => {
+                      conf.providers = conf.providers || {};
+                      const val = e.target.value;
+                      if (val === "") delete conf.providers.openweathermap;
+                      else conf.providers.openweathermap = val;
+                      return conf;
+                    })}
+                    className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                    placeholder="openweathermapapikey"
+                  />
+                </label>
+                <label className="block text-[11px] text-theme-600 dark:text-theme-300">
+                  WeatherAPI Key
+                  <input
+                    type="text"
+                    value={weatherProviders.weatherapi ?? ""}
+                    onChange={(e) => updateConfig(conf => {
+                      conf.providers = conf.providers || {};
+                      const val = e.target.value;
+                      if (val === "") delete conf.providers.weatherapi;
+                      else conf.providers.weatherapi = val;
+                      return conf;
+                    })}
+                    className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+                    placeholder="weatherapiapikey"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-theme-300/20 dark:border-white/5" />
+
+          {/* PWA Section */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Приложение (PWA)</h4>
+
+            <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200">Progressive Web App</span>
+                <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pwaEnabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      updateConfig(conf => {
+                        conf.pwa = conf.pwa || {};
+                        conf.pwa.enabled = enabled;
+                        return conf;
+                      });
+                    }}
+                    className="rounded border-theme-300 text-theme-600 shadow-sm dark:border-white/10 dark:bg-theme-900"
+                  />
+                  Включить PWA
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel: Raw YAML */}
+      <div className="lg:col-span-5 flex flex-col min-h-0">
+        <CodeEditor
+          label="YAML Редактор (settings.yaml)"
+          language="yaml"
+          value={content}
+          onChange={onChange}
+          minHeightClassName="min-h-0"
+          fillAvailableHeight
+          zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+          placeholder="settings.yaml"
+        />
+        {yamlError && (
+          <div className="mt-2 text-[10px] text-rose-600 dark:text-rose-400 font-mono bg-rose-50 dark:bg-rose-950/20 p-2 rounded border border-rose-300/30 whitespace-pre-wrap leading-normal overflow-x-auto">
+            {yamlError}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { settings, setSettings } = useContext(SettingsContext);
@@ -6095,29 +6522,42 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         </div>
         {(tabs ?? []).map((tab) => {
           const active = activeFileName === tab.fileName;
+          const isSettingsYaml = tab.fileName === "settings.yaml";
           return (
             <div
               key={tab.fileName}
               style={{ display: active ? "flex" : "none" }}
               className="flex-1 min-h-0 flex flex-col"
             >
-              <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
-                <CodeEditor
-                  label="Содержимое файла"
-                  language={detectEditorLanguage(tab.format, tab.fileName)}
-                  value={drafts[tab.fileName] ?? ""}
+              {isSettingsYaml ? (
+                <SettingsVisualEditor
+                  content={drafts["settings.yaml"] ?? ""}
                   onChange={(value) =>
                     setDrafts((current) => ({
                       ...current,
-                      [tab.fileName]: value,
+                      "settings.yaml": value,
                     }))
                   }
-                  minHeightClassName="min-h-0"
-                  fillAvailableHeight
-                  zoomStorageKey="homepage-browser-editor-code-zoom-settings"
-                  placeholder={tab.fileName}
                 />
-              </div>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
+                  <CodeEditor
+                    label="Содержимое файла"
+                    language={detectEditorLanguage(tab.format, tab.fileName)}
+                    value={drafts[tab.fileName] ?? ""}
+                    onChange={(value) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [tab.fileName]: value,
+                      }))
+                    }
+                    minHeightClassName="min-h-0"
+                    fillAvailableHeight
+                    zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+                    placeholder={tab.fileName}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
