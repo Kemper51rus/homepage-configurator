@@ -6381,6 +6381,16 @@ function PageStylingEditor({ settingsContent, onChange }) {
             </select>
           </label>
 
+          <label className="flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer p-1 mt-1">
+            <input
+              type="checkbox"
+              checked={pageStyles.hideTabBackground ?? false}
+              onChange={(e) => updateStyle("hideTabBackground", e.target.checked)}
+              className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+            />
+            Скрыть фон вкладок (сделать прозрачными)
+          </label>
+
           <div className="block text-xs text-theme-600 dark:text-theme-300">
             Эффект / Тип бордюра
             <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -7730,9 +7740,9 @@ export function EditorPageTab({ tab }) {
   } else if (borderStyle === "pill") {
     buttonClasses = classNames(
       "w-full rounded-full m-1 transition-all tab-style-pill",
-      matchesTab ? "" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab ? "" : (pageStyles.hideTabBackground ? "hover:opacity-85" : "hover:bg-theme-100/20 dark:hover:bg-white/5"),
     );
-    if (matchesTab) {
+    if (matchesTab && !pageStyles.hideTabBackground) {
       const tintColor = borderColor && borderColor.startsWith('#') && (borderColor.length === 7 || borderColor.length === 4)
         ? (borderColor.length === 4 ? borderColor + borderColor.substring(1) : borderColor) + "26"
         : "rgba(59, 130, 246, 0.15)";
@@ -7742,7 +7752,9 @@ export function EditorPageTab({ tab }) {
   } else if (borderStyle === "card") {
     buttonClasses = classNames(
       "w-full rounded-md m-1 border transition-all tab-style-card",
-      matchesTab ? "bg-theme-100/10 dark:bg-white/5" : "border-transparent hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab
+        ? (pageStyles.hideTabBackground ? "bg-transparent font-semibold" : "bg-theme-100/10 dark:bg-white/5")
+        : "border-transparent hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
     if (matchesTab && borderColor) {
       buttonStyle.borderColor = borderColor;
@@ -7752,7 +7764,9 @@ export function EditorPageTab({ tab }) {
   } else {
     buttonClasses = classNames(
       "w-full rounded-md m-1 transition-all",
-      matchesTab ? "bg-theme-300/20 dark:bg-white/10" : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab
+        ? (pageStyles.hideTabBackground ? "bg-transparent font-semibold" : "bg-theme-300/20 dark:bg-white/10")
+        : (pageStyles.hideTabBackground ? "hover:opacity-85" : "hover:bg-theme-100/20 dark:hover:bg-white/5"),
     );
   }
 
