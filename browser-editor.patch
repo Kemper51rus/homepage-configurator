@@ -250,7 +250,7 @@ index f24794d..23c8c3b 100644
    );
  }
 diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index 77ba911..85564ce 100644
+index 77ba911..88c342c 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
 @@ -1,11 +1,37 @@
@@ -294,16 +294,62 @@ index 77ba911..85564ce 100644
  };
  
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
-@@ -48,7 +74,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -34,51 +60,21 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+   // check mdi- or si- prefixed icons
+   const prefix = icon.split("-")[0];
+ 
+-  if (prefix === "sh") {
+-    const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
+-
+-    let extension;
+-    if (icon.endsWith(".svg")) {
+-      extension = "svg";
+-    } else if (icon.endsWith(".webp")) {
+-      extension = "webp";
+-    } else {
+-      extension = "png";
+-    }
+-
+-    return (
+-      <Image
+-        src={`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
+-        width={width}
+-        height={height}
+-        style={{
+-          width,
+-          height,
+-          objectFit: "contain",
+-          maxHeight: "100%",
+-          maxWidth: "100%",
+-        }}
+-        alt={alt}
+-      />
+-    );
+-  }
+-
+-  if (prefix in iconSetURLs) {
+-    // default to theme setting
++  if (prefix === "mdi" || prefix === "si") {
+     let iconName = icon.replace(`${prefix}-`, "").replace(".svg", "");
+     let iconColor =
+       settings.iconStyle === "theme"
+         ? `rgb(var(--color-${theme === "dark" ? 300 : 900}) / var(--tw-text-opacity, 1))`
+         : "linear-gradient(180deg, rgb(var(--color-logo-start)), rgb(var(--color-logo-stop)))";
+ 
+-    // use custom hex color if provided
+     const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
+     if (colorMatches?.length) {
+       iconName = icon.replace(`${prefix}-`, "").replace(".svg", "").replace(`-${colorMatches[0]}`, "");
+       iconColor = `${colorMatches[0]}`;
+     }
+ 
+-    const iconSource = `${iconSetURLs[prefix]}${iconName}.svg`;
++    const localIconName = icon.endsWith(".svg") ? icon : `${icon}.svg`;
++    const iconSource = `/api/config/icon/${localIconName}`;
  
      return (
-       <Image
--        src={`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
-+        src={`https://fastly.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
-         width={width}
-         height={height}
-         style={{
-@@ -95,49 +121,34 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+       <div
+@@ -95,49 +91,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -326,10 +372,7 @@ index 77ba911..85564ce 100644
 -      />
 -    );
 -  }
-+  // Resolve custom repositories and fallbacks
-+  const repos = settings.iconRepositories || [];
-+  const candidateURLs = [];
- 
+-
 -  if (icon.endsWith(".webp")) {
 -    const iconName = icon.replace(".webp", "");
 -    return (
@@ -347,36 +390,30 @@ index 77ba911..85564ce 100644
 -        alt={alt}
 -      />
 -    );
-+  repos.forEach((repo) => {
-+    let baseUrl = repo.url;
-+    if (!baseUrl.endsWith("/")) {
-+      baseUrl += "/";
-+    }
-+    candidateURLs.push(`${baseUrl}${icon}`);
-+  });
-+
-+  const baseIconName = icon.replace(".svg", "").replace(".webp", "").replace(".png", "");
-+  
-+  if (icon.endsWith(".svg")) {
-+    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${baseIconName}.svg`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
-+  } else if (icon.endsWith(".webp")) {
-+    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${baseIconName}.webp`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
-+  } else {
-+    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${baseIconName}.png`);
-+    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
++  // Для sh- и обычных иконок (без префикса)
++  let localIconName = icon;
++  const hasExtension = /\.[a-zA-Z0-9]+$/.test(icon);
++  if (!hasExtension) {
++    localIconName = prefix === "sh" ? `${icon}.svg` : `${icon}.png`;
    }
++  const iconSource = `/api/config/icon/${localIconName}`;
  
 -  const iconName = icon.replace(".png", "");
    return (
--    <Image
+     <Image
 -      src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${iconName}.png`}
-+    <FallbackImage
-+      srcList={candidateURLs}
++      src={iconSource}
        width={width}
        height={height}
        style={{
+@@ -148,6 +112,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+         maxWidth: "100%",
+       }}
+       alt={alt}
++      unoptimized
+     />
+   );
+ }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
 index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
