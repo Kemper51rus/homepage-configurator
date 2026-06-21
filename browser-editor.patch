@@ -249,6 +249,134 @@ index f24794d..23c8c3b 100644
      </ul>
    );
  }
+diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
+index 77ba911..85564ce 100644
+--- a/src/components/resolvedicon.jsx
++++ b/src/components/resolvedicon.jsx
+@@ -1,11 +1,37 @@
+ import Image from "next/image";
+-import { useContext } from "react";
++import { useContext, useState, useEffect } from "react";
+ import { SettingsContext } from "utils/contexts/settings";
+ import { ThemeContext } from "utils/contexts/theme";
+ 
++function FallbackImage({ srcList, alt, width, height, style }) {
++  const [srcIndex, setSrcIndex] = useState(0);
++
++  useEffect(() => {
++    setSrcIndex(0);
++  }, [srcList]);
++
++  const handleNext = () => {
++    if (srcIndex < srcList.length - 1) {
++      setSrcIndex((prev) => prev + 1);
++    }
++  };
++
++  return (
++    <Image
++      src={srcList[srcIndex]}
++      width={width}
++      height={height}
++      style={style}
++      alt={alt}
++      onError={handleNext}
++      unoptimized
++    />
++  );
++}
++
+ const iconSetURLs = {
+-  mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
+-  si: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/",
++  mdi: "https://fastly.jsdelivr.net/npm/@mdi/svg@latest/svg/",
++  si: "https://fastly.jsdelivr.net/npm/simple-icons@latest/icons/",
+ };
+ 
+ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
+@@ -48,7 +74,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+ 
+     return (
+       <Image
+-        src={`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
++        src={`https://fastly.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
+         width={width}
+         height={height}
+         style={{
+@@ -95,49 +121,34 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+     );
+   }
+ 
+-  // fallback to dashboard-icons
+-  if (icon.endsWith(".svg")) {
+-    const iconName = icon.replace(".svg", "");
+-    return (
+-      <Image
+-        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${iconName}.svg`}
+-        width={width}
+-        height={height}
+-        style={{
+-          width,
+-          height,
+-          objectFit: "contain",
+-          maxHeight: "100%",
+-          maxWidth: "100%",
+-        }}
+-        alt={alt}
+-      />
+-    );
+-  }
++  // Resolve custom repositories and fallbacks
++  const repos = settings.iconRepositories || [];
++  const candidateURLs = [];
+ 
+-  if (icon.endsWith(".webp")) {
+-    const iconName = icon.replace(".webp", "");
+-    return (
+-      <Image
+-        src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${iconName}.webp`}
+-        width={width}
+-        height={height}
+-        style={{
+-          width,
+-          height,
+-          objectFit: "contain",
+-          maxHeight: "100%",
+-          maxWidth: "100%",
+-        }}
+-        alt={alt}
+-      />
+-    );
++  repos.forEach((repo) => {
++    let baseUrl = repo.url;
++    if (!baseUrl.endsWith("/")) {
++      baseUrl += "/";
++    }
++    candidateURLs.push(`${baseUrl}${icon}`);
++  });
++
++  const baseIconName = icon.replace(".svg", "").replace(".webp", "").replace(".png", "");
++  
++  if (icon.endsWith(".svg")) {
++    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/${baseIconName}.svg`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
++  } else if (icon.endsWith(".webp")) {
++    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/${baseIconName}.webp`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
++  } else {
++    candidateURLs.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${baseIconName}.png`);
++    candidateURLs.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
+   }
+ 
+-  const iconName = icon.replace(".png", "");
+   return (
+-    <Image
+-      src={`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/${iconName}.png`}
++    <FallbackImage
++      srcList={candidateURLs}
+       width={width}
+       height={height}
+       style={{
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
 index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
