@@ -250,85 +250,56 @@ index f24794d..23c8c3b 100644
    );
  }
 diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index 77ba911..88c342c 100644
+index 77ba911..79489a0 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
-@@ -1,11 +1,37 @@
- import Image from "next/image";
--import { useContext } from "react";
-+import { useContext, useState, useEffect } from "react";
- import { SettingsContext } from "utils/contexts/settings";
+@@ -4,8 +4,8 @@ import { SettingsContext } from "utils/contexts/settings";
  import { ThemeContext } from "utils/contexts/theme";
  
-+function FallbackImage({ srcList, alt, width, height, style }) {
-+  const [srcIndex, setSrcIndex] = useState(0);
-+
-+  useEffect(() => {
-+    setSrcIndex(0);
-+  }, [srcList]);
-+
-+  const handleNext = () => {
-+    if (srcIndex < srcList.length - 1) {
-+      setSrcIndex((prev) => prev + 1);
-+    }
-+  };
-+
-+  return (
-+    <Image
-+      src={srcList[srcIndex]}
-+      width={width}
-+      height={height}
-+      style={style}
-+      alt={alt}
-+      onError={handleNext}
-+      unoptimized
-+    />
-+  );
-+}
-+
  const iconSetURLs = {
 -  mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
 -  si: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/",
-+  mdi: "https://fastly.jsdelivr.net/npm/@mdi/svg@latest/svg/",
-+  si: "https://fastly.jsdelivr.net/npm/simple-icons@latest/icons/",
++  mdi: "https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/",
++  si: "https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/",
  };
  
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
-@@ -34,51 +60,21 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
-   // check mdi- or si- prefixed icons
+@@ -31,9 +31,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+     );
+   }
+ 
+-  // check mdi- or si- prefixed icons
    const prefix = icon.split("-")[0];
  
--  if (prefix === "sh") {
--    const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
--
--    let extension;
--    if (icon.endsWith(".svg")) {
--      extension = "svg";
--    } else if (icon.endsWith(".webp")) {
--      extension = "webp";
--    } else {
--      extension = "png";
--    }
--
--    return (
--      <Image
++  // sh- prefixed icons (selfhst) loaded directly from unblocked CDN mirror
+   if (prefix === "sh") {
+     const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
+ 
+@@ -46,9 +46,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+       extension = "png";
+     }
+ 
++    const iconSource = `https://gcore.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`;
++
+     return (
+       <Image
 -        src={`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`}
--        width={width}
--        height={height}
--        style={{
--          width,
--          height,
--          objectFit: "contain",
--          maxHeight: "100%",
--          maxWidth: "100%",
--        }}
--        alt={alt}
--      />
--    );
--  }
--
++        src={iconSource}
+         width={width}
+         height={height}
+         style={{
+@@ -59,19 +61,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+           maxWidth: "100%",
+         }}
+         alt={alt}
++        unoptimized
+       />
+     );
+   }
+ 
 -  if (prefix in iconSetURLs) {
 -    // default to theme setting
++  // mdi- and si- prefixed icons loaded directly from unblocked CDN mirror with masks
 +  if (prefix === "mdi" || prefix === "si") {
      let iconName = icon.replace(`${prefix}-`, "").replace(".svg", "");
      let iconColor =
@@ -340,16 +311,7 @@ index 77ba911..88c342c 100644
      const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
      if (colorMatches?.length) {
        iconName = icon.replace(`${prefix}-`, "").replace(".svg", "").replace(`-${colorMatches[0]}`, "");
-       iconColor = `${colorMatches[0]}`;
-     }
- 
--    const iconSource = `${iconSetURLs[prefix]}${iconName}.svg`;
-+    const localIconName = icon.endsWith(".svg") ? icon : `${icon}.svg`;
-+    const iconSource = `/api/config/icon/${localIconName}`;
- 
-     return (
-       <div
-@@ -95,49 +91,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -95,49 +97,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -390,11 +352,11 @@ index 77ba911..88c342c 100644
 -        alt={alt}
 -      />
 -    );
-+  // Для sh- и обычных иконок (без префикса)
++  // Для обычных иконок (без префикса) используем локальный кэширующий прокси
 +  let localIconName = icon;
 +  const hasExtension = /\.[a-zA-Z0-9]+$/.test(icon);
 +  if (!hasExtension) {
-+    localIconName = prefix === "sh" ? `${icon}.svg` : `${icon}.png`;
++    localIconName = `${icon}.png`;
    }
 +  const iconSource = `/api/config/icon/${localIconName}`;
  
@@ -406,7 +368,7 @@ index 77ba911..88c342c 100644
        width={width}
        height={height}
        style={{
-@@ -148,6 +112,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -148,6 +118,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
          maxWidth: "100%",
        }}
        alt={alt}
