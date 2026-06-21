@@ -958,3 +958,35 @@ index 81a957a..b47113e 100644
            ${settings.pageStyles?.fontFamily ? `
              #tabs ul, #tabs ul li button, #tabs ul li button span {
                font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
+diff --git a/src/widgets/components.js b/src/widgets/components.js
+index fbc34d3..ca2a1eb 100644
+--- a/src/widgets/components.js
++++ b/src/widgets/components.js
+@@ -142,6 +142,7 @@ const components = {
+   technitium: dynamic(() => import("./technitium/component")),
+   tdarr: dynamic(() => import("./tdarr/component")),
+   tracearr: dynamic(() => import("./tracearr/component")),
++  torrsyncarr: dynamic(() => import("./torrsyncarr/component")),
+   traefik: dynamic(() => import("./traefik/component")),
+   transmission: dynamic(() => import("./transmission/component")),
+   trilium: dynamic(() => import("./trilium/component")),
+diff --git a/src/widgets/widgets.js b/src/widgets/widgets.js
+index 7f18efa..c1aba81 100644
+--- a/src/widgets/widgets.js
++++ b/src/widgets/widgets.js
+@@ -132,6 +132,7 @@ import tautulli from "./tautulli/widget";
+ import tdarr from "./tdarr/widget";
+ import technitium from "./technitium/widget";
+ import tracearr from "./tracearr/widget";
++import torrsyncarr from "./torrsyncarr/widget";
+ import traefik from "./traefik/widget";
+ import transmission from "./transmission/widget";
+ import trilium from "./trilium/widget";
+@@ -292,6 +293,7 @@ const widgets = {
+   technitium,
+   tdarr,
+   tracearr,
++  torrsyncarr,
+   traefik,
+   transmission,
+   trilium,
