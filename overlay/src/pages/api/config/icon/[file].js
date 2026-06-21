@@ -58,30 +58,29 @@ async function downloadAndCacheIcon(fileName) {
 
   if (prefix === "sh") {
     const iconName = baseIconName.replace("sh-", "");
-    candidateUrls.push(`https://fastly.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`);
     candidateUrls.push(`https://gcore.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`);
     candidateUrls.push(`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`);
   } else if (prefix === "mdi") {
     const iconName = baseIconName.replace("mdi-", "");
-    candidateUrls.push(`https://fastly.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`);
     candidateUrls.push(`https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`);
     candidateUrls.push(`https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`);
   } else if (prefix === "si") {
     const iconName = baseIconName.replace("si-", "");
-    candidateUrls.push(`https://fastly.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`);
     candidateUrls.push(`https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`);
     candidateUrls.push(`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`);
   } else {
     const ext = extension.replace(".", "");
-    candidateUrls.push(`https://fastly.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`);
     candidateUrls.push(`https://gcore.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`);
     candidateUrls.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`);
     candidateUrls.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
   }
 
   for (const url of candidateUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout per request
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
@@ -97,11 +96,27 @@ async function downloadAndCacheIcon(fileName) {
         return buffer;
       }
     } catch (e) {
+      clearTimeout(timeoutId);
       logger.error("Failed to download icon from %s: %s", url, e?.message || e);
     }
   }
 
   return null;
+}
+
+async function writeNotFoundCache(fileName) {
+  try {
+    const imagesDirs = getImagesDirs();
+    if (imagesDirs.length > 0) {
+      const iconsDir = path.join(imagesDirs[0], "icons");
+      await fs.mkdir(iconsDir, { recursive: true });
+      const filePath = path.join(iconsDir, fileName);
+      await fs.writeFile(filePath, Buffer.alloc(0)); // Write empty 0-byte file to cache not found state
+      logger.info("Cached NOT FOUND state for icon %s", fileName);
+    }
+  } catch (e) {
+    logger.error("Failed to cache NOT FOUND state for icon %s: %s", fileName, e?.message || e);
+  }
 }
 
 export default async function handler(req, res) {
@@ -122,7 +137,11 @@ export default async function handler(req, res) {
               for (const file of files) {
                 const ext = path.extname(file).toLowerCase();
                 if (contentTypes[ext]) {
-                  allIcons.push(file);
+                  const filePath = path.join(iconsPath, file);
+                  const stats = await fs.stat(filePath);
+                  if (stats.size > 0) {
+                    allIcons.push(file);
+                  }
                 }
               }
             }
@@ -136,14 +155,25 @@ export default async function handler(req, res) {
 
       const extension = path.extname(fileName).toLowerCase();
       let image = null;
+      let isNotFoundCached = false;
 
       for (const imagesDir of getImagesDirs()) {
         try {
-          image = await fs.readFile(path.join(imagesDir, "icons", fileName));
+          const filePath = path.join(imagesDir, "icons", fileName);
+          const stats = await fs.stat(filePath);
+          if (stats.size === 0) {
+            isNotFoundCached = true;
+            break;
+          }
+          image = await fs.readFile(filePath);
           break;
         } catch (error) {
           if (error?.code !== "ENOENT") throw error;
         }
+      }
+
+      if (isNotFoundCached) {
+        return res.status(404).end("Icon not found (cached negative)");
       }
 
       if (!image) {
@@ -151,6 +181,7 @@ export default async function handler(req, res) {
       }
 
       if (!image) {
+        await writeNotFoundCache(fileName);
         return res.status(404).end("Icon not found");
       }
 
