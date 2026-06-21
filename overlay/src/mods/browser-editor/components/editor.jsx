@@ -5305,19 +5305,19 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     },
     {
       name: "Simple Icons",
-      url: "https://cdn.jsdelivr.net/npm/simple-icons/icons/",
+      url: "https://gcore.jsdelivr.net/npm/simple-icons/icons/",
       prefix: "si-",
       isSystem: true
     },
     {
       name: "Material Design Icons",
-      url: "https://cdn.jsdelivr.net/npm/@mdi/svg/svg/",
+      url: "https://gcore.jsdelivr.net/npm/@mdi/svg/svg/",
       prefix: "mdi-",
       isSystem: true
     },
     {
       name: "selfh.st/icons",
-      url: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/",
+      url: "https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/",
       prefix: "sh-",
       isSystem: true
     }
@@ -5563,7 +5563,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = name.replace("simple-icons:", "");
           results.push({
             name: `si-${cleanName}`,
-            url: `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
+            url: `https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
             type: "si"
           });
         });
@@ -5574,7 +5574,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = name.replace("mdi:", "");
           results.push({
             name: `mdi-${cleanName}`,
-            url: `https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
+            url: `https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
             type: "mdi"
           });
         });
@@ -5586,7 +5586,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = m.name.replace(".svg", "");
           results.push({
             name: `sh-${cleanName}`,
-            url: m.download_url || `https://raw.githubusercontent.com/selfhst/icons/main/svg/${m.name}`,
+            url: `https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/${m.name}`,
             type: "sh"
           });
         });
