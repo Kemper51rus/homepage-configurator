@@ -4653,50 +4653,10 @@ const WIDGET_TEMPLATES = {
   "freshrss": "widget:\n  type: freshrss\n  url: http://freshrss.host.or.ip:port\n  username: username\n  password: password",
   "tracearr": "widget:\n  type: tracearr\n  url: http://tracearr.host.or.ip:3000\n  key: apikeyapikeyapikeyapikeyapikey\n  view: both # optional, \"summary\", \"details\", or \"both\", defaults to \"details\"\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
   "paperlessngx": "widget:\n  type: paperlessngx\n  url: http://paperlessngx.host.or.ip:port\n  username: username\n  password: password",
-  "torrsyncarr": "widget:\n  type: torrsyncarr\n  url: http://192.168.1.132:8099\n  fields:\n    - movies\n    - series\n    - anime\n    - cartoons\n    - import",
-  "codex": "widget:\n  type: codex\n  url: http://192.168.1.128:9600\n  showPlan: true\n  showRemaining: true\n  showReset: true",
-  "antigravity": "widget:\n  type: antigravity\n  url: http://192.168.1.115:9610\n  showPlan: true\n  showLimit: true\n  showRemaining: true\n  showReset: true"
+  "torrsyncarr": "widget:\n  type: torrsyncarr\n  url: http://192.168.1.132:8099\n  fields:\n    - movies\n    - series\n    - anime\n    - cartoons\n    - import"
 };
 
 const WIDGET_BOOLEANS = {
-  "codex": [
-    "showPlan",
-    "showRemaining",
-    "showReset",
-    "showUsed",
-    "showPlanEnds"
-  ],
-  "antigravity": [
-    "showPlan",
-    "showLimit",
-    "showRemaining",
-    "showUsed",
-    "showReset",
-    "showGeminiUsed",
-    "showGeminiRemaining",
-    "showGeminiReset",
-    "showGeminiModel",
-    "showClaudeGptUsed",
-    "showClaudeGptRemaining",
-    "showClaudeGptReset",
-    "showClaudeGptModel",
-    "showGemini5hUsed",
-    "showGemini5hRemaining",
-    "showGemini5hReset",
-    "showGemini5hModel",
-    "showClaudeGpt5hUsed",
-    "showClaudeGpt5hRemaining",
-    "showClaudeGpt5hReset",
-    "showClaudeGpt5hModel",
-    "showGeminiWeekUsed",
-    "showGeminiWeekRemaining",
-    "showGeminiWeekReset",
-    "showGeminiWeekModel",
-    "showClaudeGptWeekUsed",
-    "showClaudeGptWeekRemaining",
-    "showClaudeGptWeekReset",
-    "showClaudeGptWeekModel"
-  ],
   "jellyfin": [
     "enableBlocks",
     "enableMediaControl",
@@ -4796,37 +4756,7 @@ const WIDGET_TRANSLATIONS = {
   "enableTaskList": "Показывать список задач",
   "hideErrors": "Скрывать ошибки подключения",
   "showTime": "Показывать время для сегодняшних событий",
-  "enableWaitingCount": "Показывать количество медиа на импорт",
-  "showPlan": "Отображать тариф",
-  "showRemaining": "Отображать остаток запросов/времени",
-  "showReset": "Отображать время сброса лимита (КД)",
-  "showUsed": "Отображать использованное количество",
-  "showLimit": "Отображать общий лимит",
-  "showPlanEnds": "Отображать дату окончания подписки",
-  "showGeminiUsed": "Gemini: Отображать использованное количество",
-  "showGeminiRemaining": "Gemini: Отображать остаток запросов",
-  "showGeminiReset": "Gemini: Отображать время сброса лимита (КД)",
-  "showGeminiModel": "Gemini: Отображать используемую модель",
-  "showClaudeGptUsed": "Claude/GPT: Отображать использованное количество",
-  "showClaudeGptRemaining": "Claude/GPT: Отображать остаток запросов",
-  "showClaudeGptReset": "Claude/GPT: Отображать время сброса лимита (КД)",
-  "showClaudeGptModel": "Claude/GPT: Отображать используемую модель",
-  "showGemini5hUsed": "Gemini (5ч): Отображать использованное количество",
-  "showGemini5hRemaining": "Gemini (5ч): Отображать остаток запросов",
-  "showGemini5hReset": "Gemini (5ч): Отображать время сброса лимита (КД)",
-  "showGemini5hModel": "Gemini (5ч): Отображать используемую модель",
-  "showClaudeGpt5hUsed": "Claude/GPT (5ч): Отображать использованное количество",
-  "showClaudeGpt5hRemaining": "Claude/GPT (5ч): Отображать остаток запросов",
-  "showClaudeGpt5hReset": "Claude/GPT (5ч): Отображать время сброса лимита (КД)",
-  "showClaudeGpt5hModel": "Claude/GPT (5ч): Отображать используемую модель",
-  "showGeminiWeekUsed": "Gemini (нед): Отображать использованное количество",
-  "showGeminiWeekRemaining": "Gemini (нед): Отображать остаток запросов",
-  "showGeminiWeekReset": "Gemini (нед): Отображать время сброса лимита (КД)",
-  "showGeminiWeekModel": "Gemini (нед): Отображать используемую модель",
-  "showClaudeGptWeekUsed": "Claude/GPT (нед): Отображать использованное количество",
-  "showClaudeGptWeekRemaining": "Claude/GPT (нед): Отображать остаток запросов",
-  "showClaudeGptWeekReset": "Claude/GPT (нед): Отображать время сброса лимита (КД)",
-  "showClaudeGptWeekModel": "Claude/GPT (нед): Отображать используемую модель"
+  "enableWaitingCount": "Показывать количество медиа на импорт"
 };
 
 function WidgetTemplateSelector({ extraYaml, onChange }) {
@@ -4841,7 +4771,6 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
 
   const allWidgetTypes = [
   "adguard-home",
-  "antigravity",
   "apcups",
   "arcane",
   "argocd",
@@ -4862,7 +4791,6 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
   "checkmk",
   "cloudflared",
   "coin-market-cap",
-  "codex",
   "crowdsec",
   "customapi",
   "deluge",
@@ -5377,19 +5305,19 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     },
     {
       name: "Simple Icons",
-      url: "https://cdn.jsdelivr.net/npm/simple-icons/icons/",
+      url: "https://gcore.jsdelivr.net/npm/simple-icons/icons/",
       prefix: "si-",
       isSystem: true
     },
     {
       name: "Material Design Icons",
-      url: "https://cdn.jsdelivr.net/npm/@mdi/svg/svg/",
+      url: "https://gcore.jsdelivr.net/npm/@mdi/svg/svg/",
       prefix: "mdi-",
       isSystem: true
     },
     {
       name: "selfh.st/icons",
-      url: "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/",
+      url: "https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/",
       prefix: "sh-",
       isSystem: true
     }
@@ -5635,7 +5563,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = name.replace("simple-icons:", "");
           results.push({
             name: `si-${cleanName}`,
-            url: `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
+            url: `https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
             type: "si"
           });
         });
@@ -5646,7 +5574,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = name.replace("mdi:", "");
           results.push({
             name: `mdi-${cleanName}`,
-            url: `https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
+            url: `https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
             type: "mdi"
           });
         });
@@ -5658,7 +5586,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           const cleanName = m.name.replace(".svg", "");
           results.push({
             name: `sh-${cleanName}`,
-            url: m.download_url || `https://raw.githubusercontent.com/selfhst/icons/main/svg/${m.name}`,
+            url: `https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/${m.name}`,
             type: "sh"
           });
         });
