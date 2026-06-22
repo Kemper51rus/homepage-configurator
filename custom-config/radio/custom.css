@@ -186,7 +186,7 @@ max-width: 100%;
     gap: 2px;
 }
 
-#plapau, #volumedown, #volumeset, #volumeup, #lif {
+#like, #dislike, #plapau, #volumedown, #volumeset, #volumeup, #lif {
     float: left;
 }
 #playlist {
@@ -197,6 +197,12 @@ max-width: 100%;
 }
 .imgmpx, .px {
     float: left; 
+}
+.svg-like-dislike {
+    width: 10px;
+    height: 10px;
+    display: block;
+    margin: 4px 10px 4px 10px;
 }
 #dvolume, #uvolume {width:15px;}
 
