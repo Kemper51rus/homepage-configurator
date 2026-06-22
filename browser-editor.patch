@@ -22,6 +22,130 @@ index ea49bf5..7426606 100644
    images: {
      remotePatterns: [
        {
+diff --git a/package.json b/package.json
+index 1ceeeea..4767323 100644
+--- a/package.json
++++ b/package.json
+@@ -44,7 +44,9 @@
+     "urbackup-server-api": "^0.92.2",
+     "winston": "^3.19.0",
+     "ws": "^8.20.1",
+-    "xml-js": "^1.6.11"
++    "xml-js": "^1.6.11",
++    "prismjs": "^1.29.0",
++    "react-simple-code-editor": "^0.14.1"
+   },
+   "devDependencies": {
+     "@eslint/compat": "^2.0.3",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index bbbfccf..a3200ad 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -62,6 +62,9 @@ importers:
+       pretty-bytes:
+         specifier: ^7.1.0
+         version: 7.1.0
++      prismjs:
++        specifier: ^1.29.0
++        version: 1.30.0
+       raw-body:
+         specifier: ^3.0.2
+         version: 3.0.2
+@@ -77,6 +80,9 @@ importers:
+       react-icons:
+         specifier: ^5.6.0
+         version: 5.6.0(react@19.2.5)
++      react-simple-code-editor:
++        specifier: ^0.14.1
++        version: 0.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+       recharts:
+         specifier: ^3.1.2
+         version: 3.1.2(@types/react@19.0.10)(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)
+@@ -101,6 +107,10 @@ importers:
+       xml-js:
+         specifier: ^1.6.11
+         version: 1.6.11
++    optionalDependencies:
++      osx-temperature-sensor:
++        specifier: ^1.0.8
++        version: 1.0.8
+     devDependencies:
+       '@eslint/compat':
+         specifier: ^2.0.3
+@@ -174,10 +184,6 @@ importers:
+       vitest:
+         specifier: ^4.1.0
+         version: 4.1.0(@types/node@25.9.1)(jsdom@28.1.0)(vite@7.3.2(@types/node@25.9.1)(jiti@2.6.1)(lightningcss@1.30.2))
+-    optionalDependencies:
+-      osx-temperature-sensor:
+-        specifier: ^1.0.8
+-        version: 1.0.8
+ 
+ packages:
+ 
+@@ -3041,6 +3047,10 @@ packages:
+     peerDependencies:
+       react: '>=16.0.0'
+ 
++  prismjs@1.30.0:
++    resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
++    engines: {node: '>=6'}
++
+   process-nextick-args@2.0.1:
+     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
+ 
+@@ -3122,6 +3132,12 @@ packages:
+       redux:
+         optional: true
+ 
++  react-simple-code-editor@0.14.1:
++    resolution: {integrity: sha512-BR5DtNRy+AswWJECyA17qhUDvrrCZ6zXOCfkQY5zSmb96BVUbpVAv03WpcjcwtCwiLbIANx3gebHOcXYn1EHow==}
++    peerDependencies:
++      react: '>=16.8.0'
++      react-dom: '>=16.8.0'
++
+   react-stately@3.46.0:
+     resolution: {integrity: sha512-OdxhWvHgs2L4OJGIs7hnuTr5WjjMM6enhNEAMRqiekhF8+ITvA2LRwNftOZwcogaoCslGYq5S2VQTQwnm0GbCA==}
+     peerDependencies:
+@@ -5638,7 +5654,7 @@ snapshots:
+     transitivePeerDependencies:
+       - supports-color
+ 
+-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0)(eslint@9.25.1(jiti@2.6.1)):
++  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0(eslint-plugin-import@2.32.0)(eslint@9.25.1(jiti@2.6.1)))(eslint@9.25.1(jiti@2.6.1)):
+     dependencies:
+       debug: 3.2.7
+     optionalDependencies:
+@@ -5660,7 +5676,7 @@ snapshots:
+       doctrine: 2.1.0
+       eslint: 9.25.1(jiti@2.6.1)
+       eslint-import-resolver-node: 0.3.9
+-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0)(eslint@9.25.1(jiti@2.6.1))
++      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0(eslint-plugin-import@2.32.0)(eslint@9.25.1(jiti@2.6.1)))(eslint@9.25.1(jiti@2.6.1))
+       hasown: 2.0.2
+       is-core-module: 2.16.1
+       is-glob: 4.0.3
+@@ -6714,6 +6730,8 @@ snapshots:
+       clsx: 2.1.1
+       react: 19.2.5
+ 
++  prismjs@1.30.0: {}
++
+   process-nextick-args@2.0.1: {}
+ 
+   prop-types@15.8.1:
+@@ -6803,6 +6821,11 @@ snapshots:
+       '@types/react': 19.0.10
+       redux: 5.0.1
+ 
++  react-simple-code-editor@0.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
++    dependencies:
++      react: 19.2.5
++      react-dom: 19.2.5(react@19.2.5)
++
+   react-stately@3.46.0(react@19.2.5):
+     dependencies:
+       '@internationalized/date': 3.12.1
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
 index 88d4d7e..af3ee26 100644
 --- a/src/components/bookmarks/group.jsx
@@ -94,10 +218,10 @@ index 88d4d7e..af3ee26 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..7fd57bb 100644
+index 7ea16bb..b3f191c 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,88 @@
+@@ -1,24 +1,83 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
@@ -106,15 +230,10 @@ index 7ea16bb..7fd57bb 100644
  import { SettingsContext } from "utils/contexts/settings";
  
 +function bookmarkDescription(bookmark) {
-+  if (bookmark.description) {
-+    return bookmark.description;
++  if (bookmark.showLink === true || bookmark.showLink === "true") {
++    return bookmark.description || bookmark.href || "";
 +  }
-+
-+  try {
-+    return new URL(bookmark.href).hostname;
-+  } catch {
-+    return bookmark.href ?? "";
-+  }
++  return bookmark.description ?? "";
 +}
 +
  export default function Item({ bookmark, iconOnly = false }) {
@@ -191,7 +310,7 @@ index 7ea16bb..7fd57bb 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -53,6 +117,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -53,6 +112,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
