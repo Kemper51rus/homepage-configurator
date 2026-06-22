@@ -7091,6 +7091,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
     if (
       activeFileName !== "__page_styling__" &&
       activeFileName !== "__top_bar__" &&
+      activeFileName !== "__radio__" &&
       !tabs?.some((tab) => tab.fileName === activeFileName)
     ) {
       setActiveFileName("__page_styling__");
@@ -7102,7 +7103,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
 
   async function handleSave() {
-    const isTopBar = activeFileName === "__top_bar__";
+    const isTopBar = activeFileName === "__top_bar__" || activeFileName === "__radio__";
     const targetFileName = isTopBar
       ? null
       : activeFileName === "__page_styling__"
@@ -7369,7 +7370,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             </div>
           );
         })}
-        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && (
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
             В config-папке пока нет дополнительных файлов для редактирования.
           </div>
@@ -7388,7 +7389,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           <button
             type="button"
             onClick={handleSave}
-            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && !activeTab) || saving}
+            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
             className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
             {saving ? "Сохранение..." : "Сохранить"}
