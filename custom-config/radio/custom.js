@@ -11,6 +11,9 @@
   window.__homepageRadioWidgetInitialized = true;
   window.__homepageRadioWidgetCleanup = null;
 
+  const ipProvider = "auto";
+  const ipHideOnError = true;
+
   // Radio stations format:
   // Station name, stream URL
   // * Station name, stream URL  -> default station
@@ -158,8 +161,8 @@
   }
 
   async function requestIpInfo() {
-    const providers = [
-      async () => {
+    const providerFns = {
+      ipwhois: async () => {
         const response = await withTimeout("https://ipwho.is/");
         if (!response.ok) {
           throw new Error("ipwho.is request failed");
@@ -176,7 +179,7 @@
           flagImg: payload.flag?.img || flagUrlFromCountryCode(payload.country_code),
         };
       },
-      async () => {
+      ipapi: async () => {
         const response = await withTimeout("https://ipapi.co/json/");
         if (!response.ok) {
           throw new Error("ipapi.co request failed");
@@ -193,7 +196,7 @@
           flagImg: flagUrlFromCountryCode(payload.country_code),
         };
       },
-      async () => {
+      ipify: async () => {
         const response = await withTimeout("https://api.ipify.org?format=json");
         if (!response.ok) {
           throw new Error("api.ipify.org request failed");
@@ -209,9 +212,14 @@
           isp: "",
           flagImg: "",
         };
-      },
-    ];
+      }
+    };
 
+    if (typeof ipProvider === "string" && ipProvider !== "auto" && providerFns[ipProvider]) {
+      return providerFns[ipProvider]();
+    }
+
+    const providers = [providerFns.ipwhois, providerFns.ipapi, providerFns.ipify];
     for (const provider of providers) {
       try {
         return await provider();
@@ -901,7 +909,17 @@
 
         ipContainer.replaceChildren();
         currentIpAddress = "";
-        ipRoot.hidden = true;
+        
+        if (typeof ipHideOnError === "boolean" && !ipHideOnError) {
+          const errorSpan = document.createElement("span");
+          errorSpan.className = "ipcheck-address";
+          errorSpan.textContent = "Неизвестно";
+          errorSpan.style.color = "#ff4a4a";
+          ipContainer.appendChild(errorSpan);
+          ipRoot.hidden = false;
+        } else {
+          ipRoot.hidden = true;
+        }
       });
   }
 

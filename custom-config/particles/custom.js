@@ -221,8 +221,7 @@
       fpsRoot = document.createElement("div");
       fpsRoot.id = FPS_ROOT_ID;
       fpsRoot.innerHTML = `
-        <button id="${FPS_BUTTON_ID}" type="button" aria-haspopup="true" aria-controls="${FPS_MENU_ID}">FPS</button>
-        <div id="${FPS_MENU_ID}" class="homepage-fps-menu" role="menu"></div>
+        <button id="${FPS_BUTTON_ID}" type="button">FPS</button>
       `;
     }
 
@@ -244,9 +243,7 @@
     }
 
     state.fpsButton = fpsButton;
-    state.fpsMenu = fpsRoot.querySelector(`#${FPS_MENU_ID}`);
     bindFpsControls();
-    renderEffectsMenu();
     return fpsButton;
   }
 
@@ -258,21 +255,6 @@
         savePausedState();
         applyPauseState();
         updateFpsButtonLabel();
-      });
-    }
-
-    if (state.fpsMenu && state.boundFpsMenu !== state.fpsMenu) {
-      state.boundFpsMenu = state.fpsMenu;
-      state.fpsMenu.addEventListener("click", (event) => {
-        const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-        const button = target?.closest("[data-effect]");
-        if (!button) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        toggleEffect(button.dataset.effect);
       });
     }
   }
@@ -465,7 +447,6 @@
     applyPauseState();
     syncParticleLoop();
     applyRocketPointer();
-    renderEffectsMenu();
     updateFpsButtonLabel();
   }
 
@@ -478,27 +459,6 @@
 
     saveSelectedEffects();
     applySelectedEffects();
-  }
-
-  function renderEffectsMenu() {
-    if (!state.fpsMenu) {
-      return;
-    }
-
-    state.fpsMenu.innerHTML = BACKGROUND_EFFECTS.map(([effect, label]) => {
-      const active = isEffectEnabled(effect);
-      return `
-        <button
-          type="button"
-          class="homepage-fps-menu-item${active ? " is-active" : ""}"
-          data-effect="${effect}"
-          role="menuitemcheckbox"
-          aria-checked="${active ? "true" : "false"}"
-        >
-          <span>${label}</span>
-        </button>
-      `;
-    }).join("");
   }
 
   function buildParticle(position = null) {

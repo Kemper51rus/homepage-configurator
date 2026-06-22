@@ -8,7 +8,8 @@ import {
   parseParticlesConfig,
   isParticlesEnabled,
   updateParticlesInCustomJs,
-  updateParticlesInCustomCss
+  updateParticlesInCustomCss,
+  parseIpConfig
 } from '../lib/topbar-config-helper';
 
 const AVAILABLE_EFFECTS = [
@@ -35,6 +36,10 @@ export default function TopBarSettingsEditor({
   const [enabledEffects, setEnabledEffects] = useState(['rocket']);
   const [defaultEffect, setDefaultEffect] = useState('rocket');
 
+  // IP Widget States
+  const [ipProvider, setIpProvider] = useState('auto');
+  const [ipHideOnError, setIpHideOnError] = useState(true);
+
   // Load configuration initially
   useEffect(() => {
     const isRadio = isRadioEnabled(customJs);
@@ -56,15 +61,27 @@ export default function TopBarSettingsEditor({
       setEnabledEffects(conf.enabledEffects);
       setDefaultEffect(conf.defaultEffect);
     }
+
+    const ipConf = parseIpConfig(customJs);
+    setIpProvider(ipConf.ipProvider);
+    setIpHideOnError(ipConf.ipHideOnError);
   }, [customJs]);
 
   // Sync changes back to custom.js and custom.css
-  const syncChanges = (nextRadioEnabled, nextStations, nextParticlesEnabled, nextEnabledEffects, nextDefaultEffect) => {
+  const syncChanges = (
+    nextRadioEnabled,
+    nextStations,
+    nextParticlesEnabled,
+    nextEnabledEffects,
+    nextDefaultEffect,
+    nextIpProvider = ipProvider,
+    nextIpHideOnError = ipHideOnError
+  ) => {
     let newJs = customJs;
     let newCss = customCss;
 
-    // Apply Radio Changes
-    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled);
+    // Apply Radio and IP Changes
+    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProvider, nextIpHideOnError);
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled);
 
     // Apply Particles Changes
@@ -192,6 +209,18 @@ export default function TopBarSettingsEditor({
     syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, effectId);
   };
 
+  const handleIpProviderChange = (e) => {
+    const provider = e.target.value;
+    setIpProvider(provider);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, provider, ipHideOnError);
+  };
+
+  const handleIpHideOnErrorToggle = (e) => {
+    const hide = e.target.checked;
+    setIpHideOnError(hide);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, ipProvider, hide);
+  };
+
   return (
     <div className="topbar-settings-editor flex flex-col gap-6 text-sm text-theme-800 dark:text-theme-200 overflow-y-auto max-h-[60vh] pr-2 pb-4">
       {/* 1. RADIO SECTION */}
@@ -309,7 +338,43 @@ export default function TopBarSettingsEditor({
         )}
       </div>
 
-      {/* 2. PARTICLES SECTION */}
+      {/* 2. IP WIDGET SECTION */}
+      <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
+        <div className="mb-4">
+          <h3 className="text-base font-bold text-theme-900 dark:text-white">Определение IP-адреса</h3>
+          <p className="text-xs text-theme-500 dark:text-theme-400 mt-1">Настройки виджета внешнего IP-адреса на верхней панели</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-theme-500 dark:text-theme-400 mb-2">
+              Провайдер определения IP
+            </label>
+            <select
+              value={ipProvider}
+              onChange={handleIpProviderChange}
+              className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500 w-full md:w-64"
+            >
+              <option value="auto">Автоматически (все по очереди)</option>
+              <option value="ipwhois">ipwho.is</option>
+              <option value="ipapi">ipapi.co</option>
+              <option value="ipify">api.ipify.org</option>
+            </select>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer font-medium text-xs text-theme-800 dark:text-theme-200">
+            <input
+              type="checkbox"
+              checked={ipHideOnError}
+              onChange={handleIpHideOnErrorToggle}
+              className="rounded text-emerald-500 focus:ring-emerald-500 border-theme-300 dark:border-white/15 dark:bg-theme-900 h-4 w-4"
+            />
+            Скрывать виджет при ошибке определения IP
+          </label>
+        </div>
+      </div>
+
+      {/* 3. PARTICLES SECTION */}
       <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex justify-between items-center mb-4">
           <div>
