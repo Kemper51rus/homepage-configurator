@@ -716,20 +716,33 @@ index f0bae0b..a868fad 100644
          </div>
        </Raw>
 diff --git a/src/components/widgets/openweathermap/weather.jsx b/src/components/widgets/openweathermap/weather.jsx
-index bcca693..e49ea60 100644
+index 4670459..ac3732a 100644
 --- a/src/components/widgets/openweathermap/weather.jsx
 +++ b/src/components/widgets/openweathermap/weather.jsx
-@@ -52,11 +52,41 @@ function Widget({ options }) {
-     weatherStyle.hideBackground ? "weather-hide-background" : ""
-   ].filter(Boolean).join(" ");
+@@ -9,6 +9,7 @@ import Container from "../widget/container";
+ import ContainerButton from "../widget/container_button";
+ import Error from "../widget/error";
+ import PrimaryText from "../widget/primary_text";
++import Raw from "../widget/raw";
+ import SecondaryText from "../widget/secondary_text";
+ import WidgetIcon from "../widget/widget_icon";
  
--  const textStyle = {
--    fontSize: weatherStyle.fontSize || undefined,
+@@ -38,14 +39,140 @@ function Widget({ options }) {
+   const condition = data.weather[0].id;
+   const timeOfDay = data.dt > data.sys.sunrise && data.dt < data.sys.sunset ? "day" : "night";
+ 
++  const weatherStyle = options.weatherStyle ?? {};
++  const layout = weatherStyle.layout || "classic";
++  const containerClasses = [
++    "information-widget-openweathermap",
++    weatherStyle.hideBackground ? "weather-hide-background" : ""
++  ].filter(Boolean).join(" ");
++
 +  const baseTextStyle = {
 +    fontFamily: weatherStyle.fontFamily || undefined,
-     color: weatherStyle.textColor || undefined
-   };
- 
++    color: weatherStyle.textColor || undefined
++  };
++
 +  const tempStyle = {
 +    ...baseTextStyle,
 +    fontSize: weatherStyle.fontSize
@@ -760,25 +773,24 @@ index bcca693..e49ea60 100644
 +    fontSize: weatherStyle.fontSize || undefined
 +  };
 +
-   const iconStyle = {
-     width: weatherStyle.iconSize || undefined,
-     height: weatherStyle.iconSize || undefined
-@@ -66,25 +96,27 @@ function Widget({ options }) {
-     return (
-       <Container options={options} additionalClassNames={containerClasses}>
-         <Raw>
--          <div className="flex flex-row items-center justify-between w-full gap-4" style={textStyle}>
++  const iconStyle = {
++    width: weatherStyle.iconSize || undefined,
++    height: weatherStyle.iconSize || undefined
++  };
++
++  const cityName = options.label;
++  const tempText = t("common.number", { value: data.main.temp, style: "unit", unit, ...options.format });
++  const descText = data.weather[0].description;
++  const weatherIcon = mapIcon(condition, timeOfDay);
++
++  if (layout === "custom") {
++    return (
++      <Container options={options} additionalClassNames={containerClasses}>
++        <Raw>
 +          <div className="flex flex-row items-center justify-center w-full gap-4" style={baseTextStyle}>
-             {/* Left column: Icon and Description below */}
--            <div className="flex flex-col items-center text-center justify-center shrink-0">
++            {/* Left column: Icon and Description below */}
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
-               <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
--              <span 
--                className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
--              >
--                {descText}
--              </span>
++              <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +              {!weatherStyle.hideDescription && (
 +                <span 
 +                  className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
@@ -787,38 +799,34 @@ index bcca693..e49ea60 100644
 +                  {descText}
 +                </span>
 +              )}
-             </div>
-             {/* Right column: Temp and City below */}
--            <div className="flex flex-col text-right justify-center grow">
--              <span className="primary-text text-xl font-bold leading-none" style={textStyle}>
++            </div>
++            {/* Right column: Temp and City below */}
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
 +              <span className="primary-text text-xl font-bold leading-none whitespace-nowrap" style={tempStyle}>
-                 {tempText}
-               </span>
-               <span 
-                 className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
++                {tempText}
++              </span>
++              <span 
++                className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
 +                style={cityStyle}
-               >
-                 {cityName}
-               </span>
-@@ -99,21 +131,23 @@ function Widget({ options }) {
-     return (
-       <Container options={options} additionalClassNames={containerClasses}>
-         <Raw>
--          <div className="flex flex-col items-center justify-center w-full text-center" style={textStyle}>
++              >
++                {cityName}
++              </span>
++            </div>
++          </div>
++        </Raw>
++      </Container>
++    );
++  }
++
++  if (layout === "vertical") {
++    return (
++      <Container options={options} additionalClassNames={containerClasses}>
++        <Raw>
 +          <div className="flex flex-col items-center justify-center w-full text-center" style={baseTextStyle}>
-             <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
--            <span className="primary-text text-lg font-bold leading-tight mt-1" style={textStyle}>
++            <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +            <span className="primary-text text-lg font-bold leading-tight mt-1 whitespace-nowrap" style={tempStyle}>
-               {tempText}
-             </span>
--            <span 
--              className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
--              style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
--            >
--              {descText}
--            </span>
++              {tempText}
++            </span>
 +            {!weatherStyle.hideDescription && (
 +              <span 
 +                className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
@@ -827,30 +835,33 @@ index bcca693..e49ea60 100644
 +                {descText}
 +              </span>
 +            )}
-             {cityName && (
-               <span 
-                 className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.75)` : undefined }}
++            {cityName && (
++              <span 
++                className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
 +                style={cityStyle}
-               >
-                 {cityName}
-               </span>
-@@ -128,16 +162,18 @@ function Widget({ options }) {
++              >
++                {cityName}
++              </span>
++            )}
++          </div>
++        </Raw>
++      </Container>
++    );
++  }
++
    return (
-     <Container options={options} additionalClassNames={containerClasses}>
+-    <Container options={options} additionalClassNames="information-widget-openweathermap">
++    <Container options={options} additionalClassNames={containerClasses}>
        <PrimaryText>
--        <span style={textStyle}>
+-        {options.label && `${options.label}, `}
+-        {t("common.number", { value: data.main.temp, style: "unit", unit, ...options.format })}
 +        <span style={classicBaseStyle}>
-           {cityName && `${cityName}, `}
--          {tempText}
++          {cityName && `${cityName}, `}
 +          <span className="whitespace-nowrap">{tempText}</span>
-         </span>
++        </span>
        </PrimaryText>
--      <SecondaryText>
--        <span style={{ ...textStyle, fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}>
--          {descText}
--        </span>
--      </SecondaryText>
+-      <SecondaryText>{data.weather[0].description}</SecondaryText>
+-      <WidgetIcon icon={mapIcon(condition, timeOfDay)} size="xl" />
 +      {!weatherStyle.hideDescription && (
 +        <SecondaryText>
 +          <span style={descStyle}>
@@ -858,24 +869,38 @@ index bcca693..e49ea60 100644
 +          </span>
 +        </SecondaryText>
 +      )}
-       <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
++      <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
      </Container>
    );
+ }
 diff --git a/src/components/widgets/weather/weather.jsx b/src/components/widgets/weather/weather.jsx
-index 0e56918..ab84312 100644
+index 779c718..f416b97 100644
 --- a/src/components/widgets/weather/weather.jsx
 +++ b/src/components/widgets/weather/weather.jsx
-@@ -52,11 +52,41 @@ function Widget({ options }) {
-     weatherStyle.hideBackground ? "weather-hide-background" : ""
-   ].filter(Boolean).join(" ");
+@@ -9,6 +9,7 @@ import Container from "../widget/container";
+ import ContainerButton from "../widget/container_button";
+ import Error from "../widget/error";
+ import PrimaryText from "../widget/primary_text";
++import Raw from "../widget/raw";
+ import SecondaryText from "../widget/secondary_text";
+ import WidgetIcon from "../widget/widget_icon";
  
--  const textStyle = {
--    fontSize: weatherStyle.fontSize || undefined,
+@@ -37,19 +38,145 @@ function Widget({ options }) {
+   const condition = data.current.condition.code;
+   const timeOfDay = data.current.is_day ? "day" : "night";
+ 
++  const weatherStyle = options.weatherStyle ?? {};
++  const layout = weatherStyle.layout || "classic";
++  const containerClasses = [
++    "information-widget-weather",
++    weatherStyle.hideBackground ? "weather-hide-background" : ""
++  ].filter(Boolean).join(" ");
++
 +  const baseTextStyle = {
 +    fontFamily: weatherStyle.fontFamily || undefined,
-     color: weatherStyle.textColor || undefined
-   };
- 
++    color: weatherStyle.textColor || undefined
++  };
++
 +  const tempStyle = {
 +    ...baseTextStyle,
 +    fontSize: weatherStyle.fontSize
@@ -906,25 +931,29 @@ index 0e56918..ab84312 100644
 +    fontSize: weatherStyle.fontSize || undefined
 +  };
 +
-   const iconStyle = {
-     width: weatherStyle.iconSize || undefined,
-     height: weatherStyle.iconSize || undefined
-@@ -66,25 +96,27 @@ function Widget({ options }) {
-     return (
-       <Container options={options} additionalClassNames={containerClasses}>
-         <Raw>
--          <div className="flex flex-row items-center justify-between w-full gap-4" style={textStyle}>
++  const iconStyle = {
++    width: weatherStyle.iconSize || undefined,
++    height: weatherStyle.iconSize || undefined
++  };
++
++  const cityName = options.label;
++  const tempText = t("common.number", {
++    value: options.units === "metric" ? data.current.temp_c : data.current.temp_f,
++    style: "unit",
++    unit,
++    ...options.format,
++  });
++  const descText = data.current.condition.text;
++  const weatherIcon = mapIcon(condition, timeOfDay);
++
++  if (layout === "custom") {
++    return (
++      <Container options={options} additionalClassNames={containerClasses}>
++        <Raw>
 +          <div className="flex flex-row items-center justify-center w-full gap-4" style={baseTextStyle}>
-             {/* Left column: Icon and Description below */}
--            <div className="flex flex-col items-center text-center justify-center shrink-0">
++            {/* Left column: Icon and Description below */}
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
-               <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
--              <span 
--                className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
--              >
--                {descText}
--              </span>
++              <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +              {!weatherStyle.hideDescription && (
 +                <span 
 +                  className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
@@ -933,38 +962,34 @@ index 0e56918..ab84312 100644
 +                  {descText}
 +                </span>
 +              )}
-             </div>
-             {/* Right column: Temp and City below */}
--            <div className="flex flex-col text-right justify-center grow">
--              <span className="primary-text text-xl font-bold leading-none" style={textStyle}>
++            </div>
++            {/* Right column: Temp and City below */}
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
 +              <span className="primary-text text-xl font-bold leading-none whitespace-nowrap" style={tempStyle}>
-                 {tempText}
-               </span>
-               <span 
-                 className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
++                {tempText}
++              </span>
++              <span 
++                className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
 +                style={cityStyle}
-               >
-                 {cityName}
-               </span>
-@@ -99,21 +131,23 @@ function Widget({ options }) {
-     return (
-       <Container options={options} additionalClassNames={containerClasses}>
-         <Raw>
--          <div className="flex flex-col items-center justify-center w-full text-center" style={textStyle}>
++              >
++                {cityName}
++              </span>
++            </div>
++          </div>
++        </Raw>
++      </Container>
++    );
++  }
++
++  if (layout === "vertical") {
++    return (
++      <Container options={options} additionalClassNames={containerClasses}>
++        <Raw>
 +          <div className="flex flex-col items-center justify-center w-full text-center" style={baseTextStyle}>
-             <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
--            <span className="primary-text text-lg font-bold leading-tight mt-1" style={textStyle}>
++            <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +            <span className="primary-text text-lg font-bold leading-tight mt-1 whitespace-nowrap" style={tempStyle}>
-               {tempText}
-             </span>
--            <span 
--              className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
--              style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}
--            >
--              {descText}
--            </span>
++              {tempText}
++            </span>
 +            {!weatherStyle.hideDescription && (
 +              <span 
 +                className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
@@ -973,30 +998,38 @@ index 0e56918..ab84312 100644
 +                {descText}
 +              </span>
 +            )}
-             {cityName && (
-               <span 
-                 className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
--                style={{ fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.75)` : undefined }}
++            {cityName && (
++              <span 
++                className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
 +                style={cityStyle}
-               >
-                 {cityName}
-               </span>
-@@ -128,16 +162,18 @@ function Widget({ options }) {
++              >
++                {cityName}
++              </span>
++            )}
++          </div>
++        </Raw>
++      </Container>
++    );
++  }
++
    return (
-     <Container options={options} additionalClassNames={containerClasses}>
+-    <Container options={options} additionalClassNames="information-widget-weather">
++    <Container options={options} additionalClassNames={containerClasses}>
        <PrimaryText>
--        <span style={textStyle}>
+-        {options.label && `${options.label}, `}
+-        {t("common.number", {
+-          value: options.units === "metric" ? data.current.temp_c : data.current.temp_f,
+-          style: "unit",
+-          unit,
+-          ...options.format,
+-        })}
 +        <span style={classicBaseStyle}>
-           {cityName && `${cityName}, `}
--          {tempText}
++          {cityName && `${cityName}, `}
 +          <span className="whitespace-nowrap">{tempText}</span>
-         </span>
++        </span>
        </PrimaryText>
--      <SecondaryText>
--        <span style={{ ...textStyle, fontSize: weatherStyle.fontSize ? `calc(${weatherStyle.fontSize} * 0.85)` : undefined }}>
--          {descText}
--        </span>
--      </SecondaryText>
+-      <SecondaryText>{data.current.condition.text}</SecondaryText>
+-      <WidgetIcon icon={mapIcon(condition, timeOfDay)} size="xl" />
 +      {!weatherStyle.hideDescription && (
 +        <SecondaryText>
 +          <span style={descStyle}>
@@ -1004,9 +1037,10 @@ index 0e56918..ab84312 100644
 +          </span>
 +        </SecondaryText>
 +      )}
-       <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
++      <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
      </Container>
    );
+ }
 diff --git a/src/pages/api/config/[path].js b/src/pages/api/config/[path].js
 index b69ddff..c74277d 100644
 --- a/src/pages/api/config/[path].js
@@ -1020,59 +1054,388 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 81a957a..b47113e 100644
+index a51313e..2c46b2c 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
-@@ -431,11 +431,13 @@ function Home({ initialSettings }) {
+@@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
+ import ErrorBoundary from "components/errorboundry";
+ import QuickLaunch from "components/quicklaunch";
+ import ServicesGroup from "components/services/group";
+-import Tab, { slugifyAndEncode } from "components/tab";
++import { slugifyAndEncode } from "components/tab";
+ import Revalidate from "components/toggles/revalidate";
+ import Widget from "components/widgets/widget";
++import {
++  ConfigEditorProvider,
++  EditorPageTab,
++  RootGroupDropZone,
++  getGroupLayout,
++  getOrderedTopLevelGroupsForPage,
++  getOrderedTabsForLayout,
++  useEditableTopWidget,
++} from "mods/browser-editor/components/editor";
+ import { useTranslation } from "next-i18next/pages";
+ import { serverSideTranslations } from "next-i18next/pages/serverSideTranslations";
+ import dynamic from "next/dynamic";
+ import Head from "next/head";
+ import { useRouter } from "next/router";
+ import Script from "next/script";
+-import { useContext, useEffect, useMemo, useState } from "react";
++import { useContext, useEffect, useMemo, useRef, useState } from "react";
+ import { BiError } from "react-icons/bi";
+ import useSWR, { SWRConfig } from "swr";
+ import { ColorContext } from "utils/contexts/color";
+@@ -41,6 +50,66 @@ const Version = dynamic(() => import("components/version"), {
+ 
+ const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
+ 
++function EditableInformationWidget({ widget, widgetIndex, style }) {
++  const { editMode, widgetProps } = useEditableTopWidget(widget, widgetIndex);
++  const wrapperRef = useRef(null);
++  const [overlayStyle, setOverlayStyle] = useState({ borderRadius: "inherit" });
++
++  useEffect(() => {
++    if (!editMode || !wrapperRef.current) {
++      return undefined;
++    }
++
++    let animationFrame = 0;
++    let resizeObserver = null;
++    const updateOverlayStyle = () => {
++      const wrapperElement = wrapperRef.current;
++      const widgetElement = wrapperRef.current?.firstElementChild;
++      if (wrapperElement && widgetElement) {
++        const wrapperRect = wrapperElement.getBoundingClientRect();
++        const widgetRect = widgetElement.getBoundingClientRect();
++        setOverlayStyle({
++          borderRadius: window.getComputedStyle(widgetElement).borderRadius || "inherit",
++          height: `${widgetRect.height}px`,
++          left: `${widgetRect.left - wrapperRect.left}px`,
++          top: `${widgetRect.top - wrapperRect.top}px`,
++          width: `${widgetRect.width}px`,
++        });
++      }
++    };
++
++    animationFrame = window.requestAnimationFrame(updateOverlayStyle);
++    window.addEventListener("resize", updateOverlayStyle);
++
++    if (window.ResizeObserver) {
++      resizeObserver = new window.ResizeObserver(updateOverlayStyle);
++      resizeObserver.observe(wrapperRef.current);
++      resizeObserver.observe(wrapperRef.current.firstElementChild);
++    }
++
++    return () => {
++      window.cancelAnimationFrame(animationFrame);
++      window.removeEventListener("resize", updateOverlayStyle);
++      resizeObserver?.disconnect();
++    };
++  }, [editMode, widget.type]);
++
++  return (
++    <div ref={wrapperRef} className="relative">
++      <Widget widget={widget} style={style} />
++      {editMode && (
++        <button
++          type="button"
++          {...widgetProps}
++          style={overlayStyle}
++          className="absolute z-50 cursor-move border-2 border-dashed border-theme-400/70 bg-transparent text-left dark:border-white/25"
++          aria-label={`Edit ${widget.label || widget.type || "widget"}`}
++        />
++      )}
++    </div>
++  );
++}
++
+ // Normalize language codes so older config values like zh-CN still point to Crowdin-provided ones
+ const LANGUAGE_ALIASES = {
+   "zh-cn": "zh-Hans",
+@@ -277,14 +346,8 @@ function Home({ initialSettings }) {
+   });
+ 
+   const tabs = useMemo(
+-    () => [
+-      ...new Set(
+-        Object.keys(settings.layout ?? {})
+-          .map((groupName) => settings.layout[groupName]?.tab?.toString())
+-          .filter((group) => group),
+-      ),
+-    ],
+-    [settings.layout],
++    () => getOrderedTabsForLayout(settings.layout ?? {}, settings.__browserEditorTabOrder ?? []),
++    [settings.__browserEditorTabOrder, settings.layout],
+   );
+ 
+   useEffect(() => {
+@@ -294,50 +357,119 @@ function Home({ initialSettings }) {
+     }
+   });
+ 
++  const activePageName = useMemo(() => {
++    const normalizedActiveTab = typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
++    if (!normalizedActiveTab) {
++      return null;
++    }
++
++    return tabs.find((tab) => slugifyAndEncode(tab) === normalizedActiveTab) ?? null;
++  }, [activeTab, tabs]);
++
+   const servicesAndBookmarksGroups = useMemo(() => {
+-    const tabGroupFilter = (g) => g && [activeTab, ""].includes(slugifyAndEncode(settings.layout?.[g.name]?.tab));
+-    const undefinedGroupFilter = (g) => settings.layout?.[g.name] === undefined;
++    const getLayoutForGroup = (type, groupName) => {
++      if (!groupName) {
++        return undefined;
++      }
+ 
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
+-      .filter(tabGroupFilter);
++      return getGroupLayout(settings.layout ?? {}, type, groupName);
++    };
++
++    const tabGroupFilter = (type, groupName) =>
++      [activeTab, ""].includes(slugifyAndEncode(getLayoutForGroup(type, groupName)?.tab));
++    const undefinedGroupFilter = (type, groupName) => getLayoutForGroup(type, groupName) === undefined;
++    const serviceMap = new Map((services ?? []).map((group) => [group.name, group]));
++    const bookmarkMap = new Map((bookmarks ?? []).map((group) => [group.name, group]));
++    const layoutEntries = Object.entries(settings.layout ?? {});
++
++    const layoutGroups = layoutEntries
++      .map(([groupName]) => {
++        if (groupName === "Bookmarks") {
++          return null;
++        }
++
++        if (serviceMap.has(groupName)) {
++          return { type: "services", group: serviceMap.get(groupName) };
++        }
++
++        if (bookmarkMap.has(groupName)) {
++          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
++        }
++
++        return { type: "services", group: { name: groupName, services: [], groups: [] } };
++      })
++      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
+ 
+     if (!settings.layout && JSON.stringify(settings.layout) !== JSON.stringify(initialSettings.layout)) {
+       // wait for settings to populate (if different from initial settings), otherwise all the widgets will be requested initially even if we are on a single tab
+       return <div />;
+     }
+ 
+-    const serviceGroups = services?.filter(tabGroupFilter).filter(undefinedGroupFilter);
+-    const bookmarkGroups = bookmarks.filter(tabGroupFilter).filter(undefinedGroupFilter);
++    const serviceFallbackGroups = (services ?? [])
++      .filter((group) => tabGroupFilter("services", group.name))
++      .filter((group) => undefinedGroupFilter("services", group.name))
++      .map((group) => ({ type: "services", group }));
++    const bookmarkLayoutGroups = Object.keys(settings.layout?.Bookmarks ?? {})
++      .map((groupName) => ({
++        type: "bookmarks",
++        group: bookmarkMap.get(groupName) ?? { name: groupName, bookmarks: [] },
++      }))
++      .filter((entry) => tabGroupFilter("bookmarks", entry.group.name));
++    const bookmarkFallbackGroups = (bookmarks ?? [])
++      .filter((group) => tabGroupFilter("bookmarks", group.name))
++      .filter((group) => undefinedGroupFilter("bookmarks", group.name))
++      .map((group) => ({ type: "bookmarks", group }));
++    const fallbackPageGroups = [...layoutGroups, ...serviceFallbackGroups, ...bookmarkLayoutGroups, ...bookmarkFallbackGroups].filter(
++      (entry, index, groups) =>
++        groups.findIndex((candidate) => candidate?.type === entry?.type && candidate?.group?.name === entry?.group?.name) ===
++        index,
++    );
++    const orderedPageGroups = getOrderedTopLevelGroupsForPage(settings, activePageName, fallbackPageGroups);
+ 
+     return (
+       <>
          {tabs.length > 0 && (
            <div key="tabs" id="tabs" className="m-5 sm:m-9 sm:mt-4 sm:mb-0">
              <ul
 +              suppressHydrationWarning={true}
                className={classNames(
-                 "sm:flex rounded-md",
--                (!settings.pageStyles?.borderStyle ||
+-                "sm:flex rounded-md bg-theme-100/20 dark:bg-white/5",
++                "sm:flex rounded-md",
 +                ((!settings.pageStyles?.borderStyle ||
-                   settings.pageStyles?.borderStyle === "none" ||
--                  settings.pageStyles?.borderStyle === "outline")
++                  settings.pageStyles?.borderStyle === "none" ||
 +                  settings.pageStyles?.borderStyle === "outline") &&
 +                  !settings.pageStyles?.hideTabBackground)
-                   ? "bg-theme-100/20 dark:bg-white/5"
-                   : "bg-transparent",
-                 settings.pageStyles?.align === "center" && "sm:justify-center",
-@@ -543,7 +545,7 @@ function Home({ initialSettings }) {
-         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-         <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
- 
--        <style>{`
++                  ? "bg-theme-100/20 dark:bg-white/5"
++                  : "bg-transparent",
++                settings.pageStyles?.align === "center" && "sm:justify-center",
++                settings.pageStyles?.align === "end" && "sm:justify-end",
++                settings.pageStyles?.align === "between" && "sm:justify-between",
++                settings.pageStyles?.borderStyle === "outline" && "border",
+                 settings.cardBlur !== undefined &&
+                   `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+               )}
++              style={{
++                fontFamily: settings.pageStyles?.fontFamily,
++                fontSize: settings.pageStyles?.fontSize,
++                borderColor: settings.pageStyles?.borderColor,
++              }}
+               id="myTab"
+               data-tabs-toggle="#myTabContent"
+               role="tablist"
+             >
+               {tabs.map((tab) => (
+-                <Tab key={tab} tab={tab} />
++                <EditorPageTab key={tab} tab={tab} />
+               ))}
+             </ul>
+           </div>
+         )}
+-        {layoutGroups.length > 0 && (
+-          <div key="layoutGroups" id="layout-groups" className="flex flex-wrap m-4 sm:m-8 sm:mt-4 items-start mb-2">
+-            {layoutGroups.map((group) =>
+-              group.services ? (
++        {orderedPageGroups.length > 0 && (
++          <div key="page-groups" id="page-groups" className="flex flex-wrap m-4 sm:m-8 sm:mt-4 items-start mb-2">
++            {orderedPageGroups.map((entry) =>
++              entry.type === "services" ? (
+                 <ServicesGroup
+-                  key={group.name}
+-                  group={group}
+-                  layout={settings.layout?.[group.name]}
++                  key={`services:${entry.group.name}`}
++                  group={entry.group}
++                  layout={getLayoutForGroup("services", entry.group.name)}
+                   maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
+                   disableCollapse={settings.disableCollapse}
+                   useEqualHeights={settings.useEqualHeights}
+@@ -345,50 +477,23 @@ function Home({ initialSettings }) {
+                 />
+               ) : (
+                 <BookmarksGroup
+-                  key={group.name}
+-                  bookmarks={group}
+-                  layout={settings.layout?.[group.name]}
++                  key={`bookmarks:${entry.group.name}`}
++                  bookmarks={entry.group}
++                  layout={getLayoutForGroup("bookmarks", entry.group.name)}
+                   disableCollapse={settings.disableCollapse}
+                   maxGroupColumns={settings.maxBookmarkGroupColumns ?? settings.maxGroupColumns}
+                   groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
++                  bookmarksStyle={settings.bookmarksStyle}
+                 />
+               ),
+             )}
+           </div>
+         )}
+-        {serviceGroups?.length > 0 && (
+-          <div key="services" id="services" className="flex flex-wrap m-4 sm:m-8 sm:mt-4 items-start mb-2">
+-            {serviceGroups.map((group) => (
+-              <ServicesGroup
+-                key={group.name}
+-                group={group}
+-                layout={settings.layout?.[group.name]}
+-                maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
+-                disableCollapse={settings.disableCollapse}
+-                groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
+-              />
+-            ))}
+-          </div>
+-        )}
+-        {bookmarkGroups?.length > 0 && (
+-          <div key="bookmarks" id="bookmarks" className="flex flex-wrap m-4 sm:m-8 sm:mt-4 items-start mb-2">
+-            {bookmarkGroups.map((group) => (
+-              <BookmarksGroup
+-                key={group.name}
+-                bookmarks={group}
+-                layout={settings.layout?.[group.name]}
+-                disableCollapse={settings.disableCollapse}
+-                maxGroupColumns={settings.maxBookmarkGroupColumns ?? settings.maxGroupColumns}
+-                groupsInitiallyCollapsed={settings.groupsInitiallyCollapsed}
+-                bookmarksStyle={settings.bookmarksStyle}
+-              />
+-            ))}
+-          </div>
+-        )}
+       </>
+     );
+   }, [
+     tabs,
++    activePageName,
+     activeTab,
+     services,
+     bookmarks,
+@@ -399,6 +504,7 @@ function Home({ initialSettings }) {
+     settings.disableCollapse,
+     settings.useEqualHeights,
+     settings.cardBlur,
++    settings.__browserEditorGroupOrderByPage,
+     settings.groupsInitiallyCollapsed,
+     settings.bookmarksStyle,
+     initialSettings.layout,
+@@ -434,16 +540,101 @@ function Home({ initialSettings }) {
+         <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
+         <meta name="color-scheme" content="dark light"></meta>
++        
++        <link rel="preconnect" href="https://fonts.googleapis.com" />
++        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
++        <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
++
 +        <style suppressHydrationWarning={true}>{`
-           #tabs ul li button.tab-style-pill {
-             border-radius: 9999px !important;
-           }
-@@ -579,14 +581,14 @@ function Home({ initialSettings }) {
-             content: "" !important;
-             display: block !important;
-             position: absolute !important;
--            bottom: 2px !important;
--            left: 12.5% !important;
--            width: 75% !important;
--            height: 3px !important;
--            border-radius: 9999px !important;
++          #tabs ul li button.tab-style-pill {
++            border-radius: 9999px !important;
++          }
++          #tabs ul li button.tab-style-pill[aria-selected="true"] {
++            background-color: var(--pill-bg-color, rgba(59, 130, 246, 0.15)) !important;
++          }
++          #tabs ul li button.tab-style-card {
++            border-radius: 0.375rem !important;
++          }
++          #tabs ul li button.tab-style-card[aria-selected="true"] {
++            background-color: rgba(156, 163, 175, 0.1) !important;
++          }
++          #tabs ul li button.tab-style-underline {
++            border-radius: 0px !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline[aria-selected="true"] {
++            border-bottom-width: 2px !important;
++            border-radius: 0px !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded {
++            position: relative !important;
++            border-radius: 0px !important;
++            border-bottom: none !important;
++            overflow: visible !important;
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"] {
++            background-color: transparent !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded::after {
++            content: "" !important;
++            display: block !important;
++            position: absolute !important;
 +            bottom: 1px !important;
 +            left: 15% !important;
 +            width: 70% !important;
 +            height: 4px !important;
 +            border-radius: 2px !important;
-             background-color: transparent !important;
-             z-index: 10 !important;
--            transition: all 0.2s ease-in-out !important;
++            background-color: transparent !important;
++            z-index: 10 !important;
 +            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease-in-out !important;
-             transform: scaleX(0) !important;
-           }
-           #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]::after {
-@@ -601,6 +603,15 @@ function Home({ initialSettings }) {
-             transform: scaleX(1) !important;
-           }
-           
++            transform: scaleX(0) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]::after {
++            background-color: var(--underline-color, currentColor) !important;
++            transform: scaleX(1) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded:hover::after {
++            background-color: var(--underline-hover-color, rgba(156, 163, 175, 0.3)) !important;
++            transform: scaleX(0.7) !important;
++          }
++          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]:hover::after {
++            transform: scaleX(1) !important;
++          }
++          
 +          ${settings.pageStyles?.hideTabBackground ? `
 +            #tabs ul {
 +              background-color: transparent !important;
@@ -1082,9 +1445,93 @@ index 81a957a..b47113e 100644
 +            }
 +          ` : ''}
 +          
-           ${settings.pageStyles?.fontFamily ? `
-             #tabs ul, #tabs ul li button, #tabs ul li button span {
-               font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
++          ${settings.pageStyles?.fontFamily ? `
++            #tabs ul, #tabs ul li button, #tabs ul li button span {
++              font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
++            }
++          ` : ''}
++          
++          ${settings.pageStyles?.fontSize ? `
++            #tabs ul li button, #tabs ul li button span {
++              font-size: ${settings.pageStyles.fontSize} !important;
++            }
++          ` : ''}
++        `}</style>
+       </Head>
+ 
+       <Script src="/api/config/custom.js" />
+ 
+-      <div
+-        className={classNames(
+-          settings.fullWidth ? "" : "container",
+-          "relative m-auto flex flex-col justify-start z-10 h-full min-h-screen",
+-        )}
+-      >
++      <ConfigEditorProvider>
++        <div
++          className={classNames(
++            settings.fullWidth ? "" : "container",
++            "relative m-auto flex flex-col justify-start z-10 h-full min-h-screen",
++          )}
++        >
+         <QuickLaunch
+           servicesAndBookmarks={servicesAndBookmarks}
+           searchString={searchString}
+@@ -465,11 +656,13 @@ function Home({ initialSettings }) {
+             {widgets && (
+               <>
+                 {widgets
+-                  .filter((widget) => !rightAlignedWidgets.includes(widget.type))
+-                  .map((widget, i) => (
+-                    <Widget
+-                      key={i}
++                  .map((widget, widgetIndex) => ({ widget, widgetIndex }))
++                  .filter(({ widget }) => !rightAlignedWidgets.includes(widget.type))
++                  .map(({ widget, widgetIndex }) => (
++                    <EditableInformationWidget
++                      key={widgetIndex}
+                       widget={widget}
++                      widgetIndex={widgetIndex}
+                       style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
+                     />
+                   ))}
+@@ -482,11 +675,13 @@ function Home({ initialSettings }) {
+                   )}
+                 >
+                   {widgets
+-                    .filter((widget) => rightAlignedWidgets.includes(widget.type))
+-                    .map((widget, i) => (
+-                      <Widget
+-                        key={i}
++                    .map((widget, widgetIndex) => ({ widget, widgetIndex }))
++                    .filter(({ widget }) => rightAlignedWidgets.includes(widget.type))
++                    .map(({ widget, widgetIndex }) => (
++                      <EditableInformationWidget
++                        key={widgetIndex}
+                         widget={widget}
++                        widgetIndex={widgetIndex}
+                         style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
+                       />
+                     ))}
+@@ -496,7 +691,7 @@ function Home({ initialSettings }) {
+           </div>
+         </div>
+ 
+-        {servicesAndBookmarksGroups}
++        <RootGroupDropZone>{servicesAndBookmarksGroups}</RootGroupDropZone>
+ 
+         <div id="footer" className="flex flex-col mt-auto p-8 w-full">
+           <div id="style" className="flex w-full justify-end">
+@@ -509,7 +704,8 @@ function Home({ initialSettings }) {
+             {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
+           </div>
+         </div>
+-      </div>
++        </div>
++      </ConfigEditorProvider>
+     </>
+   );
+ }
 diff --git a/src/widgets/components.js b/src/widgets/components.js
 index fbc34d3..ca2a1eb 100644
 --- a/src/widgets/components.js
