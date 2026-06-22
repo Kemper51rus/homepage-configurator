@@ -37,7 +37,7 @@ export default function TopBarSettingsEditor({
   const [defaultEffect, setDefaultEffect] = useState('rocket');
 
   // IP Widget States
-  const [ipProvider, setIpProvider] = useState('auto');
+  const [ipProviders, setIpProviders] = useState([]);
   const [ipHideOnError, setIpHideOnError] = useState(true);
 
   // Load configuration initially
@@ -63,8 +63,16 @@ export default function TopBarSettingsEditor({
     }
 
     const ipConf = parseIpConfig(customJs);
-    setIpProvider(ipConf.ipProvider);
     setIpHideOnError(ipConf.ipHideOnError);
+    if (ipConf.ipProviders && ipConf.ipProviders.length > 0) {
+      setIpProviders(ipConf.ipProviders);
+    } else {
+      setIpProviders([
+        { id: 'initial-ip-1', label: 'ipwho.is', url: 'https://ipwho.is/', jsonKey: 'ip' },
+        { id: 'initial-ip-2', label: 'ipapi.co', url: 'https://ipapi.co/json/', jsonKey: 'ip' },
+        { id: 'initial-ip-3', label: 'api.ipify.org', url: 'https://api.ipify.org?format=json', jsonKey: 'ip' }
+      ]);
+    }
   }, [customJs]);
 
   // Sync changes back to custom.js and custom.css
@@ -74,14 +82,14 @@ export default function TopBarSettingsEditor({
     nextParticlesEnabled,
     nextEnabledEffects,
     nextDefaultEffect,
-    nextIpProvider = ipProvider,
+    nextIpProviders = ipProviders,
     nextIpHideOnError = ipHideOnError
   ) => {
     let newJs = customJs;
     let newCss = customCss;
 
     // Apply Radio and IP Changes
-    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProvider, nextIpHideOnError);
+    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProviders, nextIpHideOnError);
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled);
 
     // Apply Particles Changes
@@ -209,16 +217,69 @@ export default function TopBarSettingsEditor({
     syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, effectId);
   };
 
-  const handleIpProviderChange = (e) => {
-    const provider = e.target.value;
-    setIpProvider(provider);
-    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, provider, ipHideOnError);
+  const handleIpProviderChange = (id, field, value) => {
+    const nextProviders = ipProviders.map(p => {
+      if (p.id !== id) return p;
+      return { ...p, [field]: value };
+    });
+    setIpProviders(nextProviders);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, nextProviders, ipHideOnError);
+  };
+
+  const handleAddIpProvider = () => {
+    const nextProviders = [
+      ...ipProviders,
+      {
+        id: `ip-provider-new-${Date.now()}`,
+        label: 'Новый провайдер',
+        url: '',
+        jsonKey: ''
+      }
+    ];
+    setIpProviders(nextProviders);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, nextProviders, ipHideOnError);
+  };
+
+  const handleRemoveIpProvider = (id) => {
+    const nextProviders = ipProviders.filter(p => p.id !== id);
+    setIpProviders(nextProviders);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, nextProviders, ipHideOnError);
+  };
+
+  const handleIpDragStart = (e, index) => {
+    e.dataTransfer.setData('text/ip-provider-index', index);
+  };
+
+  const handleIpDrop = (e, targetIndex) => {
+    e.preventDefault();
+    const sourceIndex = parseInt(e.dataTransfer.getData('text/ip-provider-index'), 10);
+    if (isNaN(sourceIndex) || sourceIndex === targetIndex) return;
+
+    const nextProviders = [...ipProviders];
+    const [moved] = nextProviders.splice(sourceIndex, 1);
+    nextProviders.splice(targetIndex, 0, moved);
+
+    setIpProviders(nextProviders);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, nextProviders, ipHideOnError);
+  };
+
+  const moveIpProvider = (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= ipProviders.length) return;
+
+    const nextProviders = [...ipProviders];
+    const temp = nextProviders[index];
+    nextProviders[index] = nextProviders[targetIndex];
+    nextProviders[targetIndex] = temp;
+
+    setIpProviders(nextProviders);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, nextProviders, ipHideOnError);
   };
 
   const handleIpHideOnErrorToggle = (e) => {
     const hide = e.target.checked;
     setIpHideOnError(hide);
-    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, ipProvider, hide);
+    syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, ipProviders, hide);
   };
 
   return (
@@ -346,23 +407,93 @@ export default function TopBarSettingsEditor({
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-theme-500 dark:text-theme-400 mb-2">
-              Провайдер определения IP
-            </label>
-            <select
-              value={ipProvider}
-              onChange={handleIpProviderChange}
-              className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500 w-full md:w-64"
+          <div className="space-y-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block mb-2">Список провайдеров (опрашиваются по очереди сверху вниз)</span>
+            
+            <div className="space-y-2">
+              {ipProviders.map((provider, index) => (
+                <div
+                  key={provider.id}
+                  draggable
+                  onDragStart={(e) => handleIpDragStart(e, index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleIpDrop(e, index)}
+                  className="flex items-center gap-2 rounded-lg border border-theme-300/30 bg-theme-100/10 px-3 py-2 dark:border-white/5 dark:bg-theme-900/10 hover:border-theme-300/60 dark:hover:border-white/20 transition-colors"
+                >
+                  {/* Drag Handle */}
+                  <div className="cursor-grab text-theme-400 hover:text-theme-600 dark:hover:text-theme-200 px-1 font-bold select-none text-base">
+                    ⋮⋮
+                  </div>
+
+                  {/* Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1">
+                    <input
+                      type="text"
+                      value={provider.label}
+                      onChange={(e) => handleIpProviderChange(provider.id, 'label', e.target.value)}
+                      placeholder="Название провайдера"
+                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      value={provider.url}
+                      onChange={(e) => handleIpProviderChange(provider.id, 'url', e.target.value)}
+                      placeholder="URL-ссылка запроса"
+                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="text"
+                      value={provider.jsonKey}
+                      onChange={(e) => handleIpProviderChange(provider.id, 'jsonKey', e.target.value)}
+                      placeholder="Ключ JSON (пусто, если plain text)"
+                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => moveIpProvider(index, -1)}
+                      className="p-1 rounded text-theme-400 hover:bg-theme-200/50 dark:hover:bg-white/5 disabled:opacity-30"
+                      title="Переместить вверх"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === ipProviders.length - 1}
+                      onClick={() => moveIpProvider(index, 1)}
+                      className="p-1 rounded text-theme-400 hover:bg-theme-200/50 dark:hover:bg-white/5 disabled:opacity-30"
+                      title="Переместить вниз"
+                    >
+                      ▼
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveIpProvider(provider.id)}
+                      className="p-1 rounded text-rose-500 hover:bg-rose-500/10 dark:hover:bg-rose-500/20"
+                      title="Удалить провайдера"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddIpProvider}
+              className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg border border-dashed border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 dark:hover:bg-emerald-400/5 transition-colors flex items-center justify-center gap-1 w-full"
             >
-              <option value="auto">Автоматически (все по очереди)</option>
-              <option value="ipwhois">ipwho.is</option>
-              <option value="ipapi">ipapi.co</option>
-              <option value="ipify">api.ipify.org</option>
-            </select>
+              + Добавить провайдера
+            </button>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer font-medium text-xs text-theme-800 dark:text-theme-200">
+          <label className="flex items-center gap-2 cursor-pointer font-medium text-xs text-theme-800 dark:text-theme-200 mt-4 border-t border-theme-300/20 dark:border-white/5 pt-4">
             <input
               type="checkbox"
               checked={ipHideOnError}

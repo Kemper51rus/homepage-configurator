@@ -11,8 +11,42 @@
   window.__homepageRadioWidgetInitialized = true;
   window.__homepageRadioWidgetCleanup = null;
 
-  const ipProvider = "auto";
+  const ipProviderList = `
+    ipwho.is, https://ipwho.is/, ip
+    ipapi.co, https://ipapi.co/json/, ip
+    api.ipify.org, https://api.ipify.org?format=json, ip
+  `;
   const ipHideOnError = true;
+
+  function parseIpProviders(definition) {
+    return definition
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line, index) => {
+        const separatorIndex = line.indexOf(",");
+        if (separatorIndex === -1) return null;
+        const label = line.slice(0, separatorIndex).trim();
+        const rest = line.slice(separatorIndex + 1).trim();
+        
+        const secondSep = rest.indexOf(",");
+        let url = rest;
+        let jsonKey = "";
+        if (secondSep !== -1) {
+          url = rest.slice(0, secondSep).trim();
+          jsonKey = rest.slice(secondSep + 1).trim();
+        }
+        
+        if (!label || !url) return null;
+        return {
+          key: `provider-${index}`,
+          label,
+          url,
+          jsonKey,
+        };
+      })
+      .filter(Boolean);
+  }
 
   // Radio stations format:
   // Station name, stream URL
@@ -161,70 +195,52 @@
   }
 
   async function requestIpInfo() {
-    const providerFns = {
-      ipwhois: async () => {
-        const response = await withTimeout("https://ipwho.is/");
-        if (!response.ok) {
-          throw new Error("ipwho.is request failed");
-        }
+    const providers = parseIpProviders(ipProviderList);
 
-        const payload = await response.json();
-        if (!payload?.success || !payload.ip) {
-          throw new Error("ipwho.is payload invalid");
-        }
-
-        return {
-          ip: payload.ip,
-          isp: payload.connection?.isp || payload.connection?.org || "",
-          flagImg: payload.flag?.img || flagUrlFromCountryCode(payload.country_code),
-        };
-      },
-      ipapi: async () => {
-        const response = await withTimeout("https://ipapi.co/json/");
-        if (!response.ok) {
-          throw new Error("ipapi.co request failed");
-        }
-
-        const payload = await response.json();
-        if (!payload?.ip) {
-          throw new Error("ipapi.co payload invalid");
-        }
-
-        return {
-          ip: payload.ip,
-          isp: payload.org || payload.org_name || payload.asn || "",
-          flagImg: flagUrlFromCountryCode(payload.country_code),
-        };
-      },
-      ipify: async () => {
-        const response = await withTimeout("https://api.ipify.org?format=json");
-        if (!response.ok) {
-          throw new Error("api.ipify.org request failed");
-        }
-
-        const payload = await response.json();
-        if (!payload?.ip) {
-          throw new Error("api.ipify payload invalid");
-        }
-
-        return {
-          ip: payload.ip,
-          isp: "",
-          flagImg: "",
-        };
-      }
-    };
-
-    if (typeof ipProvider === "string" && ipProvider !== "auto" && providerFns[ipProvider]) {
-      return providerFns[ipProvider]();
-    }
-
-    const providers = [providerFns.ipwhois, providerFns.ipapi, providerFns.ipify];
     for (const provider of providers) {
       try {
-        return await provider();
-      } catch {
-        // Try the next provider.
+        const url = provider.url;
+        // Check for built-in overrides
+        if (url.includes("ipwho.is")) {
+          const response = await withTimeout(url);
+          if (!response.ok) throw new Error("ipwho.is failed");
+          const payload = await response.json();
+          if (!payload?.success || !payload.ip) throw new Error("ipwho.is invalid payload");
+          return {
+            ip: payload.ip,
+            isp: payload.connection?.isp || payload.connection?.org || "",
+            flagImg: payload.flag?.img || flagUrlFromCountryCode(payload.country_code),
+          };
+        }
+
+        if (url.includes("ipapi.co")) {
+          const response = await withTimeout(url);
+          if (!response.ok) throw new Error("ipapi.co failed");
+          const payload = await response.json();
+          if (!payload?.ip) throw new Error("ipapi.co invalid payload");
+          return {
+            ip: payload.ip,
+            isp: payload.org || payload.org_name || payload.asn || "",
+            flagImg: flagUrlFromCountryCode(payload.country_code),
+          };
+        }
+
+        // Custom json or text provider
+        const response = await withTimeout(url);
+        if (!response.ok) throw new Error(`Provider ${provider.label} failed`);
+
+        if (provider.jsonKey) {
+          const payload = await response.json();
+          const ip = provider.jsonKey.split('.').reduce((o, k) => (o || {})[k], payload);
+          if (!ip || typeof ip !== "string") throw new Error("JSON key not found or not string");
+          return { ip, isp: "", flagImg: "" };
+        } else {
+          const text = (await response.text()).trim();
+          if (!/^[0-9a-fA-F.:]+$/.test(text)) throw new Error("Response is not a valid IP address");
+          return { ip: text, isp: "", flagImg: "" };
+        }
+      } catch (err) {
+        // Try the next provider
       }
     }
 
