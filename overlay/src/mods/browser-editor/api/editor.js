@@ -727,11 +727,59 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, background, backgroundPath } = req.body ?? {};
+      const { action, background, backgroundPath, provider, q, apiKey } = req.body ?? {};
 
       if (action === "localize-icons") {
         const iconLocalization = await localizeRemoteIcons();
         return res.status(200).json({ ...(await getEditorConfig()), iconLocalization });
+      }
+
+      if (action === "geocode") {
+        if (!q) {
+          return res.status(400).end("Поисковый запрос обязателен");
+        }
+
+        const settings = await readYamlFile("settings", {});
+        let url;
+        if (provider === "openweathermap") {
+          const key = apiKey || settings?.providers?.openweathermap;
+          if (!key) return res.status(400).end("Отсутствует API-ключ OpenWeatherMap");
+          url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=5&appid=${key}`;
+        } else {
+          const key = apiKey || settings?.providers?.weatherapi;
+          if (!key) return res.status(400).end("Отсутствует API-ключ WeatherAPI");
+          url = `https://api.weatherapi.com/v1/search.json?key=${key}&q=${encodeURIComponent(q)}`;
+        }
+
+        try {
+          const fetchResponse = await fetch(url);
+          if (!fetchResponse.ok) {
+            return res.status(fetchResponse.status).end(await fetchResponse.text());
+          }
+          const rawData = await fetchResponse.json();
+          let results = [];
+          if (provider === "openweathermap") {
+            results = (rawData ?? []).map(item => {
+              const state = item.state ? `, ${item.state}` : "";
+              return {
+                name: `${item.name}${state}, ${item.country}`,
+                lat: item.lat,
+                lon: item.lon
+              };
+            });
+          } else {
+            results = (rawData ?? []).map(item => {
+              return {
+                name: `${item.name}, ${item.region}, ${item.country}`,
+                lat: item.lat,
+                lon: item.lon
+              };
+            });
+          }
+          return res.status(200).json(results);
+        } catch (fetchErr) {
+          return res.status(500).end(fetchErr.message || "Ошибка подключения к API погоды");
+        }
       }
 
       if (backgroundPath !== undefined) {
