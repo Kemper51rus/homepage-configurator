@@ -7237,7 +7237,20 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             )}
           >
             <div className="truncate text-sm font-semibold leading-5">Верхняя панель</div>
-            <div className="truncate opacity-70">Радио и Живые обои</div>
+            <div className="truncate opacity-70">Обои и Определение IP</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__radio__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__radio__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Радио</div>
+            <div className="truncate opacity-70">Настройки радио</div>
           </button>
           {(tabs ?? []).map((tab) => (
             <button
@@ -7274,6 +7287,26 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           <TopBarSettingsEditor
             customJs={drafts["custom.js"] ?? ""}
             customCss={drafts["custom.css"] ?? ""}
+            mode="topbar"
+            onChangeCustomJs={(newJs) =>
+              setDrafts((current) => ({
+                ...current,
+                "custom.js": newJs,
+              }))
+            }
+            onChangeCustomCss={(newCss) =>
+              setDrafts((current) => ({
+                ...current,
+                "custom.css": newCss,
+              }))
+            }
+          />
+        </div>
+        <div style={{ display: activeFileName === "__radio__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
+          <TopBarSettingsEditor
+            customJs={drafts["custom.js"] ?? ""}
+            customCss={drafts["custom.css"] ?? ""}
+            mode="radio"
             onChangeCustomJs={(newJs) =>
               setDrafts((current) => ({
                 ...current,

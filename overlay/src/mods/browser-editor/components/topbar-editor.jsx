@@ -25,7 +25,8 @@ export default function TopBarSettingsEditor({
   customJs,
   customCss,
   onChangeCustomJs,
-  onChangeCustomCss
+  onChangeCustomCss,
+  mode = 'all'
 }) {
   // Radio States
   const [radioEnabled, setRadioEnabled] = useState(false);
@@ -285,7 +286,8 @@ export default function TopBarSettingsEditor({
   return (
     <div className="topbar-settings-editor flex flex-col gap-6 text-sm text-theme-800 dark:text-theme-200 overflow-y-auto max-h-[60vh] pr-2 pb-4">
       {/* 1. RADIO SECTION */}
-      <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
+      {(mode === 'all' || mode === 'radio') && (
+        <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="text-base font-bold text-theme-900 dark:text-white">Музыкальное радио</h3>
@@ -398,9 +400,11 @@ export default function TopBarSettingsEditor({
           </div>
         )}
       </div>
+      )}
 
       {/* 2. IP WIDGET SECTION */}
-      <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
+      {(mode === 'all' || mode === 'topbar') && (
+        <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="mb-4">
           <h3 className="text-base font-bold text-theme-900 dark:text-white">Определение IP-адреса</h3>
           <p className="text-xs text-theme-500 dark:text-theme-400 mt-1">Настройки виджета внешнего IP-адреса на верхней панели</p>
@@ -504,9 +508,11 @@ export default function TopBarSettingsEditor({
           </label>
         </div>
       </div>
+      )}
 
       {/* 3. PARTICLES SECTION */}
-      <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
+      {(mode === 'all' || mode === 'topbar') && (
+        <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="text-base font-bold text-theme-900 dark:text-white">Интерактивные живые обои</h3>
@@ -574,6 +580,7 @@ export default function TopBarSettingsEditor({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
