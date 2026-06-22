@@ -34,6 +34,7 @@ import {
   setGlobalResizeCursor,
   writeStoredEditorWindow,
 } from "mods/browser-editor/lib/editor-window";
+import TopBarSettingsEditor from "./topbar-editor";
 
 const ConfigEditorContext = createContext({
   activePageName: null,
@@ -2582,6 +2583,46 @@ function CodeEditor({
     [value, zoom, syncScrollPosition],
   );
 
+  const jumpButtons = useMemo(() => {
+    if (placeholder === "custom.css") {
+      return [
+        {
+          marker: "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */",
+          label: "Стили configurator",
+        },
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR COLOR CARDS CSS START >>> */",
+          label: "Цветные карточки",
+        },
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR CUSTOM EXTRAS CSS START >>> */",
+          label: "Дополнительные стили",
+        },
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR PARTICLES CSS START >>> */",
+          label: "Стили живых обоев",
+        },
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */",
+          label: "Стили радио",
+        },
+      ].filter(btn => value.includes(btn.marker));
+    }
+    if (placeholder === "custom.js") {
+      return [
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */",
+          label: "Скрипт радио",
+        },
+        {
+          marker: "/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */",
+          label: "Скрипт живых обоев",
+        },
+      ].filter(btn => value.includes(btn.marker));
+    }
+    return [];
+  }, [placeholder, value]);
+
   useEffect(() => {
     if (textareaRef.current) {
       syncScrollPosition(textareaRef.current);
@@ -2615,24 +2656,16 @@ function CodeEditor({
           <span className="font-medium uppercase tracking-[0.18em] opacity-70">{language === "plain" ? "text" : language}</span>
           <div className="flex items-center gap-2">
             <span className="opacity-60">{value.length} симв.</span>
-            {placeholder === "custom.css" && value.includes("/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */") && (
+            {jumpButtons.map((btn) => (
               <button
+                key={btn.marker}
                 type="button"
-                onClick={() => jumpToMarker("/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */")}
+                onClick={() => jumpToMarker(btn.marker)}
                 className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10 text-emerald-600 dark:text-emerald-400"
               >
-                Начало стилей configurator
+                {btn.label}
               </button>
-            )}
-            {placeholder === "custom.css" && value.includes("/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */") && (
-              <button
-                type="button"
-                onClick={() => jumpToMarker("/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */")}
-                className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10 text-emerald-600 dark:text-emerald-400"
-              >
-                Начало стилей радио
-              </button>
-            )}
+            ))}
             <button
               type="button"
               onClick={() => setZoom((current) => Math.max(CODE_EDITOR_MIN_ZOOM, current - zoomDecreaseStep))}
@@ -7055,7 +7088,11 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   }, [tabs]);
 
   useEffect(() => {
-    if (activeFileName !== "__page_styling__" && !tabs?.some((tab) => tab.fileName === activeFileName)) {
+    if (
+      activeFileName !== "__page_styling__" &&
+      activeFileName !== "__top_bar__" &&
+      !tabs?.some((tab) => tab.fileName === activeFileName)
+    ) {
       setActiveFileName("__page_styling__");
     }
   }, [activeFileName, tabs]);
@@ -7065,8 +7102,14 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
 
   async function handleSave() {
-    const targetFileName = activeFileName === "__page_styling__" ? "settings.yaml" : activeTab?.fileName;
-    if (!targetFileName) {
+    const isTopBar = activeFileName === "__top_bar__";
+    const targetFileName = isTopBar
+      ? null
+      : activeFileName === "__page_styling__"
+      ? "settings.yaml"
+      : activeTab?.fileName;
+
+    if (!isTopBar && !targetFileName) {
       return;
     }
 
@@ -7074,35 +7117,68 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
     setError("");
 
     try {
-      const response = await editorWriteFetch("/api/config/editor", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: targetFileName,
-          content: drafts[targetFileName] ?? "",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
       let nextData;
-      if (targetFileName === "settings.yaml" && drafts["widgets.yaml"] !== undefined) {
-        const widgetsResponse = await editorWriteFetch("/api/config/editor", {
+
+      if (isTopBar) {
+        // Save custom.js
+        const jsResponse = await editorWriteFetch("/api/config/editor", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fileName: "widgets.yaml",
-            content: drafts["widgets.yaml"] ?? "",
+            fileName: "custom.js",
+            content: drafts["custom.js"] ?? "",
           }),
         });
-        if (!widgetsResponse.ok) {
-          throw new Error("Не удалось сохранить widgets.yaml: " + (await widgetsResponse.text()));
+
+        if (!jsResponse.ok) {
+          throw new Error("Не удалось сохранить custom.js: " + (await jsResponse.text()));
         }
-        nextData = await widgetsResponse.json();
+
+        // Save custom.css
+        const cssResponse = await editorWriteFetch("/api/config/editor", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: "custom.css",
+            content: drafts["custom.css"] ?? "",
+          }),
+        });
+
+        if (!cssResponse.ok) {
+          throw new Error("Не удалось сохранить custom.css: " + (await cssResponse.text()));
+        }
+
+        nextData = await cssResponse.json();
       } else {
-        nextData = await response.json();
+        const response = await editorWriteFetch("/api/config/editor", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: targetFileName,
+            content: drafts[targetFileName] ?? "",
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        if (targetFileName === "settings.yaml" && drafts["widgets.yaml"] !== undefined) {
+          const widgetsResponse = await editorWriteFetch("/api/config/editor", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: "widgets.yaml",
+              content: drafts["widgets.yaml"] ?? "",
+            }),
+          });
+          if (!widgetsResponse.ok) {
+            throw new Error("Не удалось сохранить widgets.yaml: " + (await widgetsResponse.text()));
+          }
+          nextData = await widgetsResponse.json();
+        } else {
+          nextData = await response.json();
+        }
       }
 
       if (nextData?.settings) {
@@ -7111,7 +7187,13 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
 
       setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
       await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
-      onSaved(activeFileName === "__page_styling__" ? "Стилизация страниц сохранена" : `Сохранено: ${activeTab.label}`);
+      onSaved(
+        isTopBar
+          ? "Настройки верхней панели сохранены"
+          : activeFileName === "__page_styling__"
+          ? "Стилизация страниц сохранена"
+          : `Сохранено: ${activeTab.label}`
+      );
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -7144,6 +7226,19 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             <div className="truncate text-sm font-semibold leading-5">Стилизация страниц</div>
             <div className="truncate opacity-70">Настройки вкладок</div>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__top_bar__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__top_bar__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Верхняя панель</div>
+            <div className="truncate opacity-70">Радио и Живые обои</div>
+          </button>
           {(tabs ?? []).map((tab) => (
             <button
               key={tab.fileName}
@@ -7171,6 +7266,24 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
               setDrafts((current) => ({
                 ...current,
                 "settings.yaml": newContent,
+              }))
+            }
+          />
+        </div>
+        <div style={{ display: activeFileName === "__top_bar__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
+          <TopBarSettingsEditor
+            customJs={drafts["custom.js"] ?? ""}
+            customCss={drafts["custom.css"] ?? ""}
+            onChangeCustomJs={(newJs) =>
+              setDrafts((current) => ({
+                ...current,
+                "custom.js": newJs,
+              }))
+            }
+            onChangeCustomCss={(newCss) =>
+              setDrafts((current) => ({
+                ...current,
+                "custom.css": newCss,
               }))
             }
           />
@@ -7223,7 +7336,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             </div>
           );
         })}
-        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && (
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
             В config-папке пока нет дополнительных файлов для редактирования.
           </div>
@@ -7242,7 +7355,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           <button
             type="button"
             onClick={handleSave}
-            disabled={(activeFileName !== "__page_styling__" && !activeTab) || saving}
+            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && !activeTab) || saving}
             className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
             {saving ? "Сохранение..." : "Сохранить"}
