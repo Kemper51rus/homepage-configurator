@@ -2563,6 +2563,25 @@ function CodeEditor({
     [language, onChange, syncScrollPosition, value],
   );
 
+  const jumpToMarker = useCallback(
+    (marker) => {
+      const index = value.indexOf(marker);
+      if (index !== -1 && textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(index, index + marker.length);
+        
+        // Рассчитываем скролл
+        const textBefore = value.substring(0, index);
+        const lines = textBefore.split("\n").length;
+        const lineVal = Math.round((24 * zoom) / 100 * 100) / 100; // Высота строки
+        const targetScrollTop = Math.max(0, (lines - 2) * lineVal);
+        textareaRef.current.scrollTop = targetScrollTop;
+        syncScrollPosition(textareaRef.current);
+      }
+    },
+    [value, zoom, syncScrollPosition],
+  );
+
   useEffect(() => {
     if (textareaRef.current) {
       syncScrollPosition(textareaRef.current);
@@ -2596,6 +2615,24 @@ function CodeEditor({
           <span className="font-medium uppercase tracking-[0.18em] opacity-70">{language === "plain" ? "text" : language}</span>
           <div className="flex items-center gap-2">
             <span className="opacity-60">{value.length} симв.</span>
+            {placeholder === "custom.css" && value.includes("/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */") && (
+              <button
+                type="button"
+                onClick={() => jumpToMarker("/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */")}
+                className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10 text-emerald-600 dark:text-emerald-400"
+              >
+                Начало стилей configurator
+              </button>
+            )}
+            {placeholder === "custom.css" && value.includes("/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */") && (
+              <button
+                type="button"
+                onClick={() => jumpToMarker("/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */")}
+                className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10 text-emerald-600 dark:text-emerald-400"
+              >
+                Начало стилей радио
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setZoom((current) => Math.max(CODE_EDITOR_MIN_ZOOM, current - zoomDecreaseStep))}
