@@ -300,9 +300,9 @@ function install(target, options = {}) {
 
   const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
 
-  syncManagedDependencies(target);
   installOverlay(target);
   applyPatch(target);
+  syncManagedDependencies(target);
   writeManifest(target, {
     installedAt: new Date().toISOString(),
     source: root,
