@@ -293,14 +293,14 @@
 
   function createRadioMarkup() {
     const buttonsMap = {
-      like: `<li>
+      like: `<li id="like-container">
               <button id="like" class="jexum radiopx" type="button" title="Нравится">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-like-dislike">
                   <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                 </svg>
               </button>
             </li>`,
-      dislike: `<li>
+      dislike: `<li id="dislike-container">
               <button id="dislike" class="jexum radiopx" type="button" title="Не нравится">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-like-dislike" style="transform: scaleY(-1);">
                   <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
@@ -430,12 +430,81 @@
       return;
     }
 
+    let currentSongId = "";
+    let nowPlayingIntervalId = 0;
+
+    function fetchNowPlaying() {
+      fetch("https://hfm.hakuran.ru/api/nowplaying/1")
+        .then(r => r.json())
+        .then(data => {
+          if (data?.now_playing?.song?.id) {
+            currentSongId = data.now_playing.song.id;
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch nowplaying info:", err);
+        });
+    }
+
+    fetchNowPlaying();
+    nowPlayingIntervalId = window.setInterval(fetchNowPlaying, 15000);
+
     addManagedListener(likeButton, "click", () => {
-      console.log("Like clicked");
+      if (!currentSongId) {
+        console.warn("No song ID available for vote");
+        return;
+      }
+      
+      const originalColor = likeButton.style.color;
+      likeButton.style.color = "#56fd3c";
+      
+      const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=up`;
+      fetch(url)
+        .then(r => {
+          if (r.ok) {
+            console.log("Liked song", currentSongId);
+          } else {
+            console.error("Like API failed with status", r.status);
+            likeButton.style.color = originalColor;
+          }
+        })
+        .catch(err => {
+          console.error("Like API request failed:", err);
+          likeButton.style.color = originalColor;
+        });
+        
+      setTimeout(() => {
+        likeButton.style.color = originalColor;
+      }, 1500);
     });
 
     addManagedListener(dislikeButton, "click", () => {
-      console.log("Dislike clicked");
+      if (!currentSongId) {
+        console.warn("No song ID available for vote");
+        return;
+      }
+      
+      const originalColor = dislikeButton.style.color;
+      dislikeButton.style.color = "#ff4a4a";
+      
+      const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=down`;
+      fetch(url)
+        .then(r => {
+          if (r.ok) {
+            console.log("Disliked song", currentSongId);
+          } else {
+            console.error("Dislike API failed with status", r.status);
+            dislikeButton.style.color = originalColor;
+          }
+        })
+        .catch(err => {
+          console.error("Dislike API request failed:", err);
+          dislikeButton.style.color = originalColor;
+        });
+        
+      setTimeout(() => {
+        dislikeButton.style.color = originalColor;
+      }, 1500);
     });
 
     const stationButtons = new Map(
@@ -458,6 +527,10 @@
       }
 
       isDisposed = true;
+      if (nowPlayingIntervalId) {
+        window.clearInterval(nowPlayingIntervalId);
+        nowPlayingIntervalId = 0;
+      }
       startRequestId += 1;
 
       if (placementFrameId) {
@@ -561,10 +634,31 @@
       playlistIcon.src = isPlaying ? "/images/radio/play.gif" : "/images/radio/pl.png";
     }
 
+    function updateLikesVisibility() {
+      const hakuranStation = stations.find((s) => s.label.toLowerCase() === "hakuran");
+      const hakuranKey = hakuranStation ? hakuranStation.key : null;
+      
+      const isPlaying = audio && !audio.paused && !audio.ended && audio.src;
+      const shouldShow = isPlaying || (state.lastStationKey === hakuranKey);
+      
+      console.log("updateLikesVisibility called: isPlaying =", !!isPlaying, "lastStationKey =", state.lastStationKey, "hakuranKey =", hakuranKey, "shouldShow =", shouldShow);
+
+      const likeLi = radioRoot.querySelector("#like-container");
+      const dislikeLi = radioRoot.querySelector("#dislike-container");
+      
+      if (likeLi) {
+        likeLi.style.display = shouldShow ? "" : "none";
+      }
+      if (dislikeLi) {
+        dislikeLi.style.display = shouldShow ? "" : "none";
+      }
+    }
+
     function updateActiveStationClasses() {
       stationButtons.forEach((button, key) => {
         button?.classList.toggle("jenium", state.activeStation === key);
       });
+      updateLikesVisibility();
     }
 
     function saveCurrentPlayerState(shouldPlayOverride = null) {
@@ -767,6 +861,7 @@
 
       updatePlaybackIcons(true);
       saveCurrentPlayerState(true);
+      updateLikesVisibility();
     }
 
     function handleAudioPause() {
@@ -781,6 +876,7 @@
       }
 
       saveCurrentPlayerState(false);
+      updateLikesVisibility();
     }
 
     function handleAudioEnded() {
