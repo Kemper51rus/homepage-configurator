@@ -129,6 +129,9 @@ export function parseIpEnabled(customJs) {
 }
 
 export function parseRadioEnabled(customJs) {
+  if (!customJs.includes('/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */')) {
+    return false;
+  }
   const match = customJs.match(/const\s+radioEnabled\s*=\s*(true|false)/);
   return match ? match[1] === 'true' : true;
 }

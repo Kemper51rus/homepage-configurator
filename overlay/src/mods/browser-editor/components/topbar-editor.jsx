@@ -3,6 +3,7 @@ import classNames from 'classnames';
 import {
   parseRadioStations,
   isRadioEnabled,
+  parseRadioEnabled,
   updateRadioInCustomJs,
   updateRadioInCustomCss,
   parseParticlesConfig,
@@ -57,7 +58,7 @@ export default function TopBarSettingsEditor({
   // Load configuration initially
   useEffect(() => {
     const isRadio = isRadioEnabled(customJs);
-    setRadioEnabled(isRadio);
+    setRadioEnabled(parseRadioEnabled(customJs));
     if (isRadio) {
       setStations(parseRadioStations(customJs));
       setRadioButtonsOrder(parseRadioButtonsOrder(customJs));
