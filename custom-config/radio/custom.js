@@ -639,8 +639,7 @@
         return;
       }
       
-      const originalColor = likeButton.style.color;
-      likeButton.style.color = "#56fd3c";
+      likeButton.classList.add("like-clicked");
       
       const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=up`;
       fetch(url)
@@ -649,16 +648,14 @@
             console.log("Liked song", currentSongId);
           } else {
             console.error("Like API failed with status", r.status);
-            likeButton.style.color = originalColor;
           }
         })
         .catch(err => {
           console.error("Like API request failed:", err);
-          likeButton.style.color = originalColor;
         });
         
       setTimeout(() => {
-        likeButton.style.color = originalColor;
+        likeButton.classList.remove("like-clicked");
       }, 1500);
     });
 
@@ -668,8 +665,7 @@
         return;
       }
       
-      const originalColor = dislikeButton.style.color;
-      dislikeButton.style.color = "#ff4a4a";
+      dislikeButton.classList.add("dislike-clicked");
       
       const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=down`;
       fetch(url)
@@ -678,16 +674,14 @@
             console.log("Disliked song", currentSongId);
           } else {
             console.error("Dislike API failed with status", r.status);
-            dislikeButton.style.color = originalColor;
           }
         })
         .catch(err => {
           console.error("Dislike API request failed:", err);
-          dislikeButton.style.color = originalColor;
         });
         
       setTimeout(() => {
-        dislikeButton.style.color = originalColor;
+        dislikeButton.classList.remove("dislike-clicked");
       }, 1500);
     });
 
