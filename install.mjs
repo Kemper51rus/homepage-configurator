@@ -334,7 +334,7 @@ function preflightInstallPatchState(target, manifest) {
     [
       "Core patch cannot be applied to this Homepage checkout.",
       "Update the Homepage source checkout first, then run the configurator again.",
-      "For the bundled LXC installer use install-update-homepage.sh option 2, or reinstall Homepage from the current community script.",
+      "For LXC install reinstall Homepage from the current community script or perform manual update.",
     ].join("\n"),
   );
 }

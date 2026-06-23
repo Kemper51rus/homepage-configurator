@@ -16,16 +16,6 @@
 
 ## Quick install
 
-Установка target-проекта Homepage нашим скриптом внутри готового Debian/Ubuntu LXC:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
-```
-
-Скрипт `install-update-homepage.sh` устанавливает или обновляет upstream `gethomepage/homepage` в `/opt/homepage`, настраивает `homepage.service`, внешние каталоги конфигов и картинок. По умолчанию сервис слушает `0.0.0.0:3000`; внешний reverse proxy настраивается отдельно и не входит в этот проект.
-
-Для установки target-проекта запускайте его от `root`.
-
 Установка target-проекта Homepage через Proxmox VE Community Scripts из Proxmox VE Shell:
 
 ```bash
@@ -81,8 +71,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 ## Порядок Первой Установки
 
-1. Запустите `install-update-homepage.sh` и выберите установку target-проекта.
-2. Дождитесь успешной сборки и запуска `homepage.service`.
+1. Установите target-проект Homepage (например, через Proxmox VE Community Scripts).
+2. Дождитесь успешного запуска `homepage.service`.
 3. Запустите `install.sh` и выберите установку мода.
 
 После установки или обновления мода `install.sh` сразу устанавливает весь managed-набор `custom.css/custom.js`: `cards`, `extras`, `radio` и `particles`.
@@ -118,10 +108,10 @@ node install.mjs --uninstall --target /path/to/gethomepage/homepage
 Перед обновлением upstream Homepage лучше временно удалить мод:
 
 1. запустите `install.sh` и выберите `Удалить`;
-2. запустите `install-update-homepage.sh` и выберите `Обновить`;
+2. обновите upstream Homepage штатным способом (например, через git pull в /opt/homepage или переустановку скрипта);
 3. снова запустите `install.sh` и выберите `Установить`.
 
-Это нужно потому, что мод меняет core-файлы Homepage через `browser-editor.patch`, а `install-update-homepage.sh` обновляет target через `git pull`.
+Это нужно потому, что мод меняет core-файлы Homepage через `browser-editor.patch`.
 
 ## Обновление Мода Из GitHub
 

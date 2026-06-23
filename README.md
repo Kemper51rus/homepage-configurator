@@ -18,12 +18,6 @@
 
 ## Quick install
 
-Установка target-проекта Homepage нашим скриптом внутри готового Debian/Ubuntu LXC:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install-update-homepage.sh)
-```
-
 Установка target-проекта Homepage через Proxmox VE Community Scripts из Proxmox VE Shell:
 
 ```bash
