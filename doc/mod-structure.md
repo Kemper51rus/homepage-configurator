@@ -1,6 +1,6 @@
 # Структура мода
 
-Проект `gethomepage/homepage` считается целевым upstream-checkout. Этот репозиторий хранит:
+Проект [gethomepage/homepage](https://github.com/gethomepage/homepage) считается целевым upstream-checkout. Этот репозиторий хранит:
 
 - исходники мода в `overlay/`;
 - core-patch для точек встраивания;

@@ -3,7 +3,7 @@
   Homepage configurator
 </h1>
 
-Отдельный мод для `gethomepage/homepage`, который добавляет редактирование dashboard прямо из браузера:
+Отдельный мод для [gethomepage/homepage](https://github.com/gethomepage/homepage), который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;
 - настройка, добавление и удаление закладок;
@@ -120,7 +120,7 @@ npm run smoke:install
 
 ## Сборка Standalone
 
-Staging checkout для проверки production-сборки можно держать внутри проекта в `.runtime-build/`. Это служебная копия upstream `gethomepage/homepage`, она исключена из git и может быть удалена/пересоздана.
+Staging checkout для проверки production-сборки можно держать внутри проекта в `.runtime-build/`. Это служебная копия upstream [gethomepage/homepage](https://github.com/gethomepage/homepage), она исключена из git и может быть удалена/пересоздана.
 
 Если `.runtime-build/` ещё нет:
 

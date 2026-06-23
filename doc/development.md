@@ -12,7 +12,7 @@ Staging checkout Homepage для проверки или сборки:
 .runtime-build
 ```
 
-`.runtime-build/` лежит внутри проекта, исключён из git и содержит отдельный checkout upstream `gethomepage/homepage` с установленным overlay-модом. Это не источник правды; при проблемах каталог можно удалить и создать заново:
+`.runtime-build/` лежит внутри проекта, исключён из git и содержит отдельный checkout upstream [gethomepage/homepage](https://github.com/gethomepage/homepage) с установленным overlay-модом. Это не источник правды; при проблемах каталог можно удалить и создать заново:
 
 ```bash
 git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-build

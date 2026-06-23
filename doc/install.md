@@ -2,7 +2,7 @@
 
 ## Требования
 
-Для установки нужен именно checkout исходников `gethomepage/homepage`, а не только директория `config`.
+Для установки нужен именно checkout исходников [gethomepage/homepage](https://github.com/gethomepage/homepage), а не только директория `config`.
 
 Минимально на инстансе должны быть:
 
@@ -94,7 +94,7 @@ node install.mjs --dry-run --uninstall --target /path/to/gethomepage/homepage
 node install.mjs --uninstall --target /path/to/gethomepage/homepage
 ```
 
-Перед применением он показывает план, проверяет, что target похож на checkout `gethomepage/homepage`, сохраняет backup затрагиваемых файлов в `.homepage-configurator-backups/` и пишет manifest `.homepage-configurator-manifest.json`. При uninstall удаляются файлы из manifest; если overlay-файл был изменён вручную, uninstall остановится без `--force`.
+Перед применением он показывает план, проверяет, что target похож на checkout [gethomepage/homepage](https://github.com/gethomepage/homepage), сохраняет backup затрагиваемых файлов в `.homepage-configurator-backups/` и пишет manifest `.homepage-configurator-manifest.json`. При uninstall удаляются файлы из manifest; если overlay-файл был изменён вручную, uninstall остановится без `--force`.
 
 Интерактивные действия `Обновить мод из GitHub` и `Обновить интеграцию в target из текущего каталога` сначала проходят preflight-проверку нового patch, затем переустанавливают overlay и core patch поверх существующего manifest. Обычное действие `Удалить` остаётся защищённым.
 
@@ -215,11 +215,11 @@ HOMEPAGE_ALLOWED_HOSTS=localhost:3000,127.0.0.1:3000,<runtime-host>:3000
 
 ## Docker
 
-Стандартный контейнер `gethomepage/homepage` нельзя надежно пропатчить на месте: внутри него нет постоянного writable checkout исходников. После пересоздания контейнера такие изменения пропадут.
+Стандартный контейнер [gethomepage/homepage](https://github.com/gethomepage/homepage) нельзя надежно пропатчить на месте: внутри него нет постоянного writable checkout исходников. После пересоздания контейнера такие изменения пропадут.
 
 Для Docker нужен один из вариантов:
 
-- отдельный checkout `gethomepage/homepage`, в который ставится мод, после чего собирается свой image;
+- отдельный checkout [gethomepage/homepage](https://github.com/gethomepage/homepage), в который ставится мод, после чего собирается свой image;
 - кастомный image, где установка мода выполняется на этапе build;
 - bind-mounted writable source checkout, если контейнер специально собран под такой режим.
 
@@ -234,7 +234,7 @@ npm run install:target -- --target /opt/homepage
 npm run enable:target -- --target /opt/homepage
 ```
 
-Где `/opt/homepage` - путь к локальному checkout проекта `gethomepage/homepage`.
+Где `/opt/homepage` - путь к локальному checkout проекта [gethomepage/homepage](https://github.com/gethomepage/homepage).
 
 После установки перезапустите homepage обычным способом. Для dev-запуска с доступом по IP нужно указать точный host и port:
 
