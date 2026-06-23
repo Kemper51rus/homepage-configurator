@@ -121,6 +121,9 @@ export function parseIpProviders(customJs) {
 }
 
 export function parseIpEnabled(customJs) {
+  if (!customJs.includes('/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */')) {
+    return false;
+  }
   const match = customJs.match(/const\s+ipEnabled\s*=\s*(true|false)/);
   return match ? match[1] === 'true' : true;
 }
@@ -219,13 +222,13 @@ export function updateRadioInCustomJs(
   const baseTemplate = radioJsTemplate;
   let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
   configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
-  configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
-  configuredBlock = configuredBlock.replace(/const\s+radioButtonsStyle\s*=\s*"[^"]+";/, styleLine);
-  configuredBlock = configuredBlock.replace(/const\s+radioIconSize\s*=\s*\d+;/, sizeLine);
-  configuredBlock = configuredBlock.replace(/const\s+radioButtonSize\s*=\s*\d+;/, btnSizeLine);
-  configuredBlock = configuredBlock.replace(/const\s+linkIpFpsSizes\s*=\s*(true|false);/, linkIpFpsLine);
-  configuredBlock = configuredBlock.replace(/const\s+radioEnabled\s*=\s*(true|false);/, radioEnabledLine);
-  configuredBlock = configuredBlock.replace(/const\s+ipEnabled\s*=\s*(true|false);/, ipEnabledLine);
+  configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);?/, hideLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioButtonsStyle\s*=\s*"[^"]+";?/, styleLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioIconSize\s*=\s*\d+;?/, sizeLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioButtonSize\s*=\s*\d+;?/, btnSizeLine);
+  configuredBlock = configuredBlock.replace(/const\s+linkIpFpsSizes\s*=\s*(true|false);?/, linkIpFpsLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioEnabled\s*=\s*(true|false);?/, radioEnabledLine);
+  configuredBlock = configuredBlock.replace(/const\s+ipEnabled\s*=\s*(true|false);?/, ipEnabledLine);
   configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
   
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
