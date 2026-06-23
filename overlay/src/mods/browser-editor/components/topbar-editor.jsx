@@ -55,8 +55,11 @@ export default function TopBarSettingsEditor({
     } else {
       // Default initial stations
       setStations([
-        { id: 'initial-1', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: true },
-        { id: 'initial-2', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false }
+        { id: 'initial-1', label: 'TNT', url: 'https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e', isDefault: false },
+        { id: 'initial-2', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: false },
+        { id: 'initial-3', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false },
+        { id: 'initial-4', label: 'Energy', url: 'https://pub0302.101.ru:8443/stream/air/aac/64/99', isDefault: false },
+        { id: 'initial-5', label: 'Hakuran', url: 'https://hfm.hakuran.ru/listen/hfm/radio.mp3', isDefault: true }
       ]);
       setRadioButtonsOrder([
         'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
@@ -79,7 +82,8 @@ export default function TopBarSettingsEditor({
       setIpProviders([
         { id: 'initial-ip-1', label: 'ipwho.is', url: 'https://ipwho.is/', jsonKey: 'ip' },
         { id: 'initial-ip-2', label: 'ipapi.co', url: 'https://ipapi.co/json/', jsonKey: 'ip' },
-        { id: 'initial-ip-3', label: 'api.ipify.org', url: 'https://api.ipify.org?format=json', jsonKey: 'ip' }
+        { id: 'initial-ip-3', label: 'api.ip.sb', url: 'https://api.ip.sb/ip', jsonKey: '' },
+        { id: 'initial-ip-4', label: 'api.ipify.org', url: 'https://api.ipify.org?format=json', jsonKey: 'ip' }
       ]);
     }
   }, [customJs]);

@@ -14,6 +14,7 @@
   const ipProviderList = `
     ipwho.is, https://ipwho.is/, ip
     ipapi.co, https://ipapi.co/json/, ip
+    api.ip.sb, https://api.ip.sb/ip
     api.ipify.org, https://api.ipify.org?format=json, ip
   `;
   const ipHideOnError = true;
@@ -53,9 +54,10 @@
   // * Station name, stream URL  -> default station
   const stationList = `
     TNT, https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e
-    * DFM, https://dfm.hostingradio.ru/dfm96.aacp
+    DFM, https://dfm.hostingradio.ru/dfm96.aacp
     Power, https://radio.dline-media.com/powerhit128
     Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99
+    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3
   `;
 
   // Order of radio buttons: like, dislike, playlist, plapau, volumedown, volumeset, volumeup
@@ -956,7 +958,7 @@
       }
     });
 
-    ipRoot.hidden = true;
+    ipRoot.style.display = "none";
     ipContainer.replaceChildren();
     currentIpAddress = "";
 
@@ -968,7 +970,7 @@
 
         currentIpAddress = payload.ip || "";
         renderIpInfo(payload);
-        ipRoot.hidden = false;
+        ipRoot.style.display = "flex";
       })
       .catch(() => {
         if (isDisposed) {
@@ -984,9 +986,9 @@
           errorSpan.textContent = "Неизвестно";
           errorSpan.style.color = "#ff4a4a";
           ipContainer.appendChild(errorSpan);
-          ipRoot.hidden = false;
+          ipRoot.style.display = "flex";
         } else {
-          ipRoot.hidden = true;
+          ipRoot.style.display = "none";
         }
       });
   }
