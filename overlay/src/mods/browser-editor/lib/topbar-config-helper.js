@@ -42,6 +42,20 @@ function upsertBlock(content, startMarker, endMarker, blockTemplate) {
   return newContent + blockTemplate + '\n';
 }
 
+// Parser for radio buttons order in custom.js
+export function parseRadioButtonsOrder(customJs) {
+  const match = customJs.match(/const\s+radioButtonsOrder\s*=\s*`([\s\S]*?)`/);
+  if (!match) {
+    return ['like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'];
+  }
+  
+  const text = match[1];
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 // Parser for radio stations in custom.js
 export function parseRadioStations(customJs) {
   const match = customJs.match(/const\s+stationList\s*=\s*`([\s\S]*?)`/);
@@ -109,7 +123,14 @@ export function isRadioEnabled(customJs) {
 }
 
 // Update custom.js with radio settings
-export function updateRadioInCustomJs(customJs, stations, enabled, ipProviders = [], ipHideOnError = true) {
+export function updateRadioInCustomJs(
+  customJs,
+  stations,
+  enabled,
+  ipProviders = [],
+  ipHideOnError = true,
+  radioButtonsOrder = ['like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup']
+) {
   if (!enabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */', '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */');
   }
@@ -127,12 +148,15 @@ export function updateRadioInCustomJs(customJs, stations, enabled, ipProviders =
     return `    ${p.label}, ${p.url}${jsonKeyPart}`;
   }).join('\n');
   const serializedIpList = `\n${ipProvidersText}\n  `;
+
+  // Generate the buttons order string
+  const buttonsOrderText = radioButtonsOrder.join('\n    ');
+  const serializedButtonsOrder = `\n    ${buttonsOrderText}\n  `;
   
   // If block exists, update it
   const startMarker = '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */';
   const endMarker = '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */';
   
-  const providerListDecl = `const ipProviderList = \`${serializedIpList}\`;`;
   const hideLine = `const ipHideOnError = ${ipHideOnError};`;
   
   const startIndex = customJs.indexOf(startMarker);
@@ -140,33 +164,40 @@ export function updateRadioInCustomJs(customJs, stations, enabled, ipProviders =
   
   if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
     let blockContent = customJs.substring(startIndex, endIndex + endMarker.length);
+    
+    // Check if the existing block is an older version that does not have buttons order feature
+    const hasButtonsOrder = blockContent.includes('const radioButtonsOrder =');
+    if (!hasButtonsOrder) {
+      const baseTemplate = radioJsTemplate;
+      let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
+      configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
+      configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
+      configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
+      
+      return customJs.substring(0, startIndex) + configuredBlock + customJs.substring(endIndex + endMarker.length);
+    }
+
     // Replace the stationList definition inside the block
     blockContent = blockContent.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
     
     // Replace ipProviderList
-    if (blockContent.includes('const ipProviderList =')) {
-      blockContent = blockContent.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
-    } else {
-      // Remove old const ipProvider = ... line if any
-      blockContent = blockContent.replace(/const\s+ipProvider\s*=\s*"[^"]+";\n?\s*/, '');
-      blockContent = blockContent.replace('const stationList =', `${providerListDecl}\n  const stationList =`);
-    }
+    blockContent = blockContent.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
     
     // Replace ipHideOnError
-    if (blockContent.includes('const ipHideOnError =')) {
-      blockContent = blockContent.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
-    } else {
-      blockContent = blockContent.replace('const stationList =', `${hideLine}\n  const stationList =`);
-    }
+    blockContent = blockContent.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
+
+    // Replace radioButtonsOrder
+    blockContent = blockContent.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
     
     return customJs.substring(0, startIndex) + blockContent + customJs.substring(endIndex + endMarker.length);
   }
   
-  // Block does not exist, insert template with our serialized list
+  // Block does not exist, insert template with our settings
   const baseTemplate = radioJsTemplate;
   let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
   configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
   configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
+  configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
 }
 

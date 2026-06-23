@@ -58,6 +58,24 @@
     Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99
   `;
 
+  // Order of radio buttons: like, dislike, playlist, plapau, volumedown, volumeset, volumeup
+  const radioButtonsOrder = `
+    like
+    dislike
+    playlist
+    plapau
+    volumedown
+    volumeset
+    volumeup
+  `;
+
+  function parseRadioButtonsOrder(definition) {
+    return definition
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
   function createStationKey(label, index) {
     return `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "station"}-${index}`;
   }
@@ -272,62 +290,68 @@
   }
 
   function createRadioMarkup() {
-    return `
-      <div class="hpradio">
-        <div class="jexumnav">
-          <ul class="jexummenu">
-            <li>
+    const buttonsMap = {
+      like: `<li>
               <button id="like" class="jexum radiopx" type="button" title="Нравится">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-like-dislike">
                   <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                 </svg>
               </button>
-            </li>
-            <li>
+            </li>`,
+      dislike: `<li>
               <button id="dislike" class="jexum radiopx" type="button" title="Не нравится">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-like-dislike" style="transform: scaleY(-1);">
                   <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                 </svg>
               </button>
-            </li>
-            <li id="lif">
+            </li>`,
+      playlist: `<li id="lif">
               <button id="playlist" class="jexum swb" type="button">
                 <img id="pl" class="imgmpx" src="/images/radio/pl.png" alt="">
                 &ensp;
                 <img id="down4" class="px" src="/images/radio/down.png" alt="">
               </button>
               <ul class="jexumsub">
-                ${stations
+                \${stations
                   .map(
                     (station) =>
-                      `<li><button id="${station.key}" class="jexum jeniumMradio" type="button">${station.label}</button></li>`,
+                      \`<li><button id="\${station.key}" class="jexum jeniumMradio" type="button">\${station.label}</button></li>\`,
                   )
                   .join("")}
               </ul>
-            </li>
-            <li>
+            </li>`,
+      plapau: `<li>
               <button id="plapau" class="jexum radiopx" type="button">
                 <img id="imgplay" class="imgmpx" src="/images/radio/play.png" alt="">
               </button>
-            </li>
-            <li>
+            </li>`,
+      volumedown: `<li>
               <button id="volumedown" class="jexum radiopx" type="button">
                 <img id="dvolume" class="imgmpx" src="/images/radio/volume-down.png" alt="">
               </button>
-            </li>
-            <li>
+            </li>`,
+      volumeset: `<li>
               <button id="volumeset" class="jexum radiopx" type="button">10</button>
-            </li>
-            <li>
+            </li>`,
+      volumeup: `<li>
               <button id="volumeup" class="jexum radiopx" type="button">
                 <img id="uvolume" class="imgmpx" src="/images/radio/volume-up.png" alt="">
               </button>
-            </li>
+            </li>`
+    };
+
+    const order = parseRadioButtonsOrder(radioButtonsOrder);
+    const buttonsMarkup = order.map((key) => buttonsMap[key] || "").join("");
+
+    return `
+      <div class="hpradio">
+        <div class="jexumnav">
+          <ul class="jexummenu">
+            \${buttonsMarkup}
           </ul>
           <audio id="jexumaudio"></audio>
         </div>
       </div>
-    `;
   }
 
   function mountRoots() {

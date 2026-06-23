@@ -9,7 +9,8 @@ import {
   isParticlesEnabled,
   updateParticlesInCustomJs,
   updateParticlesInCustomCss,
-  parseIpConfig
+  parseIpConfig,
+  parseRadioButtonsOrder
 } from '../lib/topbar-config-helper';
 
 const AVAILABLE_EFFECTS = [
@@ -31,6 +32,9 @@ export default function TopBarSettingsEditor({
   // Radio States
   const [radioEnabled, setRadioEnabled] = useState(false);
   const [stations, setStations] = useState([]);
+  const [radioButtonsOrder, setRadioButtonsOrder] = useState([
+    'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
+  ]);
 
   // Particles States
   const [particlesEnabled, setParticlesEnabled] = useState(false);
@@ -47,11 +51,15 @@ export default function TopBarSettingsEditor({
     setRadioEnabled(isRadio);
     if (isRadio) {
       setStations(parseRadioStations(customJs));
+      setRadioButtonsOrder(parseRadioButtonsOrder(customJs));
     } else {
       // Default initial stations
       setStations([
         { id: 'initial-1', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: true },
         { id: 'initial-2', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false }
+      ]);
+      setRadioButtonsOrder([
+        'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
       ]);
     }
 
@@ -84,13 +92,14 @@ export default function TopBarSettingsEditor({
     nextEnabledEffects,
     nextDefaultEffect,
     nextIpProviders = ipProviders,
-    nextIpHideOnError = ipHideOnError
+    nextIpHideOnError = ipHideOnError,
+    nextRadioButtonsOrder = radioButtonsOrder
   ) => {
     let newJs = customJs;
     let newCss = customCss;
 
     // Apply Radio and IP Changes
-    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProviders, nextIpHideOnError);
+    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProviders, nextIpHideOnError, nextRadioButtonsOrder);
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled);
 
     // Apply Particles Changes
@@ -178,6 +187,37 @@ export default function TopBarSettingsEditor({
 
     setStations(nextStations);
     syncChanges(radioEnabled, nextStations, particlesEnabled, enabledEffects, defaultEffect);
+  };
+
+  // Drag and Drop Radio Buttons sorting
+  const handleButtonDragStart = (e, buttonId) => {
+    e.dataTransfer.setData('text/radio-button-id', buttonId);
+  };
+
+  const handleButtonDrop = (e, targetButtonId) => {
+    e.preventDefault();
+    const sourceButtonId = e.dataTransfer.getData('text/radio-button-id');
+    if (!sourceButtonId || sourceButtonId === targetButtonId) return;
+
+    const sourceIndex = radioButtonsOrder.indexOf(sourceButtonId);
+    const targetIndex = radioButtonsOrder.indexOf(targetButtonId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const nextOrder = [...radioButtonsOrder];
+    const [moved] = nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, moved);
+
+    setRadioButtonsOrder(nextOrder);
+    syncChanges(
+      radioEnabled,
+      stations,
+      particlesEnabled,
+      enabledEffects,
+      defaultEffect,
+      ipProviders,
+      ipHideOnError,
+      nextOrder
+    );
   };
 
   // Particles Event Handlers
@@ -283,6 +323,93 @@ export default function TopBarSettingsEditor({
     syncChanges(radioEnabled, stations, particlesEnabled, enabledEffects, defaultEffect, ipProviders, hide);
   };
 
+  const renderPreviewButton = (buttonId) => {
+    const commonClass = "flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-[4px] h-[18px] transition-colors cursor-grab select-none";
+    
+    const dragHandlers = {
+      draggable: true,
+      onDragStart: (e) => handleButtonDragStart(e, buttonId),
+      onDragOver: (e) => e.preventDefault(),
+      onDrop: (e) => handleButtonDrop(e, buttonId),
+    };
+
+    switch (buttonId) {
+      case 'like':
+        return (
+          <div key="like" {...dragHandlers} className={`${commonClass} w-[30px]`} title="Лайк (перетащи для изменения порядка)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+            </svg>
+          </div>
+        );
+      case 'dislike':
+        return (
+          <div key="dislike" {...dragHandlers} className={`${commonClass} w-[30px]`} title="Дизлайк (перетащи для изменения порядка)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: "scaleY(-1)" }} className="pointer-events-none">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+            </svg>
+          </div>
+        );
+      case 'playlist':
+        return (
+          <div key="playlist" {...dragHandlers} className="relative group/preview" title="Плейлист (наведи для списка станций, перетащи для изменения порядка)">
+            <div className="flex items-center gap-[6px] px-1 bg-white/5 hover:bg-white/10 text-white rounded-[4px] h-[18px] transition-colors cursor-grab select-none">
+              <img className="w-3.5 h-2.5 shrink-0 pointer-events-none" src="/images/radio/pl.png" alt="" />
+              <img className="w-2 h-1.5 shrink-0 pointer-events-none" src="/images/radio/down.png" alt="" />
+            </div>
+            
+            {/* Выпадающее меню станций */}
+            <ul className="absolute top-[20px] left-0 bg-[#0c0c10]/95 border border-white/10 rounded-[4px] p-1.5 hidden group-hover/preview:block z-[100] min-w-[150px] shadow-2xl space-y-0.5">
+              {stations.map((st, index) => (
+                <li
+                  key={st.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className="transition-transform duration-150"
+                >
+                  <button className={classNames(
+                    "w-full text-left px-2 py-1 text-xs rounded text-white/70 hover:text-[#56fd3c] hover:bg-white/5 transition-colors cursor-grab flex items-center justify-between gap-2",
+                    st.isDefault && "text-[#56fd3c] font-semibold"
+                  )} type="button">
+                    <span className="truncate">{st.label || "Без названия"}</span>
+                    <span className="opacity-40 text-[9px] select-none font-bold shrink-0">⋮⋮</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      case 'plapau':
+        return (
+          <div key="plapau" {...dragHandlers} className={`${commonClass} w-[38px]`} title="Воспроизведение (перетащи для изменения порядка)">
+            <img className="w-3 h-3 pointer-events-none" src="/images/radio/play.png" alt="" />
+          </div>
+        );
+      case 'volumedown':
+        return (
+          <div key="volumedown" {...dragHandlers} className={`${commonClass} w-[43px]`} title="Тише (перетащи для изменения порядка)">
+            <img className="w-3.5 h-2.5 pointer-events-none" src="/images/radio/volume-down.png" alt="" />
+          </div>
+        );
+      case 'volumeset':
+        return (
+          <div key="volumeset" {...dragHandlers} className={`${commonClass} w-[33px] text-[12px] font-semibold`} title="Громкость (перетащи для изменения порядка)">
+            10
+          </div>
+        );
+      case 'volumeup':
+        return (
+          <div key="volumeup" {...dragHandlers} className={`${commonClass} w-[43px]`} title="Громче (перетащи для изменения порядка)">
+            <img className="w-3.5 h-2.5 pointer-events-none" src="/images/radio/volume-up.png" alt="" />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="topbar-settings-editor flex flex-col gap-6 text-sm text-theme-800 dark:text-theme-200 overflow-y-auto max-h-[60vh] pr-2 pb-4">
       {/* 1. RADIO SECTION */}
@@ -307,6 +434,16 @@ export default function TopBarSettingsEditor({
 
         {radioEnabled && (
           <div className="space-y-3 mt-4">
+            {/* Визуальный предпросмотр виджета */}
+            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block mb-3">Визуальный предпросмотр виджета (кнопки радио можно перетаскивать)</span>
+              <div className="flex justify-center items-center p-5 bg-theme-100/5 rounded-xl border border-theme-300/10 dark:border-white/5">
+                <div className="flex items-center gap-[2px] px-2 py-1 bg-[#0c0c10]/95 border border-white/10 rounded-lg shadow-2xl font-['Comfortaa',sans-serif]">
+                  {radioButtonsOrder.map(buttonId => renderPreviewButton(buttonId))}
+                </div>
+              </div>
+            </div>
+
             <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block mb-2">Список станций</span>
             
             <div className="space-y-2">
