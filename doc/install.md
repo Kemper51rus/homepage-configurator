@@ -37,11 +37,6 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Установить` - первая установка мода;
 - `Обновить мод из GitHub` - переустановить мод поверх target-проекта из актуальной версии GitHub-репозитория;
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
-- `Установить/обновить цветные карточки` - встроить managed-блок CSS, который нужен для `id` вида `color-red-name-card`;
-- `Установить/обновить остальные правки custom.css` - встроить managed-блок дополнительных CSS-правок без радио и фона;
-- `Установить радио (custom.css/custom.js)` - встроить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage; при активном воспроизведении радио ссылки сервисов и закладок открываются в новой вкладке;
-- `Установить эффекты фона particles` - встроить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
-- `Установить все дополнения custom.css/custom.js` - встроить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта;
 - `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в env-файле target (`.env.local` или существующий `.env`).
 
@@ -147,64 +142,18 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 6. синхронизацию `.next/static` и `public` в `.next/standalone`, если используется standalone;
 7. один перезапуск `homepage.service`, если сервис активен.
 
-## Установка Custom-Дополнений Во Внешние Custom Файлы
+## Custom-Дополнения
 
-Если нужно накатить только managed-блоки custom-дополнений из этого репозитория во внешнюю папку config Homepage, запустите:
+При установке мода инсталлятор автоматически интегрирует весь managed-набор дополнений (`cards`, `extras`, `radio` и `particles`) в файлы `custom.js` и `custom.css`. 
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
-```
-
-и выберите нужное действие:
-
-1. `Установить/обновить цветные карточки`
-2. `Установить/обновить остальные правки custom.css`
-3. `Установить радио (custom.css/custom.js)`
-4. `Установить эффекты фона particles`
-5. `Установить все дополнения custom.css/custom.js`
-
-Либо можно указать директорию явно:
-
-```bash
-HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-radio
-```
-
-или:
-
-```bash
-HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-particles
-```
-
-Цветные карточки и остальные CSS-правки:
-
-```bash
-HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-cards
-HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-extras
-```
-
-Все custom-дополнения сразу:
-
-```bash
-HOMEPAGE_CONFIG_DIR=/srv/homepage-config bash ./install.sh --action install-custom
-```
-
-Эти действия:
-
-1. берут нужный preset из `custom-config/` репозитория мода;
-2. создаёт резервные копии существующих `custom.js` и `custom.css` как `.bak`, если содержимое отличается;
-3. встраивают или обновляют только свой managed-блок в `custom.js` и `custom.css`, не затирая другой preset;
-4. при установке `radio`, `particles` или `all` копируют картинки радио и `Comfortaa.ttf` из `custom-config/radio/assets/radio/` в каталог, который Homepage отдаёт как `/images/radio`;
-5. спрашивают, удалять ли `custom.css`/`custom.js`, если в них найдено содержимое вне managed-блоков;
-6. не требуют сборки target-проекта, но перезапускают `homepage.service`, если сервис активен.
-
-Каталог `/images` определяется автоматически:
+Каталог для ассетов `/images` (картинки радио и шрифты) определяется автоматически:
 
 1. `HOMEPAGE_IMAGES_DIR`, `IMAGES_REAL_DIR` или `--images-dir`;
 2. `IMAGES_REAL_DIR`/`HOMEPAGE_IMAGES_DIR` из `.env.local`, `.env` target-проекта или `/etc/default/homepage`;
 3. sibling-каталог `/srv/homepage-images`, если config находится в `/srv/homepage-config`;
 4. `public/images` target-проекта, что важно для LXC от Proxmox VE Community Scripts.
 
-Блоки `cards` и `extras` в `custom.css` помечены как управляемые. Не правьте CSS внутри этих блоков руками: при следующей установке или обновлении `install.sh` заменит содержимое между START/END-маркерами. Свои ручные правила добавляйте ниже END-маркера.
+Блоки `cards` и `extras` в `custom.css` помечены как управляемые. Не правьте CSS внутри этих блоков руками: при следующей установке или обновлении инсталлятор заменит содержимое между START/END-маркерами. Свои ручные правила добавляйте ниже END-маркера.
 
 ## Что делает установщик
 

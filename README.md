@@ -39,16 +39,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Установить` - первая установка;
 - `Обновить мод из GitHub` - пройти preflight нового patch и переустановить мод из актуальной версии репозитория на GitHub;
 - `Обновить интеграцию в target из текущего каталога` - переустановить мод в target из локального checkout, из которого запущен скрипт;
-- `Установить/обновить цветные карточки` - накатить managed-блок CSS, который нужен для `id` вида `color-red-name-card`;
-- `Установить/обновить остальные правки custom.css` - накатить managed-блок дополнительных CSS-правок без радио и фона;
-- `Установить радио (custom.css/custom.js)` - накатить managed-блоки радио/IP во внешние `custom.js` и `custom.css` Homepage; когда радио играет, клики по сервисам и закладкам принудительно открываются в новой вкладке;
-- `Установить эффекты фона particles` - накатить managed-блоки интерактивного фона и FPS-кнопки во внешние `custom.js` и `custom.css` Homepage;
-- `Установить все дополнения custom.css/custom.js` - накатить `cards`, `extras`, `radio` и `particles`;
 - `Удалить` - убрать мод из target-проекта.
 
-Шаблоны лежат в репозитории в `custom-config/`. Обычная установка сразу встраивает весь managed-набор `cards`, `extras`, `radio` и `particles`; отдельные custom-actions остаются для ручного обслуживания конкретного блока. Блоки `cards` и `extras` в `custom.css` помечены предупреждением: правки внутри них будут заменены при следующей установке или обновлении.
+При установке мода инсталлятор автоматически встраивает и настраивает весь managed-набор дополнений (`cards`, `extras`, `radio` и `particles`). Управление и отключение отдельных возможностей осуществляется через встроенный браузерный интерфейс настроек редактора. Блоки `cards` и `extras` в `custom.css` помечены предупреждением: правки внутри них будут заменены при следующей установке или обновлении.
 
-Ассеты радио лежат в `custom-config/radio/assets/radio/`. При установке `radio`, `particles` или `all` установщик копирует картинки и `Comfortaa.ttf` в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`. После установки custom-дополнений скрипт перезапускает `homepage.service`, потому что `next start` не начинает отдавать новые файлы из `public/images` без перезапуска процесса.
+Ассеты радио копируются в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`. После установки дополнений скрипт перезапускает `homepage.service`, потому что `next start` не начинает отдавать новые файлы из `public/images` без перезапуска процесса.
 
 Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
 
