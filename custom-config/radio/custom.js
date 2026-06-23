@@ -67,12 +67,12 @@
     * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text
   `;
 
-  // Order of radio buttons: trackinfo, like, dislike, playlist, plapau, volumedown, volumeset, volumeup
+  // Order of radio buttons: like, dislike, playlist, trackinfo, plapau, volumedown, volumeset, volumeup
   const radioButtonsOrder = `
-    trackinfo
     like
     dislike
     playlist
+    trackinfo
     plapau
     volumedown
     volumeset
