@@ -15,7 +15,8 @@ import {
   parseRadioButtonsStyle,
   parseRadioIconSize,
   parseRadioButtonSize,
-  parseLinkIpFpsSizes
+  parseLinkIpFpsSizes,
+  parseHakuranVoteApiKey
 } from '../lib/topbar-config-helper';
 
 const AVAILABLE_EFFECTS = [
@@ -44,6 +45,7 @@ export default function TopBarSettingsEditor({
   const [radioIconSize, setRadioIconSize] = useState(10);
   const [radioButtonSize, setRadioButtonSize] = useState(18);
   const [linkIpFpsSizes, setLinkIpFpsSizes] = useState(false);
+  const [hakuranVoteApiKey, setHakuranVoteApiKey] = useState('');
 
   // Particles States
   const [particlesEnabled, setParticlesEnabled] = useState(false);
@@ -66,6 +68,7 @@ export default function TopBarSettingsEditor({
       setRadioIconSize(parseRadioIconSize(customJs));
       setRadioButtonSize(parseRadioButtonSize(customJs));
       setLinkIpFpsSizes(parseLinkIpFpsSizes(customJs));
+      setHakuranVoteApiKey(parseHakuranVoteApiKey(customJs));
     } else {
       // Default initial stations
       setStations([
@@ -82,6 +85,7 @@ export default function TopBarSettingsEditor({
       setRadioIconSize(10);
       setRadioButtonSize(18);
       setLinkIpFpsSizes(false);
+      setHakuranVoteApiKey('');
     }
 
     const isParticles = isParticlesEnabled(customJs);
@@ -120,7 +124,8 @@ export default function TopBarSettingsEditor({
     nextRadioIconSize = radioIconSize,
     nextRadioButtonSize = radioButtonSize,
     nextLinkIpFpsSizes = linkIpFpsSizes,
-    nextIpEnabled = ipEnabled
+    nextIpEnabled = ipEnabled,
+    nextHakuranVoteApiKey = hakuranVoteApiKey
   ) => {
     let newJs = customJs;
     let newCss = customCss;
@@ -137,7 +142,8 @@ export default function TopBarSettingsEditor({
       nextRadioIconSize,
       nextRadioButtonSize,
       nextLinkIpFpsSizes,
-      nextIpEnabled
+      nextIpEnabled,
+      nextHakuranVoteApiKey
     );
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled || nextIpEnabled);
 
@@ -704,6 +710,71 @@ export default function TopBarSettingsEditor({
               >
                 <span>{linkIpFpsSizes ? "🔒 Связано" : "🔓 Раздельно"}</span>
               </button>
+            </div>
+
+            {/* Ключ для голосования Hakuran */}
+            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Hakuran vote API key</span>
+                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Пустое поле скрывает кнопки лайка и дизлайка для Hakuran</p>
+              </div>
+              <div className="flex w-full gap-2 md:w-[360px]">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Hakuran vote API key"
+                  value={hakuranVoteApiKey}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setHakuranVoteApiKey(val);
+                    syncChanges(
+                      radioEnabled,
+                      stations,
+                      particlesEnabled,
+                      enabledEffects,
+                      defaultEffect,
+                      ipProviders,
+                      ipHideOnError,
+                      radioButtonsOrder,
+                      radioButtonsStyle,
+                      radioIconSize,
+                      radioButtonSize,
+                      linkIpFpsSizes,
+                      ipEnabled,
+                      val
+                    );
+                  }}
+                  placeholder="Вставьте API key"
+                  className="min-w-0 flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  disabled={!hakuranVoteApiKey}
+                  onClick={() => {
+                    setHakuranVoteApiKey('');
+                    syncChanges(
+                      radioEnabled,
+                      stations,
+                      particlesEnabled,
+                      enabledEffects,
+                      defaultEffect,
+                      ipProviders,
+                      ipHideOnError,
+                      radioButtonsOrder,
+                      radioButtonsStyle,
+                      radioIconSize,
+                      radioButtonSize,
+                      linkIpFpsSizes,
+                      ipEnabled,
+                      ''
+                    );
+                  }}
+                  className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Очистить
+                </button>
+              </div>
             </div>
 
             <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block mb-2">Список станций</span>

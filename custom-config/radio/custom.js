@@ -24,6 +24,7 @@
   const linkIpFpsSizes = false;
   const radioEnabled = true;
   const ipEnabled = true;
+  const hakuranVoteApiKey = "";
 
   function parseIpProviders(definition) {
     return definition
@@ -35,7 +36,7 @@
         if (separatorIndex === -1) return null;
         const label = line.slice(0, separatorIndex).trim();
         const rest = line.slice(separatorIndex + 1).trim();
-        
+
         const secondSep = rest.indexOf(",");
         let url = rest;
         let jsonKey = "";
@@ -43,7 +44,7 @@
           url = rest.slice(0, secondSep).trim();
           jsonKey = rest.slice(secondSep + 1).trim();
         }
-        
+
         if (!label || !url) return null;
         return {
           key: `provider-${index}`,
@@ -298,6 +299,16 @@
     return button;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
+  }
+
   function createRadioMarkup() {
     const buttonsMap = {
       trackinfo: `<li id="track-info-container" class="track-info-container" style="display: none;">
@@ -340,7 +351,7 @@
                 ${stations
                   .map(
                     (station) =>
-                      `<li><button id="${station.key}" class="jexum jeniumMradio" type="button">${station.label}</button></li>`,
+                      `<li><button id="${station.key}" class="jexum jeniumMradio" type="button">${escapeHtml(station.label)}</button></li>`,
                   )
                   .join("")}
               </ul>
@@ -505,7 +516,7 @@
       if (!marqueeEl) return;
 
       marqueeEl.innerHTML = "";
-      
+
       const span = document.createElement("span");
       span.textContent = text;
       span.style.display = "inline-block";
@@ -529,7 +540,7 @@
 
         if (textWidth > containerWidth + 10) {
           marqueeEl.querySelectorAll("span:not(:first-child)").forEach(el => el.remove());
-          
+
           const clone = span.cloneNode(true);
           marqueeEl.appendChild(clone);
 
@@ -559,7 +570,7 @@
         try {
           const res = await fetch(url);
           if (!res.ok) throw new Error("Fetch failed");
-          
+
           let trackText = "";
           const contentType = res.headers.get("content-type") || "";
           if (contentType.includes("application/json") || url.endsWith(".json") || url.includes("api/nowplaying")) {
@@ -630,18 +641,24 @@
         });
     }
 
-    fetchNowPlaying();
-    nowPlayingIntervalId = window.setInterval(fetchNowPlaying, 15000);
+    if (hakuranVoteApiKey) {
+      fetchNowPlaying();
+      nowPlayingIntervalId = window.setInterval(fetchNowPlaying, 15000);
+    }
 
     addManagedListener(likeButton, "click", () => {
+      if (!hakuranVoteApiKey) {
+        return;
+      }
+
       if (!currentSongId) {
         console.warn("No song ID available for vote");
         return;
       }
-      
+
       likeButton.classList.add("like-clicked");
-      
-      const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=up`;
+
+      const url = `https://hakuran.ru/custom-api/vote?api_key=${encodeURIComponent(hakuranVoteApiKey)}&song_id=${encodeURIComponent(currentSongId)}&type=up`;
       fetch(url)
         .then(r => {
           if (r.ok) {
@@ -653,21 +670,25 @@
         .catch(err => {
           console.error("Like API request failed:", err);
         });
-        
+
       setTimeout(() => {
         likeButton.classList.remove("like-clicked");
       }, 1500);
     });
 
     addManagedListener(dislikeButton, "click", () => {
+      if (!hakuranVoteApiKey) {
+        return;
+      }
+
       if (!currentSongId) {
         console.warn("No song ID available for vote");
         return;
       }
-      
+
       dislikeButton.classList.add("dislike-clicked");
-      
-      const url = `https://hakuran.ru/custom-api/vote?api_key=t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ&song_id=${encodeURIComponent(currentSongId)}&type=down`;
+
+      const url = `https://hakuran.ru/custom-api/vote?api_key=${encodeURIComponent(hakuranVoteApiKey)}&song_id=${encodeURIComponent(currentSongId)}&type=down`;
       fetch(url)
         .then(r => {
           if (r.ok) {
@@ -679,7 +700,7 @@
         .catch(err => {
           console.error("Dislike API request failed:", err);
         });
-        
+
       setTimeout(() => {
         dislikeButton.classList.remove("dislike-clicked");
       }, 1500);
@@ -845,13 +866,13 @@
       if (!isRadioInitialized) return;
       const hakuranStation = stations.find((s) => s.label.toLowerCase() === "hakuran");
       const hakuranKey = hakuranStation ? hakuranStation.key : null;
-      
+
       const currentStationKey = state.activeStation || state.lastStationKey;
-      const shouldShow = (currentStationKey === hakuranKey);
-      
+      const shouldShow = Boolean(hakuranVoteApiKey && currentStationKey === hakuranKey);
+
       const likeLi = radioRoot.querySelector("#like-container");
       const dislikeLi = radioRoot.querySelector("#dislike-container");
-      
+
       if (likeLi) {
         likeLi.style.display = shouldShow ? "" : "none";
       }
@@ -1300,7 +1321,7 @@
 
           ipContainer.replaceChildren();
           currentIpAddress = "";
-          
+
           if (typeof ipHideOnError === "boolean" && !ipHideOnError) {
             const errorSpan = document.createElement("span");
             errorSpan.className = "ipcheck-address";

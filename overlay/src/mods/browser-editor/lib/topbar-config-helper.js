@@ -9,13 +9,13 @@ import {
 function removeBlock(content, startMarker, endMarker) {
   const startIndex = content.indexOf(startMarker);
   if (startIndex === -1) return content;
-  
+
   const endIndex = content.indexOf(endMarker, startIndex);
   if (endIndex === -1) return content;
-  
+
   const before = content.substring(0, startIndex);
   let after = content.substring(endIndex + endMarker.length);
-  
+
   // Clean up trailing/leading newlines
   if (after.startsWith('\n')) {
     after = after.substring(1);
@@ -27,13 +27,13 @@ function removeBlock(content, startMarker, endMarker) {
 function upsertBlock(content, startMarker, endMarker, blockTemplate) {
   const startIndex = content.indexOf(startMarker);
   const endIndex = content.indexOf(endMarker);
-  
+
   if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
     const before = content.substring(0, startIndex);
     const after = content.substring(endIndex + endMarker.length);
     return before + blockTemplate + after;
   }
-  
+
   // Block not found, append it to the end
   let newContent = content.trim();
   if (newContent) {
@@ -42,13 +42,40 @@ function upsertBlock(content, startMarker, endMarker, blockTemplate) {
   return newContent + blockTemplate + '\n';
 }
 
+function serializeListField(value) {
+  return String(value ?? '').replace(/[\r\n,]+/g, ' ').trim();
+}
+
+function serializeJsString(value) {
+  return JSON.stringify(String(value ?? '').trim());
+}
+
+function parseStringConst(customJs, name, fallback = '') {
+  const match = customJs.match(new RegExp(`const\\s+${name}\\s*=\\s*("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')`));
+  if (!match) return fallback;
+
+  const rawValue = match[1];
+  if (rawValue.startsWith('"')) {
+    try {
+      return JSON.parse(rawValue);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return rawValue
+    .slice(1, -1)
+    .replace(/\\'/g, "'")
+    .replace(/\\\\/g, "\\");
+}
+
 // Parser for radio buttons order in custom.js
 export function parseRadioButtonsOrder(customJs) {
   const match = customJs.match(/const\s+radioButtonsOrder\s*=\s*`([\s\S]*?)`/);
   if (!match) {
     return ['trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'];
   }
-  
+
   const text = match[1];
   return text
     .split('\n')
@@ -60,7 +87,7 @@ export function parseRadioButtonsOrder(customJs) {
 export function parseRadioStations(customJs) {
   const match = customJs.match(/const\s+stationList\s*=\s*`([\s\S]*?)`/);
   if (!match) return [];
-  
+
   const text = match[1];
   return text
     .split('\n')
@@ -71,13 +98,13 @@ export function parseRadioStations(customJs) {
       const normalizedLine = isDefault ? line.slice(1).trim() : line;
       const parts = normalizedLine.split(',').map(p => p.trim());
       if (parts.length < 2) return null;
-      
+
       const label = parts[0];
       const url = parts[1];
       const showTrackInfo = parts[2] === 'true';
       const trackInfoUrl = parts[3] || '';
       const trackInfoKey = parts[4] || '';
-      
+
       return {
         id: `station-${index}`,
         label,
@@ -95,7 +122,7 @@ export function parseRadioStations(customJs) {
 export function parseIpProviders(customJs) {
   const match = customJs.match(/const\s+ipProviderList\s*=\s*`([\s\S]*?)`/);
   if (!match) return [];
-  
+
   const text = match[1];
   return text
     .split('\n')
@@ -104,10 +131,10 @@ export function parseIpProviders(customJs) {
     .map((line, index) => {
       const separatorIndex = line.indexOf(',');
       if (separatorIndex === -1) return null;
-      
+
       const label = line.slice(0, separatorIndex).trim();
       const rest = line.slice(separatorIndex + 1).trim();
-      
+
       const secondSep = rest.indexOf(',');
       let url = rest;
       let jsonKey = "";
@@ -138,7 +165,7 @@ export function parseRadioEnabled(customJs) {
 
 export function parseIpConfig(customJs) {
   const hideMatch = customJs.match(/const\s+ipHideOnError\s*=\s*(true|false)/);
-  
+
   return {
     ipEnabled: parseIpEnabled(customJs),
     ipProviders: parseIpProviders(customJs),
@@ -166,6 +193,9 @@ export function parseLinkIpFpsSizes(customJs) {
   return match ? match[1] === 'true' : false;
 }
 
+export function parseHakuranVoteApiKey(customJs) {
+  return parseStringConst(customJs, 'hakuranVoteApiKey', '');
+}
 
 // Check if radio is enabled in custom.js
 export function isRadioEnabled(customJs) {
@@ -184,35 +214,44 @@ export function updateRadioInCustomJs(
   radioIconSize = 10,
   radioButtonSize = 18,
   linkIpFpsSizes = false,
-  ipEnabled = true
+  ipEnabled = true,
+  hakuranVoteApiKey = ''
 ) {
-  console.log("DEBUG-TEMPLATE: radioJsTemplate has topbarRoot =", radioJsTemplate.includes("topbarRoot"), "has radioRoot =", radioJsTemplate.includes("radioRoot"));
   if (!radioEnabled && !ipEnabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */', '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */');
   }
-  
+
   // Generate the station list string
   const stationsText = stations.map(s => {
     const prefix = s.isDefault ? '* ' : '';
     const showTrack = s.showTrackInfo ? 'true' : 'false';
-    return `    ${prefix}${s.label}, ${s.url}, ${showTrack}, ${s.trackInfoUrl || ''}, ${s.trackInfoKey || ''}`;
+    return [
+      `    ${prefix}${serializeListField(s.label)}`,
+      serializeListField(s.url),
+      showTrack,
+      serializeListField(s.trackInfoUrl),
+      serializeListField(s.trackInfoKey)
+    ].join(', ');
   }).join('\n');
   const serializedList = `\n${stationsText}\n  `;
-  
+
   // Generate the ip providers list string
   const ipProvidersText = ipProviders.map(p => {
-    const jsonKeyPart = p.jsonKey ? `, ${p.jsonKey}` : '';
-    return `    ${p.label}, ${p.url}${jsonKeyPart}`;
+    const fields = [`    ${serializeListField(p.label)}`, serializeListField(p.url)];
+    if (p.jsonKey) {
+      fields.push(serializeListField(p.jsonKey));
+    }
+    return fields.join(', ');
   }).join('\n');
   const serializedIpList = `\n${ipProvidersText}\n  `;
 
   // Generate the buttons order string
   const buttonsOrderText = radioButtonsOrder.join('\n    ');
   const serializedButtonsOrder = `\n    ${buttonsOrderText}\n  `;
-  
+
   const startMarker = '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */';
   const endMarker = '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */';
-  
+
   const hideLine = `const ipHideOnError = ${ipHideOnError};`;
   const styleLine = `const radioButtonsStyle = "${radioButtonsStyle}";`;
   const sizeLine = `const radioIconSize = ${radioIconSize};`;
@@ -220,7 +259,8 @@ export function updateRadioInCustomJs(
   const linkIpFpsLine = `const linkIpFpsSizes = ${linkIpFpsSizes};`;
   const radioEnabledLine = `const radioEnabled = ${radioEnabled};`;
   const ipEnabledLine = `const ipEnabled = ${ipEnabled};`;
-  
+  const hakuranVoteApiKeyLine = `const hakuranVoteApiKey = ${serializeJsString(hakuranVoteApiKey)};`;
+
   // Always regenerate the block from baseTemplate to make sure the code matches the templates (including createRadioMarkup improvements)
   const baseTemplate = radioJsTemplate;
   let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
@@ -232,8 +272,9 @@ export function updateRadioInCustomJs(
   configuredBlock = configuredBlock.replace(/const\s+linkIpFpsSizes\s*=\s*(true|false);?/, linkIpFpsLine);
   configuredBlock = configuredBlock.replace(/const\s+radioEnabled\s*=\s*(true|false);?/, radioEnabledLine);
   configuredBlock = configuredBlock.replace(/const\s+ipEnabled\s*=\s*(true|false);?/, ipEnabledLine);
+  configuredBlock = configuredBlock.replace(/const\s+hakuranVoteApiKey\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*');?/, hakuranVoteApiKeyLine);
   configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
-  
+
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
 }
 
@@ -249,7 +290,7 @@ export function updateRadioInCustomCss(customCss, enabled) {
 export function parseParticlesConfig(customJs) {
   const defMatch = customJs.match(/const\s+DEFAULT_EFFECT\s*=\s*"([^"]+)"/);
   const defaultEffect = defMatch ? defMatch[1] : 'rocket';
-  
+
   const funcMatch = customJs.match(/function\s+getDefaultEffects\(\)\s*\{\s*return\s+new\s+Set\(\s*\[([\s\S]*?)\]\s*\);\s*\}/);
   if (!funcMatch) {
     return {
@@ -257,13 +298,13 @@ export function parseParticlesConfig(customJs) {
       defaultEffect
     };
   }
-  
+
   const effectsText = funcMatch[1];
   const enabledEffects = effectsText
     .split(',')
     .map(e => e.trim().replace(/['"]/g, ''))
     .filter(Boolean);
-    
+
   return {
     enabledEffects,
     defaultEffect
@@ -280,17 +321,17 @@ export function updateParticlesInCustomJs(customJs, enabledEffects, defaultEffec
   if (!enabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */', '/* <<< HOMEPAGE-EDITOR PARTICLES JS END <<< */');
   }
-  
+
   const startMarker = '/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */';
   const endMarker = '/* <<< HOMEPAGE-EDITOR PARTICLES JS END <<< */';
-  
+
   const effectsStr = enabledEffects.map(e => `"${e}"`).join(', ');
   const defaultEffectLine = `const DEFAULT_EFFECT = "${defaultEffect}";`;
   const getDefaultEffectsFunc = `function getDefaultEffects() {\n    return new Set([${effectsStr}]);\n  }`;
-  
+
   const startIndex = customJs.indexOf(startMarker);
   const endIndex = customJs.indexOf(endMarker);
-  
+
   if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
     let blockContent = customJs.substring(startIndex, endIndex + endMarker.length);
     // Replace const DEFAULT_EFFECT and getDefaultEffects() function
@@ -298,7 +339,7 @@ export function updateParticlesInCustomJs(customJs, enabledEffects, defaultEffec
     blockContent = blockContent.replace(/function\s+getDefaultEffects\(\)\s*\{[\s\S]*?\}/, getDefaultEffectsFunc);
     return customJs.substring(0, startIndex) + blockContent + customJs.substring(endIndex + endMarker.length);
   }
-  
+
   // Block does not exist, insert template with our settings
   let configuredBlock = particlesJsTemplate;
   configuredBlock = configuredBlock.replace(/const\s+DEFAULT_EFFECT\s*=\s*"[^"]+";/, defaultEffectLine);

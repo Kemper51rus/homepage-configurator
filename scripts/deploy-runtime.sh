@@ -124,10 +124,6 @@ validate_absolute_path "CONFIG_DIR" "$CONFIG_DIR"
 validate_absolute_path "IMAGES_DIR" "$IMAGES_DIR"
 validate_service_name
 
-if [[ ! -f "$SOURCE/config/settings.yaml" ]]; then
-  log "WARNING: $SOURCE/config/settings.yaml not found. Homepage prerenders / at build time; build with live config before deploying or title/background/tabs can be stale."
-fi
-
 RSYNC_MODE=(-an --delete --itemize-changes)
 if [[ "$APPLY" -eq 1 ]]; then
   RSYNC_MODE=(-a --delete --itemize-changes)

@@ -55,28 +55,9 @@ function isEditorEnabled() {
   return process.env.HOMEPAGE_BROWSER_EDITOR === "true";
 }
 
-function configuredEditorToken() {
-  return (process.env.HOMEPAGE_EDITOR_TOKEN ?? "").trim();
-}
-
-function requestEditorToken(req) {
-  const header = req.headers["x-homepage-editor-token"];
-  if (Array.isArray(header)) {
-    return header[0] ?? "";
-  }
-
-  return header ?? "";
-}
-
-function verifyEditorAccess(req, res) {
+function verifyEditorAccess(_req, res) {
   if (!isEditorEnabled()) {
     res.status(404).end("Editor is disabled");
-    return false;
-  }
-
-  const token = configuredEditorToken();
-  if (token && ["POST", "PUT"].includes(req.method) && requestEditorToken(req) !== token) {
-    res.status(401).end("Editor token is required");
     return false;
   }
 
@@ -698,11 +679,6 @@ export default async function handler(req, res) {
 
         if (!settingsTab) {
           return res.status(422).end("Unsupported file");
-        }
-
-        console.log("BACKEND-SAVE: Saving", fileName, "content length:", content?.length);
-        if (fileName === "custom.js") {
-          console.log("BACKEND-SAVE: custom.js has topbarRoot =", content?.includes("topbarRoot"), "has radioRoot =", content?.includes("radioRoot"));
         }
 
         await writeRawConfigFile(settingsTab.fileName, settingsTab.format, content);

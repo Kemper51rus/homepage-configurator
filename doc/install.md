@@ -13,7 +13,6 @@
 - пакетный менеджер для сборки Homepage: обычно `pnpm`, реже `npm` или `yarn`;
 - права на запись в директорию Homepage;
 - для автоматического перезапуска - доступ к `systemctl restart homepage.service`.
-- для runtime-деплоя без `.git` - `rsync` и SSH-доступ к runtime-серверу.
 
 ## Quick install
 
@@ -56,11 +55,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - `Удалить` - убрать мод из target-проекта;
 - `Проверить статус` - показать значение `HOMEPAGE_BROWSER_EDITOR` в env-файле target (`.env.local` или существующий `.env`).
 
-Если задан `HOMEPAGE_EDITOR_TOKEN`, операции записи из браузера (`PUT/POST /api/config/editor`) требуют этот токен.
-Клиент редактора попросит токен при первой ошибке `401` и сохранит его в `localStorage` браузера.
-Для systemd-инсталляции нашим `install-update-homepage.sh` токен удобно хранить в `/etc/default/homepage`; скрипт сохраняет существующее значение при обновлении. В LXC от Proxmox VE Community Scripts токен можно добавить в `/opt/homepage/.env`, рядом с `HOMEPAGE_ALLOWED_HOSTS`.
-
-Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При установке нашим target-скриптом `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`, а deploy-скрипт сохраняет эту папку как runtime-data и не затирает её. В LXC от Proxmox VE Community Scripts, где `IMAGES_REAL_DIR` обычно не задан, иконки сохраняются в `/opt/homepage/public/images/icons`. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
+Кнопка `Иконки` в браузерном редакторе скачивает внешние `http/https` иконки из `services.yaml` и `bookmarks.yaml`, кладёт файлы в `${IMAGES_REAL_DIR}/icons` и заменяет URL в YAML на API-пути `/api/config/icon/...`. При установке нашим target-скриптом `${IMAGES_REAL_DIR}` равен `/srv/homepage-images`. В LXC от Proxmox VE Community Scripts, где `IMAGES_REAL_DIR` обычно не задан, иконки сохраняются в `/opt/homepage/public/images/icons`. Иконки отдаются через API, чтобы новые файлы работали сразу без перезапуска `homepage.service`.
 
 Скрипт сам ищет target-проект в таком порядке:
 
@@ -90,14 +85,9 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 2. Дождитесь успешной сборки и запуска `homepage.service`.
 3. Запустите `install.sh` и выберите установку мода.
 
-После установки или обновления мода в интерактивном режиме `install.sh` спросит, что делать с дополнениями `custom.css/custom.js`:
+После установки или обновления мода `install.sh` сразу устанавливает весь managed-набор `custom.css/custom.js`: `cards`, `extras`, `radio` и `particles`.
 
-1. поставить только цветные карточки;
-2. поставить цветные карточки и остальные правки `custom.css` без радио/фона;
-3. поставить все дополнения: `cards`, `extras`, `radio`, `particles`;
-4. пропустить custom-дополнения.
-
-Для неинтерактивного запуска используйте `--custom skip`, `--custom cards`, `--custom extras` или `--custom all`.
+Для нестандартного запуска можно явно указать `--custom skip`, `--custom cards`, `--custom extras`, `--custom radio`, `--custom particles`, `--custom prompt` или `--custom all`. Штатный режим - `all`, потому что topbar, радио, фон и настройки теперь связаны с managed custom-файлами; отключение отдельных частей выполняется через интерфейс редактора.
 
 Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный запуск покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. При удалении создаётся timestamp backup вида `.cleanup-YYYYMMDD-HHMMSS.bak`.
 
@@ -121,7 +111,7 @@ node install.mjs --uninstall --target /path/to/gethomepage/homepage
 
 Перед применением он показывает план, проверяет, что target похож на checkout `gethomepage/homepage`, сохраняет backup затрагиваемых файлов в `.homepage-configurator-backups/` и пишет manifest `.homepage-configurator-manifest.json`. При uninstall удаляются файлы из manifest; если overlay-файл был изменён вручную, uninstall остановится без `--force`.
 
-Интерактивные действия `Обновить мод из GitHub` и `Обновить интеграцию в target из текущего каталога` используют `--force` только для удаления предыдущей версии мода перед установкой новой. Обычное действие `Удалить` остаётся защищённым.
+Интерактивные действия `Обновить мод из GitHub` и `Обновить интеграцию в target из текущего каталога` сначала проходят preflight-проверку нового patch, затем переустанавливают overlay и core patch поверх существующего manifest. Обычное действие `Удалить` остаётся защищённым.
 
 ## Обновление Target-Проекта
 
@@ -159,11 +149,13 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 
 Оба сценария обновления делают:
 
-1. удаление текущей версии мода из target-проекта;
+1. preflight-проверку нового `browser-editor.patch`;
 2. повторную установку overlay-файлов и `browser-editor.patch`;
 3. включение `HOMEPAGE_BROWSER_EDITOR=true` в env-файле target;
-4. одну сборку Homepage;
-5. один перезапуск `homepage.service`, если сервис активен.
+4. установку managed custom-блоков до сборки;
+5. одну сборку Homepage;
+6. синхронизацию `.next/static` и `public` в `.next/standalone`, если используется standalone;
+7. один перезапуск `homepage.service`, если сервис активен.
 
 ## Установка Custom-Дополнений Во Внешние Custom Файлы
 
@@ -275,77 +267,6 @@ HOMEPAGE_CONFIG_DIR=/opt/homepage/config bash <(curl -Ls https://raw.githubuserc
 systemctl status homepage.service
 curl -I -H 'Host: <runtime-host>:3000' http://127.0.0.1:3000/
 ```
-
-## Runtime-Деплой Без `.git`
-
-Рабочая схема после разделения проекта и runtime-сервера:
-
-1. полный git-проект мода хранится локально в `/projects/homepage-configurator`;
-2. target checkout `gethomepage/homepage` собирается локально в `.runtime-build/` внутри проекта;
-3. на LXC/runtime-сервер доставляются только production-файлы;
-4. `/srv/homepage-config` и `/srv/homepage-images` остаются runtime-data и не затираются деплоем.
-
-Перед `pnpm build` в staging checkout должен быть актуальный `config` из runtime-сервера. Homepage prerender-ит главную страницу на build-time; если собрать без live `settings.yaml`, после деплоя пропадут build-time элементы вроде `title`, `background`, страниц-вкладок и порядка групп, хотя runtime API будет читать правильный `/srv/homepage-config`.
-
-`.runtime-build/` - служебная сборочная копия upstream `gethomepage/homepage`. Она лежит внутри `/projects/homepage-configurator`, исключена из git через `.gitignore` и может быть удалена/пересоздана.
-
-Если каталога ещё нет:
-
-```bash
-cd /projects/homepage-configurator
-git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-build
-```
-
-Пример подготовки staging build:
-
-```bash
-cd /projects/homepage-configurator
-./install.sh --action update-target --target .runtime-build --custom skip --no-restart
-
-rm -rf .runtime-build/config
-mkdir -p .runtime-build/config
-rsync -a --delete <runtime-ssh>:/srv/homepage-config/ .runtime-build/config/
-
-cd .runtime-build
-pnpm run build
-```
-
-Dry-run:
-
-```bash
-cd /projects/homepage-configurator
-scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh>
-```
-
-Применить и перезапустить сервис:
-
-```bash
-scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --restart
-```
-
-Перевести systemd на standalone runtime:
-
-```bash
-scripts/deploy-runtime.sh --source .runtime-build --remote <runtime-ssh> --apply --install-service --restart
-```
-
-Runtime host передаётся явно через `--remote` или переменную `HOMEPAGE_RUNTIME_REMOTE`:
-
-```bash
-scripts/deploy-runtime.sh \
-  --source .runtime-build \
-  --remote <runtime-ssh> \
-  --app-dir /opt/homepage \
-  --config-dir /srv/homepage-config \
-  --images-dir /srv/homepage-images \
-  --install-service \
-  --apply
-```
-
-Скрипт ожидает production-сборку с `.next/standalone/server.js`, `.next/static` и `public`.
-При `--install-service` systemd unit запускает standalone server напрямую из `.next/standalone` через `node server.js` и задаёт `HOSTNAME=0.0.0.0`, чтобы внешний прокси мог ходить на `runtime-host:3000`.
-
-Подробный runtime runbook: [runtime.md](runtime.md).
 
 Если используется доступ по IP или домену и появляется `Host validation failed`, добавьте нужный host в настройки запуска Homepage. Например:
 

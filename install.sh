@@ -10,7 +10,7 @@ MODE="${HOMEPAGE_EDITOR_MODE:-auto}"
 TARGET="${HOMEPAGE_TARGET_DIR:-}"
 CONFIG_DIR="${HOMEPAGE_CONFIG_DIR:-}"
 IMAGES_DIR="${HOMEPAGE_IMAGES_DIR:-${IMAGES_REAL_DIR:-}}"
-CUSTOM_INSTALL="${HOMEPAGE_EDITOR_CUSTOM_INSTALL:-prompt}"
+CUSTOM_INSTALL="${HOMEPAGE_EDITOR_CUSTOM_INSTALL:-all}"
 CUSTOM_CLEAN="${HOMEPAGE_EDITOR_CLEAN_CUSTOM:-prompt}"
 DO_BUILD=1
 DO_RESTART=1
@@ -30,11 +30,11 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
-  --action NAME      install, update-mod, update-target, install-custom, uninstall или status
+  --action NAME      install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
   --config-dir PATH   путь к внешней папке config Homepage
   --images-dir PATH   путь к папке, которая отдается Homepage как /images
-  --custom MODE       (устарело) все дополнения устанавливаются автоматически
+  --custom MODE       что ставить после install/update: all, skip, cards, extras, radio, particles или prompt
   --clean-custom MODE что делать с содержимым вне managed-блоков: prompt, keep или delete
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
@@ -48,7 +48,7 @@ usage() {
   HOMEPAGE_CONFIG_DIR       то же самое, что --config-dir
   HOMEPAGE_IMAGES_DIR       то же самое, что --images-dir; можно также задать IMAGES_REAL_DIR
   HOMEPAGE_EDITOR_CUSTOM_INSTALL
-                            (устарело) все дополнения устанавливаются автоматически
+                            all, skip, cards, extras, radio, particles или prompt для custom.css/custom.js дополнений
   HOMEPAGE_EDITOR_CLEAN_CUSTOM
                             prompt, keep или delete для содержимого вне managed-блоков
   HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
@@ -94,7 +94,7 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --action)
-        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, install-radio, install-particles, uninstall, or status"
+        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall, or status"
         ACTION="$2"
         shift 2
         ;;
@@ -114,7 +114,7 @@ parse_args() {
         shift 2
         ;;
       --custom)
-        [[ $# -ge 2 ]] || die "--custom requires prompt, skip, cards, extras, or all"
+        [[ $# -ge 2 ]] || die "--custom requires all, skip, cards, extras, radio, particles, or prompt"
         CUSTOM_INSTALL="$2"
         shift 2
         ;;
@@ -171,8 +171,8 @@ parse_args() {
   esac
 
   case "$CUSTOM_INSTALL" in
-    prompt|skip|none|cards|extras|all) ;;
-    *) die "--custom must be prompt, skip, cards, extras, or all" ;;
+    prompt|skip|none|cards|extras|radio|particles|all) ;;
+    *) die "--custom must be prompt, skip, cards, extras, radio, particles, or all" ;;
   esac
 
   case "$CUSTOM_CLEAN" in
@@ -194,19 +194,24 @@ Homepage configurator
   3) Обновить интеграцию в target из текущего каталога
 
   -----------------------------
-  4) Установить/обновить custom-дополнения (custom.css/custom.js)
+  Через custom.css/custom.js:
+  4) Установить/обновить цветные карточки
+  5) Установить/обновить остальные правки custom.css
+  6) Установить радио
+  7) Установить эффекты фона particles
+  8) Установить все дополнения custom.css/custom.js
   -----------------------------
 
-  5) Удалить
-  6) Проверить статус
-  7) Отмена
+  9) Удалить
+  10) Проверить статус
+  11) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-7: " choice
+      read -r -p "Введите 1-11: " choice
     else
-      read -r -p "Введите 1-7: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-11: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -223,23 +228,39 @@ EOF
         return 0
         ;;
       4)
-        ACTION="install-custom"
+        ACTION="install-cards"
         return 0
         ;;
       5)
-        ACTION="uninstall"
+        ACTION="install-extras"
         return 0
         ;;
       6)
-        ACTION="status"
+        ACTION="install-radio"
         return 0
         ;;
       7)
+        ACTION="install-particles"
+        return 0
+        ;;
+      8)
+        ACTION="install-custom"
+        return 0
+        ;;
+      9)
+        ACTION="uninstall"
+        return 0
+        ;;
+      10)
+        ACTION="status"
+        return 0
+        ;;
+      11)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите число от 1 до 7.\n' >&2
+        printf 'Введите число от 1 до 11.\n' >&2
         ;;
     esac
   done
@@ -1074,9 +1095,91 @@ ensure_config_dir() {
   fi
 }
 
+prompt_custom_install_choice() {
+  [[ "$CUSTOM_INSTALL" == "prompt" ]] || return 0
+  [[ -t 0 ]] || {
+    CUSTOM_INSTALL="skip"
+    return 0
+  }
+
+  local choice=""
+  cat <<'EOF'
+
+Установить/обновить custom.css/custom.js дополнения?
+  1) Только цветные карточки
+  2) Цветные карточки + остальные правки custom.css без радио/фона
+  3) Только радио
+  4) Только эффекты фона particles/FPS
+  5) Все дополнения: цветные карточки + остальные правки custom.css + радио + фон particles/FPS
+  6) Пропустить
+EOF
+
+  while true; do
+    read -r -p "Введите 1-6 [1]: " choice
+    choice="${choice:-1}"
+
+    case "$choice" in
+      1)
+        CUSTOM_INSTALL="cards"
+        return 0
+        ;;
+      2)
+        CUSTOM_INSTALL="extras"
+        return 0
+        ;;
+      3)
+        CUSTOM_INSTALL="radio"
+        return 0
+        ;;
+      4)
+        CUSTOM_INSTALL="particles"
+        return 0
+        ;;
+      5)
+        CUSTOM_INSTALL="all"
+        return 0
+        ;;
+      6)
+        CUSTOM_INSTALL="skip"
+        return 0
+        ;;
+      *)
+        printf 'Введите число от 1 до 6.\n' >&2
+        ;;
+    esac
+  done
+}
+
 install_requested_custom() {
-  ensure_config_dir
-  install_custom_presets cards extras radio particles
+  case "$CUSTOM_INSTALL" in
+    cards)
+      ensure_config_dir
+      install_custom_presets cards
+      ;;
+    extras)
+      ensure_config_dir
+      install_custom_presets cards extras
+      ;;
+    radio)
+      ensure_config_dir
+      install_custom_presets radio
+      ;;
+    particles)
+      ensure_config_dir
+      install_custom_presets particles
+      ;;
+    all)
+      ensure_config_dir
+      install_custom_presets cards extras radio particles
+      ;;
+    skip|none)
+      log "Custom additions skipped"
+      ;;
+    prompt)
+      prompt_custom_install_choice
+      install_requested_custom
+      ;;
+  esac
 }
 
 target_owner() {
@@ -1120,6 +1223,7 @@ fix_target_ownership() {
     "$TARGET/src/mods/browser-editor"
     "$TARGET/src/pages/api/config/background.js"
     "$TARGET/src/pages/api/config/editor.js"
+    "$TARGET/src/pages/api/config/icon"
   )
 
   if [[ -f "$MOD_DIR/browser-editor.patch" ]] && command -v git >/dev/null 2>&1; then
@@ -1220,25 +1324,28 @@ sync_standalone_assets() {
   local standalone="$TARGET/.next/standalone"
   local owner=""
   local group=""
+  local chown_paths=()
 
-  log "Syncing standalone static assets"
+  log "Syncing standalone runtime assets"
 
   if [[ -d "$TARGET/.next/static" ]]; then
     mkdir -p "$standalone/.next"
     rm -rf -- "$standalone/.next/static"
     cp -a "$TARGET/.next/static" "$standalone/.next/static"
+    chown_paths+=("$standalone/.next/static")
   fi
 
   if [[ -d "$TARGET/public" ]]; then
     rm -rf -- "$standalone/public"
     cp -a "$TARGET/public" "$standalone/public"
+    chown_paths+=("$standalone/public")
   fi
 
-  if [[ "$(id -u)" -eq 0 ]]; then
+  if [[ "$(id -u)" -eq 0 && "${#chown_paths[@]}" -gt 0 ]]; then
     owner="$(target_owner)"
     group="$(target_group)"
     [[ -n "$group" ]] || group="$owner"
-    chown -R "$owner:$group" "$standalone/.next/static" "$standalone/public" 2>/dev/null || true
+    chown -R "$owner:$group" "${chown_paths[@]}" 2>/dev/null || true
   fi
 }
 
@@ -1267,7 +1374,6 @@ restart_target() {
 
 run_update() {
   log "Updating browser editor in $TARGET"
-  run_mod_installer uninstall --force
   run_mod_installer install
   run_mod_installer enable
 }
@@ -1306,6 +1412,15 @@ main() {
 
   if [[ "$ACTION" == "install-cards" || "$ACTION" == "install-extras" || "$ACTION" == "install-radio" || "$ACTION" == "install-particles" || "$ACTION" == "install-custom" ]]; then
     local detected_target=""
+
+    case "$ACTION" in
+      install-cards) CUSTOM_INSTALL="cards" ;;
+      install-extras) CUSTOM_INSTALL="extras" ;;
+      install-radio) CUSTOM_INSTALL="radio" ;;
+      install-particles) CUSTOM_INSTALL="particles" ;;
+      install-custom) CUSTOM_INSTALL="all" ;;
+      *) die "Unknown custom preset action: $ACTION" ;;
+    esac
 
     if detected_target="$(find_target)"; then
       TARGET="$detected_target"
@@ -1360,15 +1475,15 @@ main() {
     fix_target_ownership
   fi
   ensure_target_dependencies
+
+  if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]]; then
+    install_requested_custom
+  fi
+
   build_target
   sync_standalone_assets
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]]; then
     fix_target_ownership
-  fi
-
-  if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]]; then
-    install_requested_custom
-    sync_standalone_assets
   fi
 
   restart_target

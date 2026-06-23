@@ -1,9 +1,12 @@
 import { existsSync, promises as fs } from "fs";
+import net from "net";
 import path from "path";
 
 import createLogger from "utils/logger";
 
 const logger = createLogger("iconConfigService");
+const maxIconBytes = 2 * 1024 * 1024;
+const remoteFetchTimeoutMs = 5000;
 
 const contentTypes = {
   ".gif": "image/gif",
@@ -47,6 +50,108 @@ function getRequestedIcon(req) {
   }
 
   return fileName;
+}
+
+function getSafeIconName(name) {
+  const fileName = typeof name === "string" ? name.trim() : "";
+  const extension = path.extname(fileName).toLowerCase();
+
+  if (!fileName || fileName !== path.basename(fileName) || !contentTypes[extension]) {
+    return null;
+  }
+
+  return fileName;
+}
+
+function isPrivateIpv4(hostname) {
+  const octets = hostname.split(".").map((part) => Number(part));
+
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  const [first, second] = octets;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isPrivateHostname(hostname) {
+  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+
+  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost") || normalized.endsWith(".local")) {
+    return true;
+  }
+
+  if (net.isIP(normalized) === 4) {
+    return isPrivateIpv4(normalized);
+  }
+
+  if (net.isIP(normalized) === 6) {
+    return normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe80:");
+  }
+
+  return false;
+}
+
+function getSafeRemoteUrl(value) {
+  try {
+    const url = new URL(String(value));
+
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || isPrivateHostname(url.hostname)) {
+      return null;
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function decodeImageDataUrl(dataUrl) {
+  const match = typeof dataUrl === "string" ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i) : null;
+  if (!match) {
+    return null;
+  }
+
+  const buffer = Buffer.from(match[1], "base64");
+  if (buffer.length === 0 || buffer.length > maxIconBytes) {
+    return null;
+  }
+
+  return buffer;
+}
+
+async function fetchRemoteIcon(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), remoteFetchTimeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      return { error: `Failed to fetch URL: ${response.statusText}` };
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || "0");
+    if (contentLength > maxIconBytes) {
+      return { error: "Remote icon is too large" };
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0 || buffer.length > maxIconBytes) {
+      return { error: "Remote icon is too large" };
+    }
+
+    return { buffer };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function downloadAndCacheIcon(fileName) {
@@ -193,18 +298,14 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       if (fileName === "upload") {
         const { name, dataUrl } = req.body ?? {};
-        if (!name || !dataUrl) {
+        const safeName = getSafeIconName(name);
+        if (!safeName || !dataUrl) {
           return res.status(400).end("Missing name or dataUrl");
         }
 
-        const [, base64] = dataUrl.split(",");
-        if (!base64) {
+        const buffer = decodeImageDataUrl(dataUrl);
+        if (!buffer) {
           return res.status(400).end("Invalid file data");
-        }
-
-        const extension = path.extname(name).toLowerCase();
-        if (!contentTypes[extension]) {
-          return res.status(400).end("Unsupported image format");
         }
 
         const imagesDirs = getImagesDirs();
@@ -214,22 +315,18 @@ export default async function handler(req, res) {
         const iconsDir = path.join(imagesDirs[0], "icons");
         await fs.mkdir(iconsDir, { recursive: true });
 
-        const buffer = Buffer.from(base64, "base64");
-        const filePath = path.join(iconsDir, name);
+        const filePath = path.join(iconsDir, safeName);
         await fs.writeFile(filePath, buffer);
 
-        return res.status(200).json({ success: true, fileName: name });
+        return res.status(200).json({ success: true, fileName: safeName });
       }
 
       if (fileName === "download") {
         const { url, name } = req.body ?? {};
-        if (!url || !name) {
+        const safeName = getSafeIconName(name);
+        const safeUrl = getSafeRemoteUrl(url);
+        if (!safeUrl || !safeName) {
           return res.status(400).end("Missing url or name");
-        }
-
-        const extension = path.extname(name).toLowerCase();
-        if (!contentTypes[extension]) {
-          return res.status(400).end("Unsupported image format");
         }
 
         const imagesDirs = getImagesDirs();
@@ -239,17 +336,15 @@ export default async function handler(req, res) {
         const iconsDir = path.join(imagesDirs[0], "icons");
         await fs.mkdir(iconsDir, { recursive: true });
 
-        const response = await fetch(url);
-        if (!response.ok) {
-          return res.status(400).end(`Failed to fetch URL: ${response.statusText}`);
+        const { buffer, error } = await fetchRemoteIcon(safeUrl);
+        if (!buffer) {
+          return res.status(400).end(error || "Failed to fetch URL");
         }
 
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const filePath = path.join(iconsDir, name);
+        const filePath = path.join(iconsDir, safeName);
         await fs.writeFile(filePath, buffer);
 
-        return res.status(200).json({ success: true, fileName: name });
+        return res.status(200).json({ success: true, fileName: safeName });
       }
 
       return res.status(400).end("Invalid action");

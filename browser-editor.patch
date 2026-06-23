@@ -4,7 +4,7 @@ index ea49bf5..7426606 100644
 +++ b/next.config.js
 @@ -1,9 +1,19 @@
  const { i18n } = require("./next-i18next.config");
- 
+
 +const allowedDevOrigins = (process.env.HOMEPAGE_ALLOWED_DEV_ORIGINS ?? "")
 +  .split(",")
 +  .map((origin) => origin.trim())
@@ -22,130 +22,6 @@ index ea49bf5..7426606 100644
    images: {
      remotePatterns: [
        {
-diff --git a/package.json b/package.json
-index 1ceeeea..4767323 100644
---- a/package.json
-+++ b/package.json
-@@ -44,7 +44,9 @@
-     "urbackup-server-api": "^0.92.2",
-     "winston": "^3.19.0",
-     "ws": "^8.20.1",
--    "xml-js": "^1.6.11"
-+    "xml-js": "^1.6.11",
-+    "prismjs": "^1.29.0",
-+    "react-simple-code-editor": "^0.14.1"
-   },
-   "devDependencies": {
-     "@eslint/compat": "^2.0.3",
-diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index bbbfccf..a3200ad 100644
---- a/pnpm-lock.yaml
-+++ b/pnpm-lock.yaml
-@@ -62,6 +62,9 @@ importers:
-       pretty-bytes:
-         specifier: ^7.1.0
-         version: 7.1.0
-+      prismjs:
-+        specifier: ^1.29.0
-+        version: 1.30.0
-       raw-body:
-         specifier: ^3.0.2
-         version: 3.0.2
-@@ -77,6 +80,9 @@ importers:
-       react-icons:
-         specifier: ^5.6.0
-         version: 5.6.0(react@19.2.5)
-+      react-simple-code-editor:
-+        specifier: ^0.14.1
-+        version: 0.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-       recharts:
-         specifier: ^3.1.2
-         version: 3.1.2(@types/react@19.0.10)(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)
-@@ -101,6 +107,10 @@ importers:
-       xml-js:
-         specifier: ^1.6.11
-         version: 1.6.11
-+    optionalDependencies:
-+      osx-temperature-sensor:
-+        specifier: ^1.0.8
-+        version: 1.0.8
-     devDependencies:
-       '@eslint/compat':
-         specifier: ^2.0.3
-@@ -174,10 +184,6 @@ importers:
-       vitest:
-         specifier: ^4.1.0
-         version: 4.1.0(@types/node@25.9.1)(jsdom@28.1.0)(vite@7.3.2(@types/node@25.9.1)(jiti@2.6.1)(lightningcss@1.30.2))
--    optionalDependencies:
--      osx-temperature-sensor:
--        specifier: ^1.0.8
--        version: 1.0.8
- 
- packages:
- 
-@@ -3041,6 +3047,10 @@ packages:
-     peerDependencies:
-       react: '>=16.0.0'
- 
-+  prismjs@1.30.0:
-+    resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
-+    engines: {node: '>=6'}
-+
-   process-nextick-args@2.0.1:
-     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
- 
-@@ -3122,6 +3132,12 @@ packages:
-       redux:
-         optional: true
- 
-+  react-simple-code-editor@0.14.1:
-+    resolution: {integrity: sha512-BR5DtNRy+AswWJECyA17qhUDvrrCZ6zXOCfkQY5zSmb96BVUbpVAv03WpcjcwtCwiLbIANx3gebHOcXYn1EHow==}
-+    peerDependencies:
-+      react: '>=16.8.0'
-+      react-dom: '>=16.8.0'
-+
-   react-stately@3.46.0:
-     resolution: {integrity: sha512-OdxhWvHgs2L4OJGIs7hnuTr5WjjMM6enhNEAMRqiekhF8+ITvA2LRwNftOZwcogaoCslGYq5S2VQTQwnm0GbCA==}
-     peerDependencies:
-@@ -5638,7 +5654,7 @@ snapshots:
-     transitivePeerDependencies:
-       - supports-color
- 
--  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0)(eslint@9.25.1(jiti@2.6.1)):
-+  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0(eslint-plugin-import@2.32.0)(eslint@9.25.1(jiti@2.6.1)))(eslint@9.25.1(jiti@2.6.1)):
-     dependencies:
-       debug: 3.2.7
-     optionalDependencies:
-@@ -5660,7 +5676,7 @@ snapshots:
-       doctrine: 2.1.0
-       eslint: 9.25.1(jiti@2.6.1)
-       eslint-import-resolver-node: 0.3.9
--      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0)(eslint@9.25.1(jiti@2.6.1))
-+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.29.0(eslint@9.25.1(jiti@2.6.1))(typescript@5.7.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.0(eslint-plugin-import@2.32.0)(eslint@9.25.1(jiti@2.6.1)))(eslint@9.25.1(jiti@2.6.1))
-       hasown: 2.0.2
-       is-core-module: 2.16.1
-       is-glob: 4.0.3
-@@ -6714,6 +6730,8 @@ snapshots:
-       clsx: 2.1.1
-       react: 19.2.5
- 
-+  prismjs@1.30.0: {}
-+
-   process-nextick-args@2.0.1: {}
- 
-   prop-types@15.8.1:
-@@ -6803,6 +6821,11 @@ snapshots:
-       '@types/react': 19.0.10
-       redux: 5.0.1
- 
-+  react-simple-code-editor@0.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
-+    dependencies:
-+      react: 19.2.5
-+      react-dom: 19.2.5(react@19.2.5)
-+
-   react-stately@3.46.0(react@19.2.5):
-     dependencies:
-       '@internationalized/date': 3.12.1
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
 index 88d4d7e..af3ee26 100644
 --- a/src/components/bookmarks/group.jsx
@@ -155,7 +31,7 @@ index 88d4d7e..af3ee26 100644
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
 +import { useConfigEditor, useEditableGroupHeader } from "mods/browser-editor/components/editor";
- 
+
  export default function BookmarksGroup({
    bookmarks,
 @@ -14,15 +15,23 @@ export default function BookmarksGroup({
@@ -171,7 +47,7 @@ index 88d4d7e..af3ee26 100644
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
- 
+
 +  if (!editMode && (bookmarks.bookmarks?.length ?? 0) === 0) {
 +    return null;
 +  }
@@ -228,7 +104,7 @@ index 7ea16bb..b3f191c 100644
 -import { useContext } from "react";
 +import { useContext, useEffect, useRef, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
- 
+
 +function bookmarkDescription(bookmark) {
 +  if (bookmark.showLink === true || bookmark.showLink === "true") {
 +    return bookmark.description || bookmark.href || "";
@@ -289,7 +165,7 @@ index 7ea16bb..b3f191c 100644
 +      resizeObserver?.disconnect();
 +    };
 +  }, [editMode, bookmark.name, iconOnly]);
- 
+
    return (
      <li
 +      ref={wrapperRef}
@@ -334,9 +210,9 @@ index f24794d..23c8c3b 100644
  import classNames from "classnames";
  import Item from "components/bookmarks/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
 -export default function List({ bookmarks, layout, bookmarksStyle }) {
 +export default function List({ groupName, bookmarks, layout, bookmarksStyle }) {
    let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
@@ -374,30 +250,30 @@ index 77ba911..79489a0 100644
 +++ b/src/components/resolvedicon.jsx
 @@ -4,8 +4,8 @@ import { SettingsContext } from "utils/contexts/settings";
  import { ThemeContext } from "utils/contexts/theme";
- 
+
  const iconSetURLs = {
 -  mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
 -  si: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/",
 +  mdi: "https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/",
 +  si: "https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/",
  };
- 
+
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
 @@ -31,9 +31,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
- 
+
 -  // check mdi- or si- prefixed icons
    const prefix = icon.split("-")[0];
- 
+
 +  // sh- prefixed icons (selfhst) loaded directly from unblocked CDN mirror
    if (prefix === "sh") {
      const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
- 
+
 @@ -46,9 +46,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
        extension = "png";
      }
- 
+
 +    const iconSource = `https://gcore.jsdelivr.net/gh/selfhst/icons@main/${extension}/${iconName}.${extension}`;
 +
      return (
@@ -415,7 +291,7 @@ index 77ba911..79489a0 100644
        />
      );
    }
- 
+
 -  if (prefix in iconSetURLs) {
 -    // default to theme setting
 +  // mdi- and si- prefixed icons loaded directly from unblocked CDN mirror with masks
@@ -425,7 +301,7 @@ index 77ba911..79489a0 100644
        settings.iconStyle === "theme"
          ? `rgb(var(--color-${theme === "dark" ? 300 : 900}) / var(--tw-text-opacity, 1))`
          : "linear-gradient(180deg, rgb(var(--color-logo-start)), rgb(var(--color-logo-stop)))";
- 
+
 -    // use custom hex color if provided
      const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
      if (colorMatches?.length) {
@@ -433,7 +309,7 @@ index 77ba911..79489a0 100644
 @@ -95,49 +97,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
- 
+
 -  // fallback to dashboard-icons
 -  if (icon.endsWith(".svg")) {
 -    const iconName = icon.replace(".svg", "");
@@ -478,7 +354,7 @@ index 77ba911..79489a0 100644
 +    localIconName = `${icon}.png`;
    }
 +  const iconSource = `/api/config/icon/${localIconName}`;
- 
+
 -  const iconName = icon.replace(".png", "");
    return (
      <Image
@@ -504,9 +380,9 @@ index 403f606..fcdf4b3 100644
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
 +import { useConfigEditor, useEditableGroupHeader, useGroupInsideDropTarget } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
 @@ -16,18 +17,52 @@ export default function ServicesGroup({
    groupsInitiallyCollapsed,
    isSubgroup,
@@ -521,7 +397,7 @@ index 403f606..fcdf4b3 100644
    useEffect(() => {
      if (layout?.initiallyCollapsed ?? groupsInitiallyCollapsed) panel.current.style.height = `0`;
    }, [layout, groupsInitiallyCollapsed]);
- 
+
 +  const subgroupsFromApi = group.groups ?? [];
 +  const subgroupNamesFromApi = new Set(subgroupsFromApi.map((subgroup) => subgroup.name));
 +  const layoutSubgroups = Object.entries(layout ?? {})
@@ -550,7 +426,7 @@ index 403f606..fcdf4b3 100644
 +
    let groupPadding = layout?.header === false ? "px-1" : "p-1 pb-0";
    if (isSubgroup) groupPadding = "";
- 
+
    return (
      <div
        key={group.name}
@@ -611,7 +487,7 @@ index c23e16a..9c53cc0 100644
 @@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
- 
+
 -export default function Item({ service, groupName, useEqualHeights }) {
 +export default function Item({ service, groupName, useEqualHeights, itemIndex }) {
    const hasLink = service.href && service.href !== "#";
@@ -644,9 +520,9 @@ index 1acf94d..531ba65 100644
  import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
- 
+
  import { columnMap } from "../../utils/layout/columns";
- 
+
  export default function List({ groupName, services, layout, useEqualHeights, header }) {
 +  const isRowLayout = layout?.style === "row";
 +
@@ -688,18 +564,18 @@ index f0bae0b..a868fad 100644
  import { useTranslation } from "next-i18next/pages";
 -import { useEffect, useState } from "react";
 +import { useEffect, useState, useMemo } from "react";
- 
+
  import Container from "../widget/container";
  import Raw from "../widget/raw";
 @@ -17,25 +17,133 @@ const textSizes = {
- 
+
  export default function DateTime({ options }) {
    const { text_size: textSize, locale, format } = options;
 +  const clockStyle = options?.clockStyle ?? {};
    const { i18n } = useTranslation();
 -  const [date, setDate] = useState("");
    const dateLocale = locale ?? i18n.language;
- 
+
 +  const [time, setTime] = useState(() => new Date());
 +
    useEffect(() => {
@@ -820,7 +696,7 @@ index f0bae0b..a868fad 100644
 +  };
 +
 +  const additionalClassNames = `information-widget-datetime ${noBackground ? "!bg-transparent !shadow-none !border-none !p-0 !backdrop-blur-none" : ""}`;
- 
+
    return (
 -    <Container options={options} additionalClassNames="information-widget-datetime">
 +    <Container options={options} additionalClassNames={additionalClassNames}>
@@ -845,11 +721,11 @@ index 4670459..ac3732a 100644
 +import Raw from "../widget/raw";
  import SecondaryText from "../widget/secondary_text";
  import WidgetIcon from "../widget/widget_icon";
- 
+
 @@ -38,14 +39,140 @@ function Widget({ options }) {
    const condition = data.weather[0].id;
    const timeOfDay = data.dt > data.sys.sunrise && data.dt < data.sys.sunset ? "day" : "night";
- 
+
 +  const weatherStyle = options.weatherStyle ?? {};
 +  const layout = weatherStyle.layout || "classic";
 +  const containerClasses = [
@@ -911,7 +787,7 @@ index 4670459..ac3732a 100644
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
 +              <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +              {!weatherStyle.hideDescription && (
-+                <span 
++                <span
 +                  className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
 +                  style={descStyle}
 +                >
@@ -924,7 +800,7 @@ index 4670459..ac3732a 100644
 +              <span className="primary-text text-xl font-bold leading-none whitespace-nowrap" style={tempStyle}>
 +                {tempText}
 +              </span>
-+              <span 
++              <span
 +                className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
 +                style={cityStyle}
 +              >
@@ -947,7 +823,7 @@ index 4670459..ac3732a 100644
 +              {tempText}
 +            </span>
 +            {!weatherStyle.hideDescription && (
-+              <span 
++              <span
 +                className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
 +                style={descStyle}
 +              >
@@ -955,7 +831,7 @@ index 4670459..ac3732a 100644
 +              </span>
 +            )}
 +            {cityName && (
-+              <span 
++              <span
 +                className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
 +                style={cityStyle}
 +              >
@@ -1003,11 +879,11 @@ index 779c718..f416b97 100644
 +import Raw from "../widget/raw";
  import SecondaryText from "../widget/secondary_text";
  import WidgetIcon from "../widget/widget_icon";
- 
+
 @@ -37,19 +38,145 @@ function Widget({ options }) {
    const condition = data.current.condition.code;
    const timeOfDay = data.current.is_day ? "day" : "night";
- 
+
 +  const weatherStyle = options.weatherStyle ?? {};
 +  const layout = weatherStyle.layout || "classic";
 +  const containerClasses = [
@@ -1074,7 +950,7 @@ index 779c718..f416b97 100644
 +            <div className="flex flex-col items-center text-center justify-center flex-1">
 +              <WidgetIcon icon={weatherIcon} size="xl" style={iconStyle} />
 +              {!weatherStyle.hideDescription && (
-+                <span 
++                <span
 +                  className="secondary-text text-[11px] mt-1 opacity-80 leading-tight block max-w-[90px]"
 +                  style={descStyle}
 +                >
@@ -1087,7 +963,7 @@ index 779c718..f416b97 100644
 +              <span className="primary-text text-xl font-bold leading-none whitespace-nowrap" style={tempStyle}>
 +                {tempText}
 +              </span>
-+              <span 
++              <span
 +                className="secondary-text text-xs mt-1 opacity-70 leading-tight block font-medium"
 +                style={cityStyle}
 +              >
@@ -1110,7 +986,7 @@ index 779c718..f416b97 100644
 +              {tempText}
 +            </span>
 +            {!weatherStyle.hideDescription && (
-+              <span 
++              <span
 +                className="secondary-text text-xs opacity-90 leading-tight mt-0.5"
 +                style={descStyle}
 +              >
@@ -1118,7 +994,7 @@ index 779c718..f416b97 100644
 +              </span>
 +            )}
 +            {cityName && (
-+              <span 
++              <span
 +                className="secondary-text text-[10px] opacity-70 leading-tight mt-1 font-medium"
 +                style={cityStyle}
 +              >
@@ -1205,9 +1081,9 @@ index a51313e..2c46b2c 100644
  import useSWR, { SWRConfig } from "swr";
  import { ColorContext } from "utils/contexts/color";
 @@ -41,6 +50,66 @@ const Version = dynamic(() => import("components/version"), {
- 
+
  const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
- 
+
 +function EditableInformationWidget({ widget, widgetIndex, style }) {
 +  const { editMode, widgetProps } = useEditableTopWidget(widget, widgetIndex);
 +  const wrapperRef = useRef(null);
@@ -1273,7 +1149,7 @@ index a51313e..2c46b2c 100644
    "zh-cn": "zh-Hans",
 @@ -277,14 +346,8 @@ function Home({ initialSettings }) {
    });
- 
+
    const tabs = useMemo(
 -    () => [
 -      ...new Set(
@@ -1286,12 +1162,12 @@ index a51313e..2c46b2c 100644
 +    () => getOrderedTabsForLayout(settings.layout ?? {}, settings.__browserEditorTabOrder ?? []),
 +    [settings.__browserEditorTabOrder, settings.layout],
    );
- 
+
    useEffect(() => {
 @@ -294,50 +357,119 @@ function Home({ initialSettings }) {
      }
    });
- 
+
 +  const activePageName = useMemo(() => {
 +    const normalizedActiveTab = typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
 +    if (!normalizedActiveTab) {
@@ -1308,7 +1184,7 @@ index a51313e..2c46b2c 100644
 +      if (!groupName) {
 +        return undefined;
 +      }
- 
+
 -    const layoutGroups = Object.keys(settings.layout ?? {})
 -      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
 -      .filter(tabGroupFilter);
@@ -1339,12 +1215,12 @@ index a51313e..2c46b2c 100644
 +        return { type: "services", group: { name: groupName, services: [], groups: [] } };
 +      })
 +      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
- 
+
      if (!settings.layout && JSON.stringify(settings.layout) !== JSON.stringify(initialSettings.layout)) {
        // wait for settings to populate (if different from initial settings), otherwise all the widgets will be requested initially even if we are on a single tab
        return <div />;
      }
- 
+
 -    const serviceGroups = services?.filter(tabGroupFilter).filter(undefinedGroupFilter);
 -    const bookmarkGroups = bookmarks.filter(tabGroupFilter).filter(undefinedGroupFilter);
 +    const serviceFallbackGroups = (services ?? [])
@@ -1367,7 +1243,7 @@ index a51313e..2c46b2c 100644
 +        index,
 +    );
 +    const orderedPageGroups = getOrderedTopLevelGroupsForPage(settings, activePageName, fallbackPageGroups);
- 
+
      return (
        <>
          {tabs.length > 0 && (
@@ -1492,7 +1368,7 @@ index a51313e..2c46b2c 100644
          <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="color-scheme" content="dark light"></meta>
-+        
++
 +        <link rel="preconnect" href="https://fonts.googleapis.com" />
 +        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
 +        <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
@@ -1554,7 +1430,7 @@ index a51313e..2c46b2c 100644
 +          #tabs ul li button.tab-style-underline-rounded[aria-selected="true"]:hover::after {
 +            transform: scaleX(1) !important;
 +          }
-+          
++
 +          ${settings.pageStyles?.hideTabBackground ? `
 +            #tabs ul {
 +              background-color: transparent !important;
@@ -1563,13 +1439,13 @@ index a51313e..2c46b2c 100644
 +              box-shadow: none !important;
 +            }
 +          ` : ''}
-+          
++
 +          ${settings.pageStyles?.fontFamily ? `
 +            #tabs ul, #tabs ul li button, #tabs ul li button span {
 +              font-family: ${settings.pageStyles.fontFamily.includes(' ') || settings.pageStyles.fontFamily.includes('-') ? `'${settings.pageStyles.fontFamily}'` : settings.pageStyles.fontFamily} !important;
 +            }
 +          ` : ''}
-+          
++
 +          ${settings.pageStyles?.fontSize ? `
 +            #tabs ul li button, #tabs ul li button span {
 +              font-size: ${settings.pageStyles.fontSize} !important;
@@ -1577,9 +1453,9 @@ index a51313e..2c46b2c 100644
 +          ` : ''}
 +        `}</style>
        </Head>
- 
+
        <Script src="/api/config/custom.js" />
- 
+
 -      <div
 -        className={classNames(
 -          settings.fullWidth ? "" : "container",
@@ -1635,10 +1511,10 @@ index a51313e..2c46b2c 100644
 @@ -496,7 +691,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
- 
+
 -        {servicesAndBookmarksGroups}
 +        <RootGroupDropZone>{servicesAndBookmarksGroups}</RootGroupDropZone>
- 
+
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
 @@ -509,7 +704,8 @@ function Home({ initialSettings }) {
