@@ -320,8 +320,8 @@
               </button>
             </li>`,
       playlist: `<li id="lif">
-              <button id="playlist" class="jexum swb" type="button" style="${radioButtonsStyle === "modern" ? "display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px;" : ""}">
-                ${radioButtonsStyle === "modern" ? `
+              <button id="playlist" class="jexum swb" type="button" style="${radioButtonsStyle.startsWith("modern") ? "display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px;" : ""}">
+                ${radioButtonsStyle.startsWith("modern") ? `
                 <svg id="pl" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon" style="margin: 0;">
                   <path d="M9 18V5l12-2v13"/>
                   <circle cx="6" cy="18" r="3"/>
@@ -347,7 +347,7 @@
             </li>`,
       plapau: `<li>
               <button id="plapau" class="jexum radiopx" type="button">
-                ${radioButtonsStyle === "modern" ? `
+                ${radioButtonsStyle.startsWith("modern") ? `
                 <svg id="imgplay" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
                   <path id="imgplay-path" d="M5 3l14 9-14 9V3z"/>
                 </svg>
@@ -358,7 +358,11 @@
             </li>`,
       volumedown: `<li>
               <button id="volumedown" class="jexum radiopx" type="button">
-                ${radioButtonsStyle === "modern" ? `
+                ${radioButtonsStyle === "modern-plus-minus" ? `
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                ` : radioButtonsStyle === "modern" ? `
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 </svg>
@@ -372,7 +376,12 @@
             </li>`,
       volumeup: `<li>
               <button id="volumeup" class="jexum radiopx" type="button">
-                ${radioButtonsStyle === "modern" ? `
+                ${radioButtonsStyle === "modern-plus-minus" ? `
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                ` : radioButtonsStyle === "modern" ? `
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                   <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -823,7 +832,7 @@
 
     function updatePlaybackIcons(isPlaying) {
       if (!isRadioInitialized) return;
-      if (radioButtonsStyle === "modern") {
+      if (radioButtonsStyle.startsWith("modern")) {
         const pathEl = radioRoot.querySelector("#imgplay-path");
         if (pathEl) {
           pathEl.setAttribute("d", isPlaying ? "M6 4h4v16H6zm8 0h4v16h-4z" : "M5 3l14 9-14 9V3z");

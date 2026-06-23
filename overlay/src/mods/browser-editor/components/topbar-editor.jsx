@@ -384,7 +384,7 @@ export default function TopBarSettingsEditor({
 
   const renderPreviewButton = (buttonId) => {
     const commonClass = "flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-[4px] transition-colors cursor-grab select-none";
-    const isModern = radioButtonsStyle === 'modern';
+    const isModern = radioButtonsStyle.startsWith('modern');
     
     const dragHandlers = {
       draggable: true,
@@ -491,7 +491,11 @@ export default function TopBarSettingsEditor({
       case 'volumedown':
         return (
           <div key="volumedown" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 14px' }} title="Тише (перетащи для изменения порядка)">
-            {isModern ? (
+            {radioButtonsStyle === 'modern-plus-minus' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            ) : isModern ? (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
               </svg>
@@ -509,7 +513,12 @@ export default function TopBarSettingsEditor({
       case 'volumeup':
         return (
           <div key="volumeup" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 14px' }} title="Громче (перетащи для изменения порядка)">
-            {isModern ? (
+            {radioButtonsStyle === 'modern-plus-minus' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            ) : isModern ? (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -585,6 +594,7 @@ export default function TopBarSettingsEditor({
               >
                 <option value="classic">Картинки (Классический)</option>
                 <option value="modern">Иконки (Современный SVG)</option>
+                <option value="modern-plus-minus">Иконки с +/- (Современный SVG)</option>
               </select>
             </div>
 
