@@ -196,6 +196,7 @@ max-width: 100%;
 }
 #playlist {
     padding: 0;
+    display: block;
 }
 #playlist, .jexum {
     height: var(--radio-button-size);
@@ -381,5 +382,14 @@ ul {
     width: calc(var(--radio-icon-size) * 0.7);
     height: calc(var(--radio-icon-size) * 0.7);
     opacity: 0.7;
+}
+
+#homepage-topbar-root.hplink-sizes #ip,
+#homepage-topbar-root.hplink-sizes #homepage-fps-button {
+    height: var(--radio-button-size) !important;
+}
+#homepage-topbar-root.hplink-sizes .ipimg,
+#homepage-topbar-root.hplink-sizes .homepage-fps-icon {
+    height: var(--radio-icon-size) !important;
 }
 /* <<< HOMEPAGE-EDITOR RADIO CSS END <<< */

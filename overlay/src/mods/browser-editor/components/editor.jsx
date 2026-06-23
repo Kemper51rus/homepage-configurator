@@ -7284,44 +7284,48 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             }
           />
         </div>
-        <div style={{ display: activeFileName === "__top_bar__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
-          <TopBarSettingsEditor
-            customJs={drafts["custom.js"] ?? ""}
-            customCss={drafts["custom.css"] ?? ""}
-            mode="topbar"
-            onChangeCustomJs={(newJs) =>
-              setDrafts((current) => ({
-                ...current,
-                "custom.js": newJs,
-              }))
-            }
-            onChangeCustomCss={(newCss) =>
-              setDrafts((current) => ({
-                ...current,
-                "custom.css": newCss,
-              }))
-            }
-          />
-        </div>
-        <div style={{ display: activeFileName === "__radio__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
-          <TopBarSettingsEditor
-            customJs={drafts["custom.js"] ?? ""}
-            customCss={drafts["custom.css"] ?? ""}
-            mode="radio"
-            onChangeCustomJs={(newJs) =>
-              setDrafts((current) => ({
-                ...current,
-                "custom.js": newJs,
-              }))
-            }
-            onChangeCustomCss={(newCss) =>
-              setDrafts((current) => ({
-                ...current,
-                "custom.css": newCss,
-              }))
-            }
-          />
-        </div>
+        {activeFileName === "__top_bar__" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <TopBarSettingsEditor
+              customJs={drafts["custom.js"] ?? ""}
+              customCss={drafts["custom.css"] ?? ""}
+              mode="topbar"
+              onChangeCustomJs={(newJs) =>
+                setDrafts((current) => ({
+                  ...current,
+                  "custom.js": newJs,
+                }))
+              }
+              onChangeCustomCss={(newCss) =>
+                setDrafts((current) => ({
+                  ...current,
+                  "custom.css": newCss,
+                }))
+              }
+            />
+          </div>
+        )}
+        {activeFileName === "__radio__" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <TopBarSettingsEditor
+              customJs={drafts["custom.js"] ?? ""}
+              customCss={drafts["custom.css"] ?? ""}
+              mode="radio"
+              onChangeCustomJs={(newJs) =>
+                setDrafts((current) => ({
+                  ...current,
+                  "custom.js": newJs,
+                }))
+              }
+              onChangeCustomCss={(newCss) =>
+                setDrafts((current) => ({
+                  ...current,
+                  "custom.css": newCss,
+                }))
+              }
+            />
+          </div>
+        )}
         {(tabs ?? []).map((tab) => {
           const active = activeFileName === tab.fileName;
           const isSettingsYaml = tab.fileName === "settings.yaml";

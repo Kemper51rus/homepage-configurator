@@ -21,6 +21,9 @@
   const radioButtonsStyle = "classic";
   const radioIconSize = 10;
   const radioButtonSize = 18;
+  const linkIpFpsSizes = false;
+  const radioEnabled = true;
+  const ipEnabled = true;
 
   function parseIpProviders(definition) {
     return definition
@@ -404,16 +407,23 @@
     topbarRoot.id = "homepage-topbar-root";
     topHost.prepend(topbarRoot);
 
-    const radioRoot = document.createElement("div");
-    radioRoot.id = "homepage-radio-root";
-    radioRoot.innerHTML = createRadioMarkup();
-    topbarRoot.appendChild(radioRoot);
+    let radioRoot = null;
+    if (radioEnabled) {
+      radioRoot = document.createElement("div");
+      radioRoot.id = "homepage-radio-root";
+      radioRoot.innerHTML = createRadioMarkup();
+      topbarRoot.appendChild(radioRoot);
+    }
 
-    const ipRoot = document.createElement("div");
-    ipRoot.id = "homepage-ip-root";
-    const ipButton = createIpButton();
-    ipRoot.appendChild(ipButton);
-    topbarRoot.prepend(ipRoot);
+    let ipRoot = null;
+    let ipButton = null;
+    if (ipEnabled) {
+      ipRoot = document.createElement("div");
+      ipRoot.id = "homepage-ip-root";
+      ipButton = createIpButton();
+      ipRoot.appendChild(ipButton);
+      topbarRoot.prepend(ipRoot);
+    }
 
     return {
       topbarRoot,
@@ -437,35 +447,32 @@
 
     const { topbarRoot, radioRoot, ipRoot, ipButton } = mountRoots();
 
-    if (!topbarRoot || !radioRoot || !ipRoot || !ipButton) {
+    if (!topbarRoot) {
       return;
     }
 
-    radioRoot.style.setProperty('--radio-icon-size', `${radioIconSize}px`);
-    radioRoot.style.setProperty('--radio-button-size', `${radioButtonSize}px`);
+    topbarRoot.style.setProperty('--radio-icon-size', `${radioIconSize}px`);
+    topbarRoot.style.setProperty('--radio-button-size', `${radioButtonSize}px`);
 
-    const audio = radioRoot.querySelector("#jexumaudio");
-    const playPauseButton = radioRoot.querySelector("#plapau");
-    const playlistIcon = radioRoot.querySelector("#pl");
-    const playPauseIcon = radioRoot.querySelector("#imgplay");
-    const volumeDownButton = radioRoot.querySelector("#volumedown");
-    const volumeUpButton = radioRoot.querySelector("#volumeup");
-    const volumeButton = radioRoot.querySelector("#volumeset");
-    const likeButton = radioRoot.querySelector("#like");
-    const dislikeButton = radioRoot.querySelector("#dislike");
+    if (linkIpFpsSizes) {
+      topbarRoot.classList.add("hplink-sizes");
+    }
+
+    const audio = radioRoot ? radioRoot.querySelector("#jexumaudio") : null;
+    const playPauseButton = radioRoot ? radioRoot.querySelector("#plapau") : null;
+    const playlistIcon = radioRoot ? radioRoot.querySelector("#pl") : null;
+    const playPauseIcon = radioRoot ? radioRoot.querySelector("#imgplay") : null;
+    const volumeDownButton = radioRoot ? radioRoot.querySelector("#volumedown") : null;
+    const volumeUpButton = radioRoot ? radioRoot.querySelector("#volumeup") : null;
+    const volumeButton = radioRoot ? radioRoot.querySelector("#volumeset") : null;
+    const likeButton = radioRoot ? radioRoot.querySelector("#like") : null;
+    const dislikeButton = radioRoot ? radioRoot.querySelector("#dislike") : null;
     const ipContainer = ipButton;
 
-    if (
-      !audio ||
-      !playPauseButton ||
-      !playlistIcon ||
-      !playPauseIcon ||
-      !volumeDownButton ||
-      !volumeUpButton ||
-      !volumeButton ||
-      !likeButton ||
-      !dislikeButton
-    ) {
+    const isRadioInitialized = radioEnabled && radioRoot && audio && playPauseButton && playlistIcon && playPauseIcon && volumeDownButton && volumeUpButton && volumeButton && likeButton && dislikeButton;
+    const isIpInitialized = ipEnabled && ipRoot && ipButton;
+
+    if (!isRadioInitialized && !isIpInitialized) {
       removeExistingRoots();
       window.__homepageRadioWidgetInitialized = false;
       window.__homepageRadioWidgetCleanup = null;
@@ -768,7 +775,7 @@
       }
 
       const topHost = getTopHost();
-      if (!topHost || !topbarRoot || !ipRoot || !radioRoot) {
+      if (!topHost || !topbarRoot) {
         return;
       }
 
@@ -778,30 +785,44 @@
         topHost.prepend(topbarRoot);
       }
 
-      if (fpsRoot?.parentElement === topbarRoot) {
-        if (ipRoot.parentElement !== topbarRoot || fpsRoot.nextElementSibling !== ipRoot) {
-          topbarRoot.insertBefore(ipRoot, fpsRoot.nextElementSibling);
+      if (isIpInitialized) {
+        if (fpsRoot?.parentElement === topbarRoot) {
+          if (ipRoot.parentElement !== topbarRoot || fpsRoot.nextElementSibling !== ipRoot) {
+            topbarRoot.insertBefore(ipRoot, fpsRoot.nextElementSibling);
+          }
+        } else if (ipRoot.parentElement !== topbarRoot || topbarRoot.firstElementChild !== ipRoot) {
+          topbarRoot.prepend(ipRoot);
         }
-      } else if (ipRoot.parentElement !== topbarRoot || topbarRoot.firstElementChild !== ipRoot) {
-        topbarRoot.prepend(ipRoot);
       }
 
-      if (radioRoot.parentElement !== topbarRoot || radioRoot.previousElementSibling !== ipRoot) {
-        topbarRoot.appendChild(radioRoot);
+      if (isRadioInitialized) {
+        if (isIpInitialized) {
+          if (radioRoot.parentElement !== topbarRoot || radioRoot.previousElementSibling !== ipRoot) {
+            topbarRoot.appendChild(radioRoot);
+          }
+        } else {
+          if (radioRoot.parentElement !== topbarRoot || topbarRoot.firstElementChild !== radioRoot) {
+            topbarRoot.prepend(radioRoot);
+          }
+        }
       }
     }
 
-    audio.volume = savedPlayerState?.volume ?? 1;
-    audio.muted = state.muted;
-    if (savedStation) {
-      audio.src = savedStation.url;
+    if (isRadioInitialized) {
+      audio.volume = savedPlayerState?.volume ?? 1;
+      audio.muted = state.muted;
+      if (savedStation) {
+        audio.src = savedStation.url;
+      }
     }
 
     function updateVolumeLabel() {
+      if (!isRadioInitialized) return;
       volumeButton.textContent = state.muted ? "0" : formatVolume(audio.volume);
     }
 
     function updatePlaybackIcons(isPlaying) {
+      if (!isRadioInitialized) return;
       if (radioButtonsStyle === "modern") {
         const pathEl = radioRoot.querySelector("#imgplay-path");
         if (pathEl) {
@@ -818,14 +839,13 @@
     }
 
     function updateLikesVisibility() {
+      if (!isRadioInitialized) return;
       const hakuranStation = stations.find((s) => s.label.toLowerCase() === "hakuran");
       const hakuranKey = hakuranStation ? hakuranStation.key : null;
       
       const currentStationKey = state.activeStation || state.lastStationKey;
       const shouldShow = (currentStationKey === hakuranKey);
       
-      console.log("updateLikesVisibility called: currentStationKey =", currentStationKey, "hakuranKey =", hakuranKey, "shouldShow =", shouldShow);
-
       const likeLi = radioRoot.querySelector("#like-container");
       const dislikeLi = radioRoot.querySelector("#dislike-container");
       
@@ -838,6 +858,7 @@
     }
 
     function updateActiveStationClasses() {
+      if (!isRadioInitialized) return;
       stationButtons.forEach((button, key) => {
         button?.classList.toggle("jenium", state.activeStation === key);
       });
@@ -846,6 +867,7 @@
     }
 
     function saveCurrentPlayerState(shouldPlayOverride = null) {
+      if (!isRadioInitialized) return;
       const stationKey = state.activeStation || state.pendingStationKey || state.lastStationKey || defaultStation?.key || null;
       savePlayerState({
         stationKey,
@@ -858,6 +880,7 @@
     }
 
     function rememberPlaybackBeforePageLeave() {
+      if (!isRadioInitialized) return;
       const stationKey = state.activeStation || state.pendingStationKey || state.lastStationKey;
       shouldRestoreAfterPageLeave = Boolean(stationKey && !audio.paused && !audio.ended);
       isPageLeaving = true;
@@ -865,6 +888,7 @@
     }
 
     function pausePlayback({ persist = true } = {}) {
+      if (!isRadioInitialized) return;
       startRequestId += 1;
       state.pendingStationKey = null;
       audio.pause();
@@ -875,6 +899,7 @@
     }
 
     function resetPlaybackState({ clearSource = true } = {}) {
+      if (!isRadioInitialized) return;
       state.activeStation = null;
       state.pendingStationKey = null;
       state.restoringStationKey = null;
@@ -893,12 +918,14 @@
     }
 
     function stopPlayback() {
+      if (!isRadioInitialized) return;
       startRequestId += 1;
       resetPlaybackState({ clearSource: true });
       saveCurrentPlayerState(false);
     }
 
     function handlePlaybackFailure({ persist = true } = {}) {
+      if (!isRadioInitialized) return;
       startRequestId += 1;
       resetPlaybackState({ clearSource: true });
       if (persist) {
@@ -907,6 +934,7 @@
     }
 
     async function resumePlayback({ persistOnFailure = true } = {}) {
+      if (!isRadioInitialized) return false;
       const requestId = ++startRequestId;
       state.pendingStationKey = null;
 
@@ -936,7 +964,7 @@
     }
 
     async function startStation(station, { persistOnFailure = true } = {}) {
-      if (!station || isDisposed) {
+      if (!isRadioInitialized || !station || isDisposed) {
         return false;
       }
 
@@ -986,6 +1014,7 @@
     }
 
     function renderIpInfo(payload) {
+      if (!isIpInitialized) return;
       const fragment = document.createDocumentFragment();
 
       if (payload.flagImg) {
@@ -1014,6 +1043,7 @@
     }
 
     function handleAudioError() {
+      if (!isRadioInitialized) return;
       if (!state.pendingStationKey && !state.activeStation) {
         return;
       }
@@ -1039,6 +1069,7 @@
     }
 
     function handleAudioPlay() {
+      if (!isRadioInitialized) return;
       if (!state.activeStation || state.pendingStationKey) {
         return;
       }
@@ -1049,6 +1080,7 @@
     }
 
     function handleAudioPause() {
+      if (!isRadioInitialized) return;
       if (state.pendingStationKey) {
         return;
       }
@@ -1064,6 +1096,7 @@
     }
 
     function handleAudioEnded() {
+      if (!isRadioInitialized) return;
       if (!state.activeStation) {
         return;
       }
@@ -1072,6 +1105,7 @@
     }
 
     function handlePlayableLinkClick(event) {
+      if (!isRadioInitialized) return;
       if (
         event.defaultPrevented ||
         event.button !== 0 ||
@@ -1102,97 +1136,100 @@
       window.open(link.href, "_blank", "noopener,noreferrer");
     }
 
-    stations.forEach((station) => {
-      const stationButton = stationButtons.get(station.key);
+    if (isRadioInitialized) {
+      stations.forEach((station) => {
+        const stationButton = stationButtons.get(station.key);
 
-      addManagedListener(stationButton, "click", async () => {
-        if (state.pendingStationKey === station.key) {
-          return;
-        }
-
-        if (state.activeStation === station.key) {
-          if (audio.paused || audio.ended) {
-            await resumePlayback();
+        addManagedListener(stationButton, "click", async () => {
+          if (state.pendingStationKey === station.key) {
             return;
           }
 
-          stopPlayback();
-          return;
-        }
+          if (state.activeStation === station.key) {
+            if (audio.paused || audio.ended) {
+              await resumePlayback();
+              return;
+            }
 
-        await startStation(station);
+            stopPlayback();
+            return;
+          }
+
+          await startStation(station);
+        });
       });
-    });
 
-    addManagedListener(playPauseButton, "click", async () => {
-      if (state.pendingStationKey) {
-        return;
-      }
-
-      if (!state.activeStation) {
-        if (!defaultStation) {
+      addManagedListener(playPauseButton, "click", async () => {
+        if (state.pendingStationKey) {
           return;
         }
 
-        await startStation(defaultStation);
-        return;
-      }
+        if (!state.activeStation) {
+          if (!defaultStation) {
+            return;
+          }
 
-      if (audio.paused || audio.ended) {
-        await resumePlayback();
-        return;
-      }
-
-      pausePlayback();
-    });
-
-    addManagedListener(volumeDownButton, "click", () => {
-      audio.volume = clampVolume(audio.volume - 0.1);
-      if (audio.volume > 0 && state.muted) {
-        audio.muted = false;
-        state.muted = false;
-      }
-      updateVolumeLabel();
-      saveCurrentPlayerState();
-    });
-
-    addManagedListener(volumeUpButton, "click", () => {
-      audio.volume = clampVolume(audio.volume + 0.1);
-      if (state.muted && audio.volume > 0) {
-        audio.muted = false;
-        state.muted = false;
-      }
-      updateVolumeLabel();
-      saveCurrentPlayerState();
-    });
-
-    addManagedListener(volumeButton, "click", () => {
-      state.muted = !state.muted;
-      audio.muted = state.muted;
-      updateVolumeLabel();
-      saveCurrentPlayerState();
-    });
-
-    addManagedListener(audio, "play", handleAudioPlay);
-    addManagedListener(audio, "pause", handleAudioPause);
-    addManagedListener(audio, "ended", handleAudioEnded);
-    addManagedListener(audio, "error", handleAudioError);
-    addManagedListener(audio, "volumechange", updateVolumeLabel);
-    addManagedListener(document, "click", handlePlayableLinkClick, true);
-    addManagedListener(window, "pagehide", rememberPlaybackBeforePageLeave);
-    addManagedListener(window, "beforeunload", rememberPlaybackBeforePageLeave);
-
-    updateVolumeLabel();
-    updatePlaybackIcons(false);
-    updateActiveStationClasses();
-    if (savedStation && savedPlayerState?.shouldPlay) {
-      restorePlaybackTimeoutId = window.setTimeout(() => {
-        restorePlaybackTimeoutId = 0;
-        if (!isDisposed) {
-          startStation(savedStation, { persistOnFailure: false });
+          await startStation(defaultStation);
+          return;
         }
-      }, 0);
+
+        if (audio.paused || audio.ended) {
+          await resumePlayback();
+          return;
+        }
+
+        pausePlayback();
+      });
+
+      addManagedListener(volumeDownButton, "click", () => {
+        audio.volume = clampVolume(audio.volume - 0.1);
+        if (audio.volume > 0 && state.muted) {
+          audio.muted = false;
+          state.muted = false;
+        }
+        updateVolumeLabel();
+        saveCurrentPlayerState();
+      });
+
+      addManagedListener(volumeUpButton, "click", () => {
+        audio.volume = clampVolume(audio.volume + 0.1);
+        if (state.muted && audio.volume > 0) {
+          audio.muted = false;
+          state.muted = false;
+        }
+        updateVolumeLabel();
+        saveCurrentPlayerState();
+      });
+
+      addManagedListener(volumeButton, "click", () => {
+        state.muted = !state.muted;
+        audio.muted = state.muted;
+        updateVolumeLabel();
+        saveCurrentPlayerState();
+      });
+
+      addManagedListener(audio, "play", handleAudioPlay);
+      addManagedListener(audio, "pause", handleAudioPause);
+      addManagedListener(audio, "ended", handleAudioEnded);
+      addManagedListener(audio, "error", handleAudioError);
+      addManagedListener(audio, "volumechange", updateVolumeLabel);
+      addManagedListener(document, "click", handlePlayableLinkClick, true);
+      addManagedListener(window, "pagehide", rememberPlaybackBeforePageLeave);
+      addManagedListener(window, "beforeunload", rememberPlaybackBeforePageLeave);
+
+      updateVolumeLabel();
+      updatePlaybackIcons(false);
+      updateActiveStationClasses();
+      if (savedStation && savedPlayerState?.shouldPlay) {
+        restorePlaybackTimeoutId = window.setTimeout(() => {
+          restorePlaybackTimeoutId = 0;
+          if (!isDisposed) {
+            startStation(savedStation, { persistOnFailure: false });
+          }
+        }, 0);
+      }
     }
+
     ensureTopRootsPlacement();
     scheduleEnsureTopRootsPlacement();
     delayedPlacementTimeoutId = window.setTimeout(() => {
@@ -1218,59 +1255,61 @@
       });
     }
 
-    addManagedListener(ipContainer, "click", async () => {
-      if (!currentIpAddress) {
-        return;
-      }
-
-      const copied = await copyTextToClipboard(currentIpAddress);
-      if (copied) {
-        ipContainer.classList.add("ipcheck-copied");
-
-        if (ipCopyFeedbackTimeoutId) {
-          window.clearTimeout(ipCopyFeedbackTimeoutId);
-        }
-
-        ipCopyFeedbackTimeoutId = window.setTimeout(() => {
-          ipContainer.classList.remove("ipcheck-copied");
-          ipCopyFeedbackTimeoutId = 0;
-        }, 900);
-      }
-    });
-
-    ipRoot.style.display = "none";
-    ipContainer.replaceChildren();
-    currentIpAddress = "";
-
-    requestIpInfo()
-      .then((payload) => {
-        if (isDisposed) {
+    if (isIpInitialized) {
+      addManagedListener(ipContainer, "click", async () => {
+        if (!currentIpAddress) {
           return;
         }
 
-        currentIpAddress = payload.ip || "";
-        renderIpInfo(payload);
-        ipRoot.style.display = "flex";
-      })
-      .catch(() => {
-        if (isDisposed) {
-          return;
-        }
+        const copied = await copyTextToClipboard(currentIpAddress);
+        if (copied) {
+          ipContainer.classList.add("ipcheck-copied");
 
-        ipContainer.replaceChildren();
-        currentIpAddress = "";
-        
-        if (typeof ipHideOnError === "boolean" && !ipHideOnError) {
-          const errorSpan = document.createElement("span");
-          errorSpan.className = "ipcheck-address";
-          errorSpan.textContent = "Неизвестно";
-          errorSpan.style.color = "#ff4a4a";
-          ipContainer.appendChild(errorSpan);
-          ipRoot.style.display = "flex";
-        } else {
-          ipRoot.style.display = "none";
+          if (ipCopyFeedbackTimeoutId) {
+            window.clearTimeout(ipCopyFeedbackTimeoutId);
+          }
+
+          ipCopyFeedbackTimeoutId = window.setTimeout(() => {
+            ipContainer.classList.remove("ipcheck-copied");
+            ipCopyFeedbackTimeoutId = 0;
+          }, 900);
         }
       });
+
+      ipRoot.style.display = "none";
+      ipContainer.replaceChildren();
+      currentIpAddress = "";
+
+      requestIpInfo()
+        .then((payload) => {
+          if (isDisposed) {
+            return;
+          }
+
+          currentIpAddress = payload.ip || "";
+          renderIpInfo(payload);
+          ipRoot.style.display = "flex";
+        })
+        .catch(() => {
+          if (isDisposed) {
+            return;
+          }
+
+          ipContainer.replaceChildren();
+          currentIpAddress = "";
+          
+          if (typeof ipHideOnError === "boolean" && !ipHideOnError) {
+            const errorSpan = document.createElement("span");
+            errorSpan.className = "ipcheck-address";
+            errorSpan.textContent = "Неизвестно";
+            errorSpan.style.color = "#ff4a4a";
+            ipContainer.appendChild(errorSpan);
+            ipRoot.style.display = "flex";
+          } else {
+            ipRoot.style.display = "none";
+          }
+        });
+    }
   }
 
   ready(initializeWidget);

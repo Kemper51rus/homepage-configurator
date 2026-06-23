@@ -700,6 +700,11 @@ export default async function handler(req, res) {
           return res.status(422).end("Unsupported file");
         }
 
+        console.log("BACKEND-SAVE: Saving", fileName, "content length:", content?.length);
+        if (fileName === "custom.js") {
+          console.log("BACKEND-SAVE: custom.js has topbarRoot =", content?.includes("topbarRoot"), "has radioRoot =", content?.includes("radioRoot"));
+        }
+
         await writeRawConfigFile(settingsTab.fileName, settingsTab.format, content);
         if (["settings.yaml", "services.yaml", "bookmarks.yaml"].includes(fileName)) {
           await regenerateAllStylesCss();
