@@ -638,10 +638,10 @@
       const hakuranStation = stations.find((s) => s.label.toLowerCase() === "hakuran");
       const hakuranKey = hakuranStation ? hakuranStation.key : null;
       
-      const isPlaying = audio && !audio.paused && !audio.ended && audio.src;
-      const shouldShow = isPlaying || (state.lastStationKey === hakuranKey);
+      const currentStationKey = state.activeStation || state.lastStationKey;
+      const shouldShow = (currentStationKey === hakuranKey);
       
-      console.log("updateLikesVisibility called: isPlaying =", !!isPlaying, "lastStationKey =", state.lastStationKey, "hakuranKey =", hakuranKey, "shouldShow =", shouldShow);
+      console.log("updateLikesVisibility called: currentStationKey =", currentStationKey, "hakuranKey =", hakuranKey, "shouldShow =", shouldShow);
 
       const likeLi = radioRoot.querySelector("#like-container");
       const dislikeLi = radioRoot.querySelector("#dislike-container");
