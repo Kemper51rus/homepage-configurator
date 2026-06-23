@@ -18,6 +18,9 @@
     api.ipify.org, https://api.ipify.org?format=json, ip
   `;
   const ipHideOnError = true;
+  const radioButtonsStyle = "classic";
+  const radioIconSize = 10;
+  const radioButtonSize = 18;
 
   function parseIpProviders(definition) {
     return definition
@@ -314,10 +317,21 @@
               </button>
             </li>`,
       playlist: `<li id="lif">
-              <button id="playlist" class="jexum swb" type="button">
+              <button id="playlist" class="jexum swb" type="button" style="${radioButtonsStyle === "modern" ? "display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px;" : ""}">
+                ${radioButtonsStyle === "modern" ? `
+                <svg id="pl" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon" style="margin: 0;">
+                  <path d="M9 18V5l12-2v13"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <circle cx="18" cy="16" r="3"/>
+                </svg>
+                <svg id="down4" xmlns="http://www.w3.org/2000/svg" width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon" style="margin: 0; opacity: 0.7;">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+                ` : `
                 <img id="pl" class="imgmpx" src="/images/radio/pl.png" alt="">
                 &ensp;
                 <img id="down4" class="px" src="/images/radio/down.png" alt="">
+                `}
               </button>
               <ul class="jexumsub">
                 ${stations
@@ -330,12 +344,24 @@
             </li>`,
       plapau: `<li>
               <button id="plapau" class="jexum radiopx" type="button">
+                ${radioButtonsStyle === "modern" ? `
+                <svg id="imgplay" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
+                  <path id="imgplay-path" d="M5 3l14 9-14 9V3z"/>
+                </svg>
+                ` : `
                 <img id="imgplay" class="imgmpx" src="/images/radio/play.png" alt="">
+                `}
               </button>
             </li>`,
       volumedown: `<li>
               <button id="volumedown" class="jexum radiopx" type="button">
+                ${radioButtonsStyle === "modern" ? `
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                </svg>
+                ` : `
                 <img id="dvolume" class="imgmpx" src="/images/radio/volume-down.png" alt="">
+                `}
               </button>
             </li>`,
       volumeset: `<li>
@@ -343,7 +369,14 @@
             </li>`,
       volumeup: `<li>
               <button id="volumeup" class="jexum radiopx" type="button">
+                ${radioButtonsStyle === "modern" ? `
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-radio-icon">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+                ` : `
                 <img id="uvolume" class="imgmpx" src="/images/radio/volume-up.png" alt="">
+                `}
               </button>
             </li>`
     };
@@ -407,6 +440,9 @@
     if (!topbarRoot || !radioRoot || !ipRoot || !ipButton) {
       return;
     }
+
+    radioRoot.style.setProperty('--radio-icon-size', `${radioIconSize}px`);
+    radioRoot.style.setProperty('--radio-button-size', `${radioButtonSize}px`);
 
     const audio = radioRoot.querySelector("#jexumaudio");
     const playPauseButton = radioRoot.querySelector("#plapau");
@@ -766,8 +802,18 @@
     }
 
     function updatePlaybackIcons(isPlaying) {
-      playPauseIcon.src = isPlaying ? "/images/radio/pause.png" : "/images/radio/play.png";
-      playlistIcon.src = isPlaying ? "/images/radio/play.gif" : "/images/radio/pl.png";
+      if (radioButtonsStyle === "modern") {
+        const pathEl = radioRoot.querySelector("#imgplay-path");
+        if (pathEl) {
+          pathEl.setAttribute("d", isPlaying ? "M6 4h4v16H6zm8 0h4v16h-4z" : "M5 3l14 9-14 9V3z");
+        }
+        if (playlistIcon) {
+          playlistIcon.style.color = isPlaying ? "#56fd3c" : "";
+        }
+      } else {
+        if (playPauseIcon) playPauseIcon.src = isPlaying ? "/images/radio/pause.png" : "/images/radio/play.png";
+        if (playlistIcon) playlistIcon.src = isPlaying ? "/images/radio/play.gif" : "/images/radio/pl.png";
+      }
       updateTrackInfoVisibility();
     }
 

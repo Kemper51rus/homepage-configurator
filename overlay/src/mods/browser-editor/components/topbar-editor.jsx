@@ -10,7 +10,10 @@ import {
   updateParticlesInCustomJs,
   updateParticlesInCustomCss,
   parseIpConfig,
-  parseRadioButtonsOrder
+  parseRadioButtonsOrder,
+  parseRadioButtonsStyle,
+  parseRadioIconSize,
+  parseRadioButtonSize
 } from '../lib/topbar-config-helper';
 
 const AVAILABLE_EFFECTS = [
@@ -35,6 +38,9 @@ export default function TopBarSettingsEditor({
   const [radioButtonsOrder, setRadioButtonsOrder] = useState([
     'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
   ]);
+  const [radioButtonsStyle, setRadioButtonsStyle] = useState('classic');
+  const [radioIconSize, setRadioIconSize] = useState(10);
+  const [radioButtonSize, setRadioButtonSize] = useState(18);
 
   // Particles States
   const [particlesEnabled, setParticlesEnabled] = useState(false);
@@ -52,6 +58,9 @@ export default function TopBarSettingsEditor({
     if (isRadio) {
       setStations(parseRadioStations(customJs));
       setRadioButtonsOrder(parseRadioButtonsOrder(customJs));
+      setRadioButtonsStyle(parseRadioButtonsStyle(customJs));
+      setRadioIconSize(parseRadioIconSize(customJs));
+      setRadioButtonSize(parseRadioButtonSize(customJs));
     } else {
       // Default initial stations
       setStations([
@@ -64,6 +73,9 @@ export default function TopBarSettingsEditor({
       setRadioButtonsOrder([
         'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
       ]);
+      setRadioButtonsStyle('classic');
+      setRadioIconSize(10);
+      setRadioButtonSize(18);
     }
 
     const isParticles = isParticlesEnabled(customJs);
@@ -88,7 +100,6 @@ export default function TopBarSettingsEditor({
     }
   }, [customJs]);
 
-  // Sync changes back to custom.js and custom.css
   const syncChanges = (
     nextRadioEnabled,
     nextStations,
@@ -97,13 +108,26 @@ export default function TopBarSettingsEditor({
     nextDefaultEffect,
     nextIpProviders = ipProviders,
     nextIpHideOnError = ipHideOnError,
-    nextRadioButtonsOrder = radioButtonsOrder
+    nextRadioButtonsOrder = radioButtonsOrder,
+    nextRadioButtonsStyle = radioButtonsStyle,
+    nextRadioIconSize = radioIconSize,
+    nextRadioButtonSize = radioButtonSize
   ) => {
     let newJs = customJs;
     let newCss = customCss;
 
     // Apply Radio and IP Changes
-    newJs = updateRadioInCustomJs(newJs, nextStations, nextRadioEnabled, nextIpProviders, nextIpHideOnError, nextRadioButtonsOrder);
+    newJs = updateRadioInCustomJs(
+      newJs,
+      nextStations,
+      nextRadioEnabled,
+      nextIpProviders,
+      nextIpHideOnError,
+      nextRadioButtonsOrder,
+      nextRadioButtonsStyle,
+      nextRadioIconSize,
+      nextRadioButtonSize
+    );
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled);
 
     // Apply Particles Changes
@@ -328,7 +352,8 @@ export default function TopBarSettingsEditor({
   };
 
   const renderPreviewButton = (buttonId) => {
-    const commonClass = "flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-[4px] h-[18px] transition-colors cursor-grab select-none";
+    const commonClass = "flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded-[4px] transition-colors cursor-grab select-none";
+    const isModern = radioButtonsStyle === 'modern';
     
     const dragHandlers = {
       draggable: true,
@@ -337,25 +362,39 @@ export default function TopBarSettingsEditor({
       onDrop: (e) => handleButtonDrop(e, buttonId),
     };
 
+    const buttonStyle = {
+      height: `${radioButtonSize}px`,
+    };
+
+    const svgStyle = {
+      width: `${radioIconSize}px`,
+      height: `${radioIconSize}px`,
+    };
+
+    const arrowSvgStyle = {
+      width: `${Math.round(radioIconSize * 0.7)}px`,
+      height: `${Math.round(radioIconSize * 0.7)}px`,
+    };
+
     switch (buttonId) {
       case 'trackinfo':
         return (
-          <div key="trackinfo" {...dragHandlers} className={`${commonClass} px-2 text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-[#56fd3c] min-w-[70px] font-semibold`} title="Название трека (перетащи для изменения порядка)">
+          <div key="trackinfo" {...dragHandlers} className={`${commonClass} px-2 text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-[#56fd3c] min-w-[70px] font-semibold`} style={buttonStyle} title="Название трека (перетащи для изменения порядка)">
             🎵 Название трека
           </div>
         );
       case 'like':
         return (
-          <div key="like" {...dragHandlers} className={`${commonClass} w-[30px]`} title="Лайк (перетащи для изменения порядка)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none">
+          <div key="like" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 10px' }} title="Лайк (перетащи для изменения порядка)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
               <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
             </svg>
           </div>
         );
       case 'dislike':
         return (
-          <div key="dislike" {...dragHandlers} className={`${commonClass} w-[30px]`} title="Дизлайк (перетащи для изменения порядка)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: "scaleY(-1)" }} className="pointer-events-none">
+          <div key="dislike" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 10px' }} title="Дизлайк (перетащи для изменения порядка)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ ...svgStyle, transform: "scaleY(-1)" }} className="pointer-events-none">
               <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
             </svg>
           </div>
@@ -363,9 +402,24 @@ export default function TopBarSettingsEditor({
       case 'playlist':
         return (
           <div key="playlist" {...dragHandlers} className="relative group/preview" title="Плейлист (наведи для списка станций, перетащи для изменения порядка)">
-            <div className="flex items-center gap-[6px] px-1 bg-white/5 hover:bg-white/10 text-white rounded-[4px] h-[18px] transition-colors cursor-grab select-none">
-              <img className="w-3.5 h-2.5 shrink-0 pointer-events-none" src="/images/radio/pl.png" alt="" />
-              <img className="w-2 h-1.5 shrink-0 pointer-events-none" src="/images/radio/down.png" alt="" />
+            <div className="flex items-center gap-[4px] px-2 bg-white/5 hover:bg-white/10 text-white rounded-[4px] transition-colors cursor-grab select-none" style={buttonStyle}>
+              {isModern ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none shrink-0" style={svgStyle}>
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none shrink-0 opacity-70" style={arrowSvgStyle}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <img className="shrink-0 pointer-events-none" style={{ height: `${radioIconSize}px` }} src="/images/radio/pl.png" alt="" />
+                  <img className="shrink-0 pointer-events-none" style={{ width: `${Math.round(radioIconSize * 0.8)}px` }} src="/images/radio/down.png" alt="" />
+                </>
+              )}
             </div>
             
             {/* Выпадающее меню станций */}
@@ -393,26 +447,45 @@ export default function TopBarSettingsEditor({
         );
       case 'plapau':
         return (
-          <div key="plapau" {...dragHandlers} className={`${commonClass} w-[38px]`} title="Воспроизведение (перетащи для изменения порядка)">
-            <img className="w-3 h-3 pointer-events-none" src="/images/radio/play.png" alt="" />
+          <div key="plapau" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 14px' }} title="Воспроизведение (перетащи для изменения порядка)">
+            {isModern ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            ) : (
+              <img className="pointer-events-none" style={{ height: `${radioIconSize}px` }} src="/images/radio/play.png" alt="" />
+            )}
           </div>
         );
       case 'volumedown':
         return (
-          <div key="volumedown" {...dragHandlers} className={`${commonClass} w-[43px]`} title="Тише (перетащи для изменения порядка)">
-            <img className="w-3.5 h-2.5 pointer-events-none" src="/images/radio/volume-down.png" alt="" />
+          <div key="volumedown" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 14px' }} title="Тише (перетащи для изменения порядка)">
+            {isModern ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              </svg>
+            ) : (
+              <img className="pointer-events-none" style={{ width: `${Math.round(radioIconSize * 1.5)}px`, height: `${radioIconSize}px` }} src="/images/radio/volume-down.png" alt="" />
+            )}
           </div>
         );
       case 'volumeset':
         return (
-          <div key="volumeset" {...dragHandlers} className={`${commonClass} w-[33px] text-[12px] font-semibold`} title="Громкость (перетащи для изменения порядка)">
+          <div key="volumeset" {...dragHandlers} className={`${commonClass} text-[12px] font-semibold`} style={{ ...buttonStyle, width: '33px' }} title="Громкость (перетащи для изменения порядка)">
             10
           </div>
         );
       case 'volumeup':
         return (
-          <div key="volumeup" {...dragHandlers} className={`${commonClass} w-[43px]`} title="Громче (перетащи для изменения порядка)">
-            <img className="w-3.5 h-2.5 pointer-events-none" src="/images/radio/volume-up.png" alt="" />
+          <div key="volumeup" {...dragHandlers} className={commonClass} style={{ ...buttonStyle, padding: '0 14px' }} title="Громче (перетащи для изменения порядка)">
+            {isModern ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none" style={svgStyle}>
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            ) : (
+              <img className="pointer-events-none" style={{ width: `${Math.round(radioIconSize * 1.5)}px`, height: `${radioIconSize}px` }} src="/images/radio/volume-up.png" alt="" />
+            )}
           </div>
         );
       default:
@@ -451,6 +524,107 @@ export default function TopBarSettingsEditor({
                 <div className="flex items-center gap-[2px] px-2 py-1 bg-[#0c0c10]/95 border border-white/10 rounded-lg shadow-2xl font-['Comfortaa',sans-serif]">
                   {radioButtonsOrder.map(buttonId => renderPreviewButton(buttonId))}
                 </div>
+              </div>
+            </div>
+
+            {/* Выбор стиля кнопок плеера */}
+            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Стиль кнопок плеера</span>
+                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Внешний вид элементов управления (классические картинки или современные SVG-иконки)</p>
+              </div>
+              <select
+                value={radioButtonsStyle}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRadioButtonsStyle(val);
+                  syncChanges(
+                    radioEnabled,
+                    stations,
+                    particlesEnabled,
+                    enabledEffects,
+                    defaultEffect,
+                    ipProviders,
+                    ipHideOnError,
+                    radioButtonsOrder,
+                    val
+                  );
+                }}
+                className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="classic">Картинки (Классический)</option>
+                <option value="modern">Иконки (Современный SVG)</option>
+              </select>
+            </div>
+
+            {/* Выбор размера иконок плеера */}
+            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Размер иконок радио</span>
+                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Размер иконок и элементов управления в пикселях (по умолчанию 10px)</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="8"
+                  max="24"
+                  step="1"
+                  value={radioIconSize}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setRadioIconSize(val);
+                    syncChanges(
+                      radioEnabled,
+                      stations,
+                      particlesEnabled,
+                      enabledEffects,
+                      defaultEffect,
+                      ipProviders,
+                      ipHideOnError,
+                      radioButtonsOrder,
+                      radioButtonsStyle,
+                      val
+                    );
+                  }}
+                  className="w-32 h-1 bg-theme-300 dark:bg-theme-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+                <span className="text-xs font-semibold bg-white/5 px-2 py-1 rounded border border-white/10 min-w-[36px] text-center">{radioIconSize}px</span>
+              </div>
+            </div>
+
+            {/* Выбор размера кнопок плеера */}
+            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Размер кнопок радио</span>
+                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Размер (высота) кнопок плеера в пикселях (по умолчанию 18px)</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="12"
+                  max="32"
+                  step="1"
+                  value={radioButtonSize}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setRadioButtonSize(val);
+                    syncChanges(
+                      radioEnabled,
+                      stations,
+                      particlesEnabled,
+                      enabledEffects,
+                      defaultEffect,
+                      ipProviders,
+                      ipHideOnError,
+                      radioButtonsOrder,
+                      radioButtonsStyle,
+                      radioIconSize,
+                      val
+                    );
+                  }}
+                  className="w-32 h-1 bg-theme-300 dark:bg-theme-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+                <span className="text-xs font-semibold bg-white/5 px-2 py-1 rounded border border-white/10 min-w-[36px] text-center">{radioButtonSize}px</span>
               </div>
             </div>
 

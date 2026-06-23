@@ -129,6 +129,21 @@ export function parseIpConfig(customJs) {
   };
 }
 
+export function parseRadioButtonsStyle(customJs) {
+  const match = customJs.match(/const\s+radioButtonsStyle\s*=\s*"([^"]+)"/);
+  return match ? match[1] : 'classic';
+}
+
+export function parseRadioIconSize(customJs) {
+  const match = customJs.match(/const\s+radioIconSize\s*=\s*(\d+)/);
+  return match ? parseInt(match[1], 10) : 10;
+}
+
+export function parseRadioButtonSize(customJs) {
+  const match = customJs.match(/const\s+radioButtonSize\s*=\s*(\d+)/);
+  return match ? parseInt(match[1], 10) : 18;
+}
+
 // Check if radio is enabled in custom.js
 export function isRadioEnabled(customJs) {
   return customJs.includes('/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */');
@@ -141,7 +156,10 @@ export function updateRadioInCustomJs(
   enabled,
   ipProviders = [],
   ipHideOnError = true,
-  radioButtonsOrder = ['trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup']
+  radioButtonsOrder = ['trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'],
+  radioButtonsStyle = 'classic',
+  radioIconSize = 10,
+  radioButtonSize = 18
 ) {
   if (!enabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */', '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */');
@@ -170,12 +188,18 @@ export function updateRadioInCustomJs(
   const endMarker = '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */';
   
   const hideLine = `const ipHideOnError = ${ipHideOnError};`;
+  const styleLine = `const radioButtonsStyle = "${radioButtonsStyle}";`;
+  const sizeLine = `const radioIconSize = ${radioIconSize};`;
+  const btnSizeLine = `const radioButtonSize = ${radioButtonSize};`;
   
   // Always regenerate the block from baseTemplate to make sure the code matches the templates (including createRadioMarkup improvements)
   const baseTemplate = radioJsTemplate;
   let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
   configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
   configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioButtonsStyle\s*=\s*"[^"]+";/, styleLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioIconSize\s*=\s*\d+;/, sizeLine);
+  configuredBlock = configuredBlock.replace(/const\s+radioButtonSize\s*=\s*\d+;/, btnSizeLine);
   configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
   
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
