@@ -26,7 +26,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/Proxmo
 
 Источник: [community-scripts.org/scripts/homepage](https://community-scripts.org/scripts/homepage).
 
-Установка мода:
+Установка этого мода (Homepage configurator):
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh)
