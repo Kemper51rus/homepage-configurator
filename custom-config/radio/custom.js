@@ -383,6 +383,17 @@
   }
 
   function initializeWidget() {
+    let currentIpAddress = "";
+    let placementFrameId = 0;
+    let delayedPlacementTimeoutId = 0;
+    let restorePlaybackTimeoutId = 0;
+    let startRequestId = 0;
+    let ipCopyFeedbackTimeoutId = 0;
+    let isPageLeaving = false;
+    let shouldRestoreAfterPageLeave = false;
+    let isDisposed = false;
+    const cleanupFns = [];
+
     const { topbarRoot, radioRoot, ipRoot, ipButton } = mountRoots();
 
     if (!topbarRoot || !radioRoot || !ipRoot || !ipButton) {
@@ -438,16 +449,6 @@
       restoringStationKey: null,
       muted: savedPlayerState?.muted === true,
     };
-    let currentIpAddress = "";
-    let placementFrameId = 0;
-    let delayedPlacementTimeoutId = 0;
-    let restorePlaybackTimeoutId = 0;
-    let startRequestId = 0;
-    let ipCopyFeedbackTimeoutId = 0;
-    let isPageLeaving = false;
-    let shouldRestoreAfterPageLeave = false;
-    let isDisposed = false;
-    const cleanupFns = [];
 
     function runCleanup() {
       if (isDisposed) {

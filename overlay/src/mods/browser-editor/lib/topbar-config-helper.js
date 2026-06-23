@@ -153,51 +153,18 @@ export function updateRadioInCustomJs(
   const buttonsOrderText = radioButtonsOrder.join('\n    ');
   const serializedButtonsOrder = `\n    ${buttonsOrderText}\n  `;
   
-  // If block exists, update it
   const startMarker = '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */';
   const endMarker = '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */';
   
   const hideLine = `const ipHideOnError = ${ipHideOnError};`;
   
-  const startIndex = customJs.indexOf(startMarker);
-  const endIndex = customJs.indexOf(endMarker);
-  
-  if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
-    let blockContent = customJs.substring(startIndex, endIndex + endMarker.length);
-    
-    // Check if the existing block is an older version that does not have buttons order feature
-    const hasButtonsOrder = blockContent.includes('const radioButtonsOrder =');
-    if (!hasButtonsOrder) {
-      const baseTemplate = radioJsTemplate;
-      let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
-      configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
-      configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
-      configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
-      
-      return customJs.substring(0, startIndex) + configuredBlock + customJs.substring(endIndex + endMarker.length);
-    }
-
-    // Replace the stationList definition inside the block
-    blockContent = blockContent.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
-    
-    // Replace ipProviderList
-    blockContent = blockContent.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
-    
-    // Replace ipHideOnError
-    blockContent = blockContent.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
-
-    // Replace radioButtonsOrder
-    blockContent = blockContent.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
-    
-    return customJs.substring(0, startIndex) + blockContent + customJs.substring(endIndex + endMarker.length);
-  }
-  
-  // Block does not exist, insert template with our settings
+  // Always regenerate the block from baseTemplate to make sure the code matches the templates (including createRadioMarkup improvements)
   const baseTemplate = radioJsTemplate;
   let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
   configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
   configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);/, hideLine);
   configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
+  
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
 }
 
