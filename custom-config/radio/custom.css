@@ -187,13 +187,16 @@ max-width: 100%;
 
 .jexummenu {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 2px;
 }
 
-#like, #dislike, #plapau, #volumedown, #volumeset, #volumeup, #lif {
-    float: left;
+.jexummenu > li {
+    display: flex;
+    align-items: center;
+    position: relative;
 }
+
 #playlist {
     padding: 0;
     display: block;
@@ -286,10 +289,7 @@ ul {
     /* TEMP disabled vertical spacing audit: margin: 0; */
     /* TEMP disabled vertical spacing audit: padding: 0; */
 }
-.jexummenu > li {
-    display: inline-block;
-    position: relative;
-}
+
 .jexumsub {
     position: absolute;
     top: 20px;
