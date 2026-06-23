@@ -312,10 +312,10 @@
                 <img id="down4" class="px" src="/images/radio/down.png" alt="">
               </button>
               <ul class="jexumsub">
-                \${stations
+                ${stations
                   .map(
                     (station) =>
-                      \`<li><button id="\${station.key}" class="jexum jeniumMradio" type="button">\${station.label}</button></li>\`,
+                      `<li><button id="${station.key}" class="jexum jeniumMradio" type="button">${station.label}</button></li>`,
                   )
                   .join("")}
               </ul>
@@ -347,11 +347,12 @@
       <div class="hpradio">
         <div class="jexumnav">
           <ul class="jexummenu">
-            \${buttonsMarkup}
+            ${buttonsMarkup}
           </ul>
           <audio id="jexumaudio"></audio>
         </div>
       </div>
+    `;
   }
 
   function mountRoots() {
