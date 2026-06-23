@@ -57,11 +57,12 @@
     DFM, https://dfm.hostingradio.ru/dfm96.aacp
     Power, https://radio.dline-media.com/powerhit128
     Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99
-    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3
+    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text
   `;
 
-  // Order of radio buttons: like, dislike, playlist, plapau, volumedown, volumeset, volumeup
+  // Order of radio buttons: trackinfo, like, dislike, playlist, plapau, volumedown, volumeset, volumeup
   const radioButtonsOrder = `
+    trackinfo
     like
     dislike
     playlist
@@ -90,23 +91,23 @@
       .map((line, index) => {
         const isDefault = line.startsWith("*");
         const normalizedLine = isDefault ? line.slice(1).trim() : line;
-        const separatorIndex = normalizedLine.indexOf(",");
-        if (separatorIndex === -1) {
-          return null;
-        }
+        const parts = normalizedLine.split(",").map(p => p.trim());
+        if (parts.length < 2) return null;
 
-        const label = normalizedLine.slice(0, separatorIndex).trim();
-        const url = normalizedLine.slice(separatorIndex + 1).trim();
-
-        if (!label || !url) {
-          return null;
-        }
+        const label = parts[0];
+        const url = parts[1];
+        const showTrackInfo = parts[2] === "true";
+        const trackInfoUrl = parts[3] || "";
+        const trackInfoKey = parts[4] || "";
 
         return {
           key: createStationKey(label, index),
           isDefault,
           label,
           url,
+          showTrackInfo,
+          trackInfoUrl,
+          trackInfoKey,
         };
       })
       .filter(Boolean);
@@ -293,6 +294,11 @@
 
   function createRadioMarkup() {
     const buttonsMap = {
+      trackinfo: `<li id="track-info-container" class="track-info-container" style="display: none;">
+              <div class="track-info-marquee" id="track-info-marquee">
+                <span id="track-info-text"></span>
+              </div>
+            </li>`,
       like: `<li id="like-container">
               <button id="like" class="jexum radiopx" type="button" title="Нравится">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-like-dislike">
@@ -432,6 +438,132 @@
 
     let currentSongId = "";
     let nowPlayingIntervalId = 0;
+    let trackInfoIntervalId = 0;
+    let lastTrackText = "";
+
+    function getJsonValue(obj, keyPath) {
+      if (!keyPath) return obj;
+      return keyPath.split('.').reduce((acc, part) => {
+        return acc && acc[part] !== undefined ? acc[part] : undefined;
+      }, obj);
+    }
+
+    function updateMarqueeText(text) {
+      const marqueeEl = radioRoot.querySelector("#track-info-marquee");
+      if (!marqueeEl) return;
+
+      marqueeEl.innerHTML = "";
+      
+      const span = document.createElement("span");
+      span.textContent = text;
+      span.style.display = "inline-block";
+      span.style.whiteSpace = "nowrap";
+      span.style.paddingRight = "40px";
+      marqueeEl.appendChild(span);
+
+      let attempts = 0;
+      function measure() {
+        if (isDisposed) return;
+        const containerWidth = marqueeEl.clientWidth || marqueeEl.offsetWidth || 0;
+        const textWidth = span.offsetWidth;
+
+        if (containerWidth === 0 || textWidth === 0) {
+          if (attempts < 20) {
+            attempts++;
+            setTimeout(measure, 250);
+          }
+          return;
+        }
+
+        if (textWidth > containerWidth + 10) {
+          marqueeEl.querySelectorAll("span:not(:first-child)").forEach(el => el.remove());
+          
+          const clone = span.cloneNode(true);
+          marqueeEl.appendChild(clone);
+
+          const duration = textWidth / 25;
+          span.style.animation = `marquee-scroll ${duration}s linear infinite`;
+          clone.style.animation = `marquee-scroll ${duration}s linear infinite`;
+          marqueeEl.style.justifyContent = "flex-start";
+        } else {
+          marqueeEl.style.justifyContent = "center";
+          span.style.paddingRight = "0";
+          span.style.animation = "none";
+        }
+      }
+
+      setTimeout(measure, 150);
+    }
+
+    function startTrackInfoPolling(station) {
+      if (trackInfoIntervalId) {
+        window.clearInterval(trackInfoIntervalId);
+      }
+
+      async function poll() {
+        const url = station.trackInfoUrl || "https://hfm.hakuran.ru/api/nowplaying/1";
+        const key = station.trackInfoKey || "now_playing.song.text";
+
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Fetch failed");
+          
+          let trackText = "";
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json") || url.endsWith(".json") || url.includes("api/nowplaying")) {
+            const data = await res.json();
+            if (url.includes("hfm.hakuran.ru")) {
+              if (data?.now_playing?.song?.id) {
+                currentSongId = data.now_playing.song.id;
+              }
+            }
+            const val = getJsonValue(data, key);
+            trackText = typeof val === "string" ? val : (val ? String(val) : "");
+          } else {
+            trackText = (await res.text()).trim();
+          }
+
+          if (trackText && trackText !== lastTrackText) {
+            lastTrackText = trackText;
+            updateMarqueeText(trackText);
+          }
+        } catch (err) {
+          console.error("Failed to poll track info:", err);
+        }
+      }
+
+      poll();
+      trackInfoIntervalId = window.setInterval(poll, 15005);
+    }
+
+    function stopTrackInfoPolling() {
+      if (trackInfoIntervalId) {
+        window.clearInterval(trackInfoIntervalId);
+        trackInfoIntervalId = 0;
+      }
+      lastTrackText = "";
+      const textEl = radioRoot.querySelector("#track-info-text");
+      if (textEl) {
+        textEl.innerHTML = "";
+      }
+    }
+
+    function updateTrackInfoVisibility() {
+      const trackContainer = radioRoot.querySelector("#track-info-container");
+      if (!trackContainer) return;
+
+      const currentStation = state.activeStation ? stationByKey.get(state.activeStation) : null;
+      const isPlaying = !audio.paused && !audio.ended && state.activeStation;
+      const shouldShow = isPlaying && currentStation && currentStation.showTrackInfo;
+
+      if (shouldShow) {
+        trackContainer.style.display = "";
+        startTrackInfoPolling(currentStation);
+      } else {
+        trackContainer.style.display = "none";
+        stopTrackInfoPolling();
+      }
+    }
 
     function fetchNowPlaying() {
       fetch("https://hfm.hakuran.ru/api/nowplaying/1")
@@ -530,6 +662,10 @@
       if (nowPlayingIntervalId) {
         window.clearInterval(nowPlayingIntervalId);
         nowPlayingIntervalId = 0;
+      }
+      if (trackInfoIntervalId) {
+        window.clearInterval(trackInfoIntervalId);
+        trackInfoIntervalId = 0;
       }
       startRequestId += 1;
 
@@ -632,6 +768,7 @@
     function updatePlaybackIcons(isPlaying) {
       playPauseIcon.src = isPlaying ? "/images/radio/pause.png" : "/images/radio/play.png";
       playlistIcon.src = isPlaying ? "/images/radio/play.gif" : "/images/radio/pl.png";
+      updateTrackInfoVisibility();
     }
 
     function updateLikesVisibility() {
@@ -659,6 +796,7 @@
         button?.classList.toggle("jenium", state.activeStation === key);
       });
       updateLikesVisibility();
+      updateTrackInfoVisibility();
     }
 
     function saveCurrentPlayerState(shouldPlayOverride = null) {

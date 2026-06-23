@@ -46,7 +46,7 @@ function upsertBlock(content, startMarker, endMarker, blockTemplate) {
 export function parseRadioButtonsOrder(customJs) {
   const match = customJs.match(/const\s+radioButtonsOrder\s*=\s*`([\s\S]*?)`/);
   if (!match) {
-    return ['like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'];
+    return ['trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'];
   }
   
   const text = match[1];
@@ -69,12 +69,24 @@ export function parseRadioStations(customJs) {
     .map((line, index) => {
       const isDefault = line.startsWith('*');
       const normalizedLine = isDefault ? line.slice(1).trim() : line;
-      const separatorIndex = normalizedLine.indexOf(',');
-      if (separatorIndex === -1) return null;
+      const parts = normalizedLine.split(',').map(p => p.trim());
+      if (parts.length < 2) return null;
       
-      const label = normalizedLine.slice(0, separatorIndex).trim();
-      const url = normalizedLine.slice(separatorIndex + 1).trim();
-      return { id: `station-${index}`, label, url, isDefault };
+      const label = parts[0];
+      const url = parts[1];
+      const showTrackInfo = parts[2] === 'true';
+      const trackInfoUrl = parts[3] || '';
+      const trackInfoKey = parts[4] || '';
+      
+      return {
+        id: `station-${index}`,
+        label,
+        url,
+        isDefault,
+        showTrackInfo,
+        trackInfoUrl,
+        trackInfoKey
+      };
     })
     .filter(Boolean);
 }
@@ -129,7 +141,7 @@ export function updateRadioInCustomJs(
   enabled,
   ipProviders = [],
   ipHideOnError = true,
-  radioButtonsOrder = ['like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup']
+  radioButtonsOrder = ['trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup']
 ) {
   if (!enabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */', '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */');
@@ -138,7 +150,8 @@ export function updateRadioInCustomJs(
   // Generate the station list string
   const stationsText = stations.map(s => {
     const prefix = s.isDefault ? '* ' : '';
-    return `    ${prefix}${s.label}, ${s.url}`;
+    const showTrack = s.showTrackInfo ? 'true' : 'false';
+    return `    ${prefix}${s.label}, ${s.url}, ${showTrack}, ${s.trackInfoUrl || ''}, ${s.trackInfoKey || ''}`;
   }).join('\n');
   const serializedList = `\n${stationsText}\n  `;
   

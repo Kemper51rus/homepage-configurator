@@ -33,7 +33,7 @@ export default function TopBarSettingsEditor({
   const [radioEnabled, setRadioEnabled] = useState(false);
   const [stations, setStations] = useState([]);
   const [radioButtonsOrder, setRadioButtonsOrder] = useState([
-    'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
+    'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
   ]);
 
   // Particles States
@@ -55,14 +55,14 @@ export default function TopBarSettingsEditor({
     } else {
       // Default initial stations
       setStations([
-        { id: 'initial-1', label: 'TNT', url: 'https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e', isDefault: false },
-        { id: 'initial-2', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: false },
-        { id: 'initial-3', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false },
-        { id: 'initial-4', label: 'Energy', url: 'https://pub0302.101.ru:8443/stream/air/aac/64/99', isDefault: false },
-        { id: 'initial-5', label: 'Hakuran', url: 'https://hfm.hakuran.ru/listen/hfm/radio.mp3', isDefault: true }
+        { id: 'initial-1', label: 'TNT', url: 'https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
+        { id: 'initial-2', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
+        { id: 'initial-3', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
+        { id: 'initial-4', label: 'Energy', url: 'https://pub0302.101.ru:8443/stream/air/aac/64/99', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
+        { id: 'initial-5', label: 'Hakuran', url: 'https://hfm.hakuran.ru/listen/hfm/radio.mp3', isDefault: true, showTrackInfo: true, trackInfoUrl: 'https://hfm.hakuran.ru/api/nowplaying/1', trackInfoKey: 'now_playing.song.text' }
       ]);
       setRadioButtonsOrder([
-        'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
+        'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
       ]);
     }
 
@@ -338,6 +338,12 @@ export default function TopBarSettingsEditor({
     };
 
     switch (buttonId) {
+      case 'trackinfo':
+        return (
+          <div key="trackinfo" {...dragHandlers} className={`${commonClass} px-2 text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-[#56fd3c] min-w-[70px] font-semibold`} title="Название трека (перетащи для изменения порядка)">
+            🎵 Название трека
+          </div>
+        );
       case 'like':
         return (
           <div key="like" {...dragHandlers} className={`${commonClass} w-[30px]`} title="Лайк (перетащи для изменения порядка)">
@@ -466,21 +472,55 @@ export default function TopBarSettingsEditor({
                   </div>
 
                   {/* Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 flex-1">
-                    <input
-                      type="text"
-                      value={station.label}
-                      onChange={(e) => handleStationChange(station.id, 'label', e.target.value)}
-                      placeholder="Название радиостанции"
-                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-                    />
-                    <input
-                      type="text"
-                      value={station.url}
-                      onChange={(e) => handleStationChange(station.id, 'url', e.target.value)}
-                      placeholder="URL-ссылка на аудиопоток (mp3 / aac / m3u8)"
-                      className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-                    />
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={station.label}
+                        onChange={(e) => handleStationChange(station.id, 'label', e.target.value)}
+                        placeholder="Название радиостанции"
+                        className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="text"
+                        value={station.url}
+                        onChange={(e) => handleStationChange(station.id, 'url', e.target.value)}
+                        placeholder="URL-ссылка на аудиопоток (mp3 / aac / m3u8)"
+                        className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    
+                    {/* Track info custom settings */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-black/10 dark:bg-white/5 p-1.5 rounded-[4px] mt-0.5">
+                      <label className="flex items-center gap-1.5 text-[11px] cursor-pointer text-theme-600 dark:text-theme-300 font-medium shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={station.showTrackInfo === true}
+                          onChange={(e) => handleStationChange(station.id, 'showTrackInfo', e.target.checked)}
+                          className="rounded text-emerald-500 focus:ring-emerald-500 border-theme-300 dark:border-white/10 w-3 h-3"
+                        />
+                        <span>Показывать трек</span>
+                      </label>
+                      
+                      {station.showTrackInfo && (
+                        <div className="flex-1 flex gap-2">
+                          <input
+                            type="text"
+                            value={station.trackInfoUrl || ''}
+                            onChange={(e) => handleStationChange(station.id, 'trackInfoUrl', e.target.value)}
+                            placeholder="API метаданных (URL, опционально)"
+                            className="flex-1 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                          />
+                          <input
+                            type="text"
+                            value={station.trackInfoKey || ''}
+                            onChange={(e) => handleStationChange(station.id, 'trackInfoKey', e.target.value)}
+                            placeholder="JSON-путь (например, song.title)"
+                            className="w-1/3 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions */}
