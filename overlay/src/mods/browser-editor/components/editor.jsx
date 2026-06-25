@@ -7188,7 +7188,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Обновления configurator</h3>
+            <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Обновления конфигуратора</h3>
             <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
               Проверка берёт версию из GitHub `version.json`, автоматическая проверка выполняется не чаще одного раза в сутки.
             </p>
@@ -7276,6 +7276,22 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   );
 }
 
+function ConfiguratorUpdateModal({ onClose, onSaved }) {
+  return (
+    <EditorWindow
+      storageKey="homepage-browser-editor-window-updates"
+      title="Обновления"
+      onClose={onClose}
+      defaultWidth={860}
+      defaultHeight={620}
+      minWidth={680}
+      minHeight={500}
+    >
+      <ConfiguratorUpdatePanel onSaved={onSaved} />
+    </EditorWindow>
+  );
+}
+
 function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { settings, setSettings } = useContext(SettingsContext);
@@ -7297,7 +7313,6 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       activeFileName !== "__page_styling__" &&
       activeFileName !== "__top_bar__" &&
       activeFileName !== "__radio__" &&
-      activeFileName !== "__updates__" &&
       !tabs?.some((tab) => tab.fileName === activeFileName)
     ) {
       setActiveFileName("__page_styling__");
@@ -7411,7 +7426,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   return (
     <EditorWindow
       storageKey="homepage-browser-editor-window-settings"
-      title="Ручная настройка и стили"
+      title="Конфигуратор"
       onClose={onClose}
       defaultWidth={1120}
       defaultHeight={780}
@@ -7458,19 +7473,6 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           >
             <div className="truncate text-sm font-semibold leading-5">Радио</div>
             <div className="truncate opacity-70">Настройки радио</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFileName("__updates__")}
-            className={classNames(
-              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-              activeFileName === "__updates__"
-                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
-                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
-            )}
-          >
-            <div className="truncate text-sm font-semibold leading-5">Обновления</div>
-            <div className="truncate opacity-70">Версия мода</div>
           </button>
           {(tabs ?? []).map((tab) => (
             <button
@@ -7545,11 +7547,6 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             />
           </div>
         )}
-        {activeFileName === "__updates__" && (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ConfiguratorUpdatePanel onSaved={onSaved} />
-          </div>
-        )}
         {(tabs ?? []).map((tab) => {
           const active = activeFileName === tab.fileName;
           const isSettingsYaml = tab.fileName === "settings.yaml";
@@ -7598,7 +7595,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             </div>
           );
         })}
-        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && activeFileName !== "__updates__" && (
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
             В config-папке пока нет дополнительных файлов для редактирования.
           </div>
@@ -7610,21 +7607,19 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           </div>
         )}
 
-        {activeFileName !== "__updates__" && (
-          <div
-            className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
-            style={{ paddingRight: "5px", paddingBottom: "5px" }}
+        <div
+          className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
+          style={{ paddingRight: "5px", paddingBottom: "5px" }}
+        >
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
+            className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
           >
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
-              className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-            >
-              {saving ? "Сохранение..." : "Сохранить"}
-            </button>
-          </div>
-        )}
+            {saving ? "Сохранение..." : "Сохранить"}
+          </button>
+        </div>
       </div>
     </EditorWindow>
   );
@@ -9178,7 +9173,10 @@ export function ConfigEditorProvider({ children }) {
             Иконки
           </button>
           <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
-            Ручная правка
+            Конфигуратор
+          </button>
+          <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
+            Обновления
           </button>
         </div>
       ) : (
@@ -9230,6 +9228,9 @@ export function ConfigEditorProvider({ children }) {
           onSaved={handleSaved}
         />
       )}
+      {modal?.type === "configurator-updates" && (
+        <ConfiguratorUpdateModal onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
       {modal?.scope === "group" && modal && data && (
         <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
@@ -9244,6 +9245,7 @@ export function ConfigEditorProvider({ children }) {
       )}
       {modal?.type !== "background" &&
         modal?.type !== "settings-tabs" &&
+        modal?.type !== "configurator-updates" &&
         modal?.type !== "icons-manager" &&
         modal?.scope !== "group" &&
         modal?.scope !== "top-widget" &&

@@ -50,7 +50,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 ## Обновление Из Браузера
 
-Версия мода публикуется в [`version.json`](version.json). Установленный редактор проверяет этот файл на GitHub не чаще одного раза в сутки для каждого браузера. Ручная проверка и запуск обновления доступны в режиме редактирования: `Ручная правка` -> `Обновления`.
+Версия мода публикуется в [`version.json`](version.json). Установленный редактор проверяет этот файл на GitHub не чаще одного раза в сутки для каждого браузера. Ручная проверка и запуск обновления доступны в режиме редактирования по кнопке `Обновления`.
 
 Кнопка `Обновить с GitHub` запускает на сервере тот же установщик из `main`, ставит полный managed-набор `custom.js/custom.css`, собирает Homepage и после успешной установки перезапускает `homepage.service`. Для нестандартных layout можно задать env-переменные сервиса: `HOMEPAGE_CONFIGURATOR_TARGET_DIR`, `HOMEPAGE_CONFIGURATOR_VERSION_URL`, `HOMEPAGE_CONFIGURATOR_REPO`, `HOMEPAGE_CONFIGURATOR_BRANCH`, `HOMEPAGE_CONFIGURATOR_INSTALL_URL`.
 
@@ -72,7 +72,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 - в нижней панели есть кнопка `Новая группа`, а тип новой группы выбирается уже в окне редактора;
 - кнопка `Фон` открывает загрузку фонового изображения;
 - кнопка `Иконки` скачивает URL-иконки из `services.yaml` и `bookmarks.yaml` в каталог `icons` внешней папки изображений и заменяет ссылки в YAML на API-пути `/api/config/icon/...`;
-- кнопка `Ручная правка` открывает прямое редактирование `settings.yaml`, `widgets.yaml`, `services.yaml`, `bookmarks.yaml`, `custom.css` и `custom.js`;
+- кнопка `Конфигуратор` открывает прямое редактирование `settings.yaml`, `widgets.yaml`, `services.yaml`, `bookmarks.yaml`, `custom.css` и `custom.js`;
+- кнопка `Обновления` открывает проверку версии и обновление Homepage Configurator с GitHub;
 - кнопка `Done` выключает режим редактирования.
 - клавиша `Esc` закрывает открытые окна настроек и выходит из режима редактирования.
 

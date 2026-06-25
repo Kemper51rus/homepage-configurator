@@ -34,6 +34,10 @@ const settingsTabFiles = [
 const settingsTabFilesByName = new Map(settingsTabFiles.map((file) => [file.fileName, file]));
 const excludedSettingsTabFiles = new Set(["bookmarks.yaml", "services.yaml"]);
 const supportedSettingsTabExtensions = new Set([".yaml", ".yml", ".css", ".js", ".json", ".txt"]);
+const settingsTabLabelOverrides = new Map([
+  [".homepage-configurator-update-check.json", "Проверка обновлений конфигуратора"],
+  [".homepage-configurator-update-status.json", "Статус обновления конфигуратора"],
+]);
 
 const backgroundTypes = {
   "image/gif": ".gif",
@@ -57,7 +61,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.1";
+const configuratorVersion = "0.6.2";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
@@ -896,6 +900,11 @@ function isSupportedSettingsTabFile(fileName) {
 }
 
 function prettifySettingsTabLabel(fileName) {
+  const labelOverride = settingsTabLabelOverrides.get(fileName);
+  if (labelOverride) {
+    return labelOverride;
+  }
+
   const basename = fileName.replace(/\.[^.]+$/, "");
   return basename
     .split(/[-_.\s]+/)
