@@ -3,7 +3,7 @@ import {
   radioCssTemplate,
   particlesJsTemplate,
   particlesCssTemplate
-} from './templates';
+} from './templates.js';
 
 // Helper to remove a block enclosed by start and end markers
 function removeBlock(content, startMarker, endMarker) {
