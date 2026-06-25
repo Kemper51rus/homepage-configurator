@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import classNames from 'classnames';
+import { editorWriteFetch } from '../client/editor-fetch';
 import {
   parseRadioStations,
   isRadioEnabled,
@@ -38,6 +39,9 @@ export default function TopBarSettingsEditor({
   // Radio States
   const [radioEnabled, setRadioEnabled] = useState(false);
   const [stations, setStations] = useState([]);
+  const stationsRef = useRef(stations);
+  const [probingTrackInfoIds, setProbingTrackInfoIds] = useState({});
+  const [trackInfoProbeErrors, setTrackInfoProbeErrors] = useState({});
   const [radioButtonsOrder, setRadioButtonsOrder] = useState([
     'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
   ]);
@@ -110,6 +114,10 @@ export default function TopBarSettingsEditor({
       ]);
     }
   }, [customJs]);
+
+  useEffect(() => {
+    stationsRef.current = stations;
+  }, [stations]);
 
   const syncChanges = (
     nextRadioEnabled,
@@ -186,8 +194,92 @@ export default function TopBarSettingsEditor({
       if (s.id !== id) return s;
       return { ...s, [field]: value };
     });
+    stationsRef.current = nextStations;
     setStations(nextStations);
     syncChanges(radioEnabled, nextStations, particlesEnabled, enabledEffects, defaultEffect);
+  };
+
+  const applyStations = (nextStations) => {
+    stationsRef.current = nextStations;
+    setStations(nextStations);
+    syncChanges(radioEnabled, nextStations, particlesEnabled, enabledEffects, defaultEffect);
+  };
+
+  const setTrackInfoProbeError = (id, message) => {
+    setTrackInfoProbeErrors((current) => ({
+      ...current,
+      [id]: message
+    }));
+  };
+
+  const setTrackInfoProbeLoading = (id, loading) => {
+    setProbingTrackInfoIds((current) => ({
+      ...current,
+      [id]: loading
+    }));
+  };
+
+  const probeTrackInfoForStation = async (station) => {
+    if (!station?.url?.trim()) {
+      setTrackInfoProbeError(station.id, 'Сначала укажите URL потока');
+      return;
+    }
+
+    setTrackInfoProbeError(station.id, '');
+    setTrackInfoProbeLoading(station.id, true);
+
+    try {
+      const response = await editorWriteFetch('/api/config/editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'probe-radio-track-info',
+          stationUrl: station.url
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error((await response.text()) || 'Метаданные трека не найдены');
+      }
+
+      const result = await response.json();
+      if (!result?.trackInfoUrl) {
+        throw new Error('Метаданные трека не найдены');
+      }
+
+      const currentStations = stationsRef.current;
+      const targetStation = currentStations.find((s) => s.id === station.id);
+      if (!targetStation?.showTrackInfo) {
+        return;
+      }
+
+      const nextStations = currentStations.map((s) => {
+        if (s.id !== station.id) return s;
+        return {
+          ...s,
+          trackInfoUrl: result.trackInfoUrl,
+          trackInfoKey: result.trackInfoKey || ''
+        };
+      });
+      applyStations(nextStations);
+    } catch (error) {
+      setTrackInfoProbeError(station.id, error.message || 'Метаданные трека не найдены');
+    } finally {
+      setTrackInfoProbeLoading(station.id, false);
+    }
+  };
+
+  const handleTrackInfoToggle = (id, checked) => {
+    const nextStations = stations.map((station) => (
+      station.id === id ? { ...station, showTrackInfo: checked } : station
+    ));
+    applyStations(nextStations);
+    setTrackInfoProbeError(id, '');
+
+    const station = nextStations.find((item) => item.id === id);
+    if (checked && station && !station.trackInfoUrl) {
+      void probeTrackInfoForStation(station);
+    }
   };
 
   const handleSetDefaultStation = (id) => {
@@ -819,28 +911,49 @@ export default function TopBarSettingsEditor({
                         <input
                           type="checkbox"
                           checked={station.showTrackInfo === true}
-                          onChange={(e) => handleStationChange(station.id, 'showTrackInfo', e.target.checked)}
+                          onChange={(e) => handleTrackInfoToggle(station.id, e.target.checked)}
                           className="rounded text-emerald-500 focus:ring-emerald-500 border-theme-300 dark:border-white/10 w-3 h-3"
                         />
                         <span>Показывать трек</span>
                       </label>
                       
                       {station.showTrackInfo && (
-                        <div className="flex-1 flex gap-2">
-                          <input
-                            type="text"
-                            value={station.trackInfoUrl || ''}
-                            onChange={(e) => handleStationChange(station.id, 'trackInfoUrl', e.target.value)}
-                            placeholder="API метаданных (URL, опционально)"
-                            className="flex-1 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            type="text"
-                            value={station.trackInfoKey || ''}
-                            onChange={(e) => handleStationChange(station.id, 'trackInfoKey', e.target.value)}
-                            placeholder="JSON-путь (например, song.title)"
-                            className="w-1/3 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-                          />
+                        <div className="flex-1 flex flex-col gap-1">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={station.trackInfoUrl || ''}
+                              onChange={(e) => handleStationChange(station.id, 'trackInfoUrl', e.target.value)}
+                              placeholder="API метаданных (URL, опционально)"
+                              className="flex-1 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                            />
+                            <input
+                              type="text"
+                              value={station.trackInfoKey || ''}
+                              onChange={(e) => handleStationChange(station.id, 'trackInfoKey', e.target.value)}
+                              placeholder="JSON-путь (например, song.title)"
+                              className="w-1/3 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={probingTrackInfoIds[station.id]}
+                              onClick={() => probeTrackInfoForStation(station)}
+                              className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {probingTrackInfoIds[station.id] ? 'Поиск' : 'Найти'}
+                            </button>
+                          </div>
+                          {(probingTrackInfoIds[station.id] || trackInfoProbeErrors[station.id]) && (
+                            <p className={classNames(
+                              'text-[10px]',
+                              trackInfoProbeErrors[station.id]
+                                ? 'text-amber-500 dark:text-amber-300'
+                                : 'text-theme-500 dark:text-theme-400'
+                            )}
+                            >
+                              {probingTrackInfoIds[station.id] ? 'Ищу метаданные трека...' : trackInfoProbeErrors[station.id]}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

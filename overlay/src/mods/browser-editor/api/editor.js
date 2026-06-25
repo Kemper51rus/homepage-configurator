@@ -1,5 +1,7 @@
 import { existsSync, promises as fs } from "fs";
 import { createHash } from "crypto";
+import { lookup } from "dns/promises";
+import net from "net";
 import path from "path";
 
 import yaml from "js-yaml";
@@ -50,6 +52,8 @@ const iconTypes = {
 
 const iconExtensions = new Set([".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 const maxIconBytes = 5 * 1024 * 1024;
+const trackInfoProbeTimeoutMs = 5000;
+const maxTrackInfoProbeBytes = 256 * 1024;
 
 function isEditorEnabled() {
   return process.env.HOMEPAGE_BROWSER_EDITOR === "true";
@@ -62,6 +66,252 @@ function verifyEditorAccess(_req, res) {
   }
 
   return true;
+}
+
+function isPrivateIpv4(address) {
+  const octets = address.split(".").map((part) => Number(part));
+
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  const [first, second] = octets;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isPrivateAddress(address) {
+  const normalized = String(address ?? "").replace(/^\[|\]$/g, "").toLowerCase();
+
+  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost") || normalized.endsWith(".local")) {
+    return true;
+  }
+
+  if (net.isIP(normalized) === 4) {
+    return isPrivateIpv4(normalized);
+  }
+
+  if (net.isIP(normalized) === 6) {
+    return normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe80:");
+  }
+
+  return false;
+}
+
+async function getSafeRemoteProbeUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value));
+  } catch {
+    return null;
+  }
+
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || isPrivateAddress(url.hostname)) {
+    return null;
+  }
+
+  try {
+    const addresses = await lookup(url.hostname, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some((entry) => isPrivateAddress(entry.address))) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return url;
+}
+
+function getJsonPathValue(obj, keyPath) {
+  if (!keyPath) return obj;
+  return keyPath.split(".").reduce((acc, part) => {
+    return acc && acc[part] !== undefined ? acc[part] : undefined;
+  }, obj);
+}
+
+function normalizeTrackText(value) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return "";
+  }
+
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text.length >= 2 ? text : "";
+}
+
+function getStreamMountPath(streamUrl) {
+  try {
+    return new URL(streamUrl).pathname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function getIcecastSourceProbe(data, streamUrl) {
+  const rawSource = data?.icestats?.source;
+  if (!rawSource) {
+    return null;
+  }
+
+  const sources = Array.isArray(rawSource) ? rawSource : [rawSource];
+  const streamPath = getStreamMountPath(streamUrl);
+  const matchedIndex = sources.findIndex((source) => {
+    const mount = String(source?.listenurl ?? source?.mount ?? "").toLowerCase();
+    return streamPath && mount.includes(streamPath);
+  });
+  const index = matchedIndex >= 0 ? matchedIndex : 0;
+  const value = normalizeTrackText(sources[index]?.title);
+  if (!value) {
+    return null;
+  }
+
+  return {
+    key: Array.isArray(rawSource) ? `icestats.source.${index}.title` : "icestats.source.title",
+    value,
+  };
+}
+
+function getJsonTrackInfoProbe(data, keys, streamUrl) {
+  const icecastProbe = getIcecastSourceProbe(data, streamUrl);
+  if (icecastProbe) {
+    return icecastProbe;
+  }
+
+  const candidateKeys = [
+    ...keys,
+    "now_playing.song.text",
+    "now_playing.song.title",
+    "song.text",
+    "song.title",
+    "current_track.title",
+    "track.title",
+    "title",
+  ];
+
+  for (const key of [...new Set(candidateKeys.filter(Boolean))]) {
+    const value = normalizeTrackText(getJsonPathValue(data, key));
+    if (value) {
+      return { key, value };
+    }
+  }
+
+  return null;
+}
+
+function getTrackInfoProbeCandidates(streamUrl) {
+  let url;
+  try {
+    url = new URL(streamUrl);
+  } catch {
+    return [];
+  }
+
+  const origin = url.origin;
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  const listenIndex = pathParts.findIndex((part) => part.toLowerCase() === "listen");
+  const stationSlug = listenIndex >= 0 ? pathParts[listenIndex + 1] : "";
+  const nowPlayingKeys = ["now_playing.song.text", "now_playing.song.title", "song.text", "song.title"];
+  const candidates = [];
+
+  if (stationSlug) {
+    candidates.push({ url: `${origin}/api/nowplaying/${encodeURIComponent(stationSlug)}`, keys: nowPlayingKeys });
+  }
+
+  candidates.push(
+    { url: `${origin}/api/nowplaying/1`, keys: nowPlayingKeys },
+    { url: `${origin}/api/nowplaying`, keys: nowPlayingKeys },
+    { url: `${origin}/status-json.xsl`, keys: ["icestats.source.title", "icestats.source.0.title"] },
+  );
+
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.url)) {
+      return false;
+    }
+    seen.add(candidate.url);
+    return true;
+  });
+}
+
+async function fetchTrackInfoCandidate(candidate, streamUrl) {
+  const url = await getSafeRemoteProbeUrl(candidate.url);
+  if (!url) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), trackInfoProbeTimeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "homepage-browser-editor/1.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || "0");
+    if (contentLength > maxTrackInfoProbeBytes) {
+      return null;
+    }
+
+    const text = await response.text();
+    if (!text || text.length > maxTrackInfoProbeBytes) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json") || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+      const data = JSON.parse(text);
+      const probe = getJsonTrackInfoProbe(data, candidate.keys ?? [], streamUrl);
+      if (!probe) {
+        return null;
+      }
+
+      return {
+        trackInfoUrl: url.toString(),
+        trackInfoKey: probe.key,
+        sample: probe.value,
+      };
+    }
+
+    const sample = normalizeTrackText(text);
+    if (!sample || /<html|<!doctype/i.test(sample)) {
+      return null;
+    }
+
+    return {
+      trackInfoUrl: url.toString(),
+      trackInfoKey: "",
+      sample,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function probeRadioTrackInfo(stationUrl) {
+  const streamUrl = await getSafeRemoteProbeUrl(stationUrl);
+  if (!streamUrl) {
+    throw new Error("Некорректная или небезопасная ссылка на поток");
+  }
+
+  for (const candidate of getTrackInfoProbeCandidates(streamUrl.toString())) {
+    const probe = await fetchTrackInfoCandidate(candidate, streamUrl.toString());
+    if (probe) {
+      return probe;
+    }
+  }
+
+  throw new Error("Метаданные трека по этой ссылке не найдены");
 }
 
 function getImagesDir() {
@@ -708,11 +958,19 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, background, backgroundPath, provider, q, apiKey } = req.body ?? {};
+      const { action, background, backgroundPath, provider, q, apiKey, stationUrl } = req.body ?? {};
 
       if (action === "localize-icons") {
         const iconLocalization = await localizeRemoteIcons();
         return res.status(200).json({ ...(await getEditorConfig()), iconLocalization });
+      }
+
+      if (action === "probe-radio-track-info") {
+        if (!stationUrl) {
+          return res.status(400).end("Ссылка на поток обязательна");
+        }
+
+        return res.status(200).json(await probeRadioTrackInfo(stationUrl));
       }
 
       if (action === "geocode") {
