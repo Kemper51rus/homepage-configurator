@@ -7479,6 +7479,11 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? null;
   const activeContent = activeTab ? drafts[activeTab.fileName] ?? activeTab.content ?? "" : "";
   const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
+  const canSave =
+    activeFileName === "__page_styling__" ||
+    activeFileName === "__top_bar__" ||
+    activeFileName === "__radio__" ||
+    Boolean(activeTab);
 
   async function handleSave() {
     const isTopBar = activeFileName === "__top_bar__" || activeFileName === "__radio__";
@@ -7589,6 +7594,16 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       defaultHeight={780}
       minWidth={760}
       minHeight={520}
+      headerActions={
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!canSave || saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white"
+        >
+          {saving ? "Сохранение..." : "Сохранить"}
+        </button>
+      }
     >
       <div>
         <div className="flex flex-wrap gap-2 pb-1.5 border-b border-theme-300/30 mb-4">
@@ -7764,19 +7779,6 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           </div>
         )}
 
-        <div
-          className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
-          style={{ paddingRight: "5px", paddingBottom: "5px" }}
-        >
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
-            className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
-          >
-            {saving ? "Сохранение..." : "Сохранить"}
-          </button>
-        </div>
       </div>
     </EditorWindow>
   );
