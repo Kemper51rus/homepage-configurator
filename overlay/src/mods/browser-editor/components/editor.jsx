@@ -7354,9 +7354,17 @@ function ConfiguratorUpdatePanel({ onSaved }) {
             {error}
           </div>
         )}
-        <pre className="mt-3 max-h-64 overflow-auto rounded-md border border-theme-300/40 bg-theme-100/70 p-3 text-[11px] leading-relaxed text-theme-800 dark:border-white/10 dark:bg-theme-950/40 dark:text-theme-100">
-          {(status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n")}
-        </pre>
+        <div className="mt-3">
+          <CodeEditor
+            label="Лог обновления"
+            language="plain"
+            value={(status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n")}
+            onChange={() => {}}
+            minHeightClassName="min-h-[12rem]"
+            zoomStorageKey="homepage-browser-editor-code-zoom-update-log"
+            readOnly
+          />
+        </div>
       </div>
 
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
