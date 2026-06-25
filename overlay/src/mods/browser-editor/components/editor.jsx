@@ -90,6 +90,7 @@ const PAGE_AUTO_OPEN_DELAY_MS = 450;
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
+const CONFIGURATOR_UPDATE_LOG_TAB = "__homepage-configurator-update-log__";
 const GROUP_ORDER_SETTINGS_KEY = "__browserEditorGroupOrderByPage";
 const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
 const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-checked-at";
@@ -7160,7 +7161,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateFiles, setUpdateFiles] = useState([]);
-  const [activeUpdateFileName, setActiveUpdateFileName] = useState("");
+  const [activeUpdateFileName, setActiveUpdateFileName] = useState(CONFIGURATOR_UPDATE_LOG_TAB);
   const [error, setError] = useState("");
 
   const loadUpdateFiles = useCallback(async () => {
@@ -7168,7 +7169,9 @@ function ConfiguratorUpdatePanel({ onSaved }) {
     const nextFiles = nextData?.files ?? [];
     setUpdateFiles(nextFiles);
     setActiveUpdateFileName((currentFileName) =>
-      nextFiles.some((file) => file.fileName === currentFileName) ? currentFileName : nextFiles[0]?.fileName ?? "",
+      currentFileName === CONFIGURATOR_UPDATE_LOG_TAB || nextFiles.some((file) => file.fileName === currentFileName)
+        ? currentFileName
+        : CONFIGURATOR_UPDATE_LOG_TAB,
     );
     return nextFiles;
   }, []);
@@ -7226,7 +7229,23 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const targetUpdateRequired = Boolean(updateInfo?.targetUpdateRequired);
   const targetUpdateCommand = updateInfo?.targetUpdateCommand || "update";
   const consoleUpdateCommand = `bash <(curl -Ls ${updateInfo?.latest?.installUrl || "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh"}) --action update`;
-  const activeUpdateFile = updateFiles.find((file) => file.fileName === activeUpdateFileName) ?? updateFiles[0] ?? null;
+  const updateLogContent = (status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n");
+  const serviceDataFiles = useMemo(
+    () => [
+      {
+        fileName: CONFIGURATOR_UPDATE_LOG_TAB,
+        label: "Лог обновления",
+        pathLabel: "Статус установки",
+        description: "Лог последнего запуска обновления с GitHub.",
+        format: "plain",
+        content: updateLogContent,
+      },
+      ...updateFiles,
+    ],
+    [updateFiles, updateLogContent],
+  );
+  const activeUpdateFile =
+    serviceDataFiles.find((file) => file.fileName === activeUpdateFileName) ?? serviceDataFiles[0] ?? null;
 
   async function startUpdate() {
     setUpdating(true);
@@ -7354,29 +7373,18 @@ function ConfiguratorUpdatePanel({ onSaved }) {
             {error}
           </div>
         )}
-        <div className="mt-3">
-          <CodeEditor
-            label="Лог обновления"
-            language="plain"
-            value={(status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n")}
-            onChange={() => {}}
-            minHeightClassName="min-h-[12rem]"
-            zoomStorageKey="homepage-browser-editor-code-zoom-update-log"
-            readOnly
-          />
-        </div>
       </div>
 
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div>
           <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Служебные данные</h3>
           <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
-            Эти файлы создает updater. Они нужны только для диагностики проверки версии и последнего запуска обновления.
+            Эти данные нужны только для диагностики проверки версии и последнего запуска обновления.
           </p>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          {updateFiles.map((file) => (
+          {serviceDataFiles.map((file) => (
             <button
               key={file.fileName}
               type="button"
@@ -7389,7 +7397,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
               )}
             >
               <div className="font-semibold">{file.label}</div>
-              <div className="mt-0.5 max-w-[16rem] truncate opacity-70">{file.fileName}</div>
+              <div className="mt-0.5 max-w-[16rem] truncate opacity-70">{file.pathLabel ?? file.fileName}</div>
             </button>
           ))}
         </div>
@@ -7401,12 +7409,16 @@ function ConfiguratorUpdatePanel({ onSaved }) {
             </div>
             <div className="mt-2">
               <CodeEditor
-                label={activeUpdateFile.fileName}
-                language={detectEditorLanguage("json", activeUpdateFile.fileName)}
-                value={formatUpdateDataFileContent(activeUpdateFile)}
+                label={activeUpdateFile.pathLabel ?? activeUpdateFile.fileName}
+                language={activeUpdateFile.format === "plain" ? "plain" : detectEditorLanguage("json", activeUpdateFile.fileName)}
+                value={activeUpdateFile.format === "plain" ? activeUpdateFile.content : formatUpdateDataFileContent(activeUpdateFile)}
                 onChange={() => {}}
-                minHeightClassName="min-h-[18rem]"
-                zoomStorageKey="homepage-browser-editor-code-zoom-update-data"
+                minHeightClassName={activeUpdateFile.format === "plain" ? "min-h-[12rem]" : "min-h-[18rem]"}
+                zoomStorageKey={
+                  activeUpdateFile.format === "plain"
+                    ? "homepage-browser-editor-code-zoom-update-log"
+                    : "homepage-browser-editor-code-zoom-update-data"
+                }
                 readOnly
               />
             </div>
