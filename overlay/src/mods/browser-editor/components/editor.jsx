@@ -7360,7 +7360,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
 
   const running = status && ["running", "restarting"].includes(status.state);
   const updateAvailable = Boolean(updateInfo?.updateAvailable);
-  const canUpdate = Boolean(updateInfo?.canUpdate && updateAvailable && !running && !updating);
+  const canRunUpdate = Boolean(updateInfo?.canUpdate && !running && !updating);
   const currentVersion = updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
   const latestVersion = updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
   const targetVersion = updateInfo?.targetVersion || status?.targetVersion || "неизвестно";
@@ -7451,6 +7451,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         <div className="mt-3 grid gap-2 text-xs text-theme-600 dark:text-theme-400 md:grid-cols-2">
           <div>Последняя проверка: {formatUpdateDate(updateInfo?.checkedAt)}</div>
           <div className="truncate">Target: {updateInfo?.targetDir || status?.targetDir || "не найден"}</div>
+          <div className="truncate md:col-span-2">Источник версии: {updateInfo?.latest?.metadataUrl || "неизвестно"}</div>
         </div>
 
         {updateInfo?.reason && (
@@ -7491,10 +7492,10 @@ function ConfiguratorUpdatePanel({ onSaved }) {
           <button
             type="button"
             onClick={startUpdate}
-            disabled={!canUpdate}
+            disabled={!canRunUpdate}
             className="rounded-md bg-theme-800 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-theme-100 dark:text-theme-900 dark:hover:bg-white"
           >
-            {updating || running ? "Обновление..." : "Обновить с GitHub"}
+            {updating || running ? "Обновление..." : updateAvailable ? "Обновить с GitHub" : "Переустановить с GitHub"}
           </button>
         </div>
       </div>
