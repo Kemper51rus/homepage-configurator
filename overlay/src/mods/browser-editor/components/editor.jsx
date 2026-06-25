@@ -7342,7 +7342,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   }, [loadUpdateFiles]);
 
   useEffect(() => {
-    checkUpdate(false);
+    checkUpdate(true);
     loadStatus().catch((statusError) => setError(statusError.message));
     loadUpdateFiles().catch((filesError) => setError(filesError.message));
   }, [checkUpdate, loadStatus, loadUpdateFiles]);
@@ -7417,7 +7417,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
           <div>
             <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Обновления конфигуратора</h3>
             <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
-              Проверка берёт версию из GitHub `version.json`, автоматическая проверка выполняется не чаще одного раза в сутки.
+              Это окно принудительно проверяет GitHub `version.json`; тихая фоновая проверка выполняется не чаще одного раза в сутки.
             </p>
           </div>
           <div

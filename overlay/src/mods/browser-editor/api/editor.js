@@ -72,7 +72,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.20";
+const configuratorVersion = "0.6.21";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
@@ -713,12 +713,20 @@ async function writeUpdateCheckCache(data) {
 async function checkConfiguratorUpdate({ force = false } = {}) {
   const cached = await readUpdateCheckCache();
   const checkedAtMs = cached?.checkedAt ? Date.parse(cached.checkedAt) : 0;
+  let cachedTargetDir = null;
 
   if (!force && cached?.target && checkedAtMs && Date.now() - checkedAtMs < updateCheckIntervalMs) {
-    return { ...cached, cached: true };
+    cachedTargetDir = await getHomepageTargetDir();
+    const installed = await getInstalledConfiguratorInfo(cachedTargetDir);
+    if (cached.currentVersion === installed.version && cached.targetDir === cachedTargetDir) {
+      return { ...cached, cached: true };
+    }
   }
 
-  const [metadata, targetDir] = await Promise.all([fetchConfiguratorMetadata(), getHomepageTargetDir()]);
+  const [metadata, targetDir] = await Promise.all([
+    fetchConfiguratorMetadata(),
+    cachedTargetDir ? Promise.resolve(cachedTargetDir) : getHomepageTargetDir(),
+  ]);
   const installed = await getInstalledConfiguratorInfo(targetDir);
   const targetInfo = await getHomepageTargetInfo(targetDir, metadata);
   const updateAvailable = compareVersions(installed.version, metadata.version) < 0;
