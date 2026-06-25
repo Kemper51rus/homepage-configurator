@@ -3,6 +3,7 @@ import yaml from "js-yaml";
 import Prism from "prismjs";
 import "prismjs/components/prism-css";
 import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-json";
 import "prismjs/components/prism-yaml";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -2391,12 +2392,20 @@ function detectEditorLanguage(format, fileName = "") {
     return "yaml";
   }
 
+  if (format === "json") {
+    return "json";
+  }
+
   const normalizedName = fileName.toLowerCase();
   if (normalizedName.endsWith(".css")) {
     return "css";
   }
 
-  if (normalizedName.endsWith(".js") || normalizedName.endsWith(".json")) {
+  if (normalizedName.endsWith(".json")) {
+    return "json";
+  }
+
+  if (normalizedName.endsWith(".js")) {
     return "javascript";
   }
 
@@ -2513,6 +2522,7 @@ function CodeEditor({
   minHeightClassName = "min-h-[16rem]",
   fillAvailableHeight = false,
   zoomStorageKey = CODE_EDITOR_ZOOM_STORAGE_KEY,
+  readOnly = false,
 }) {
   const textareaRef = useRef(null);
   const highlightRef = useRef(null);
@@ -2548,6 +2558,10 @@ function CodeEditor({
 
   const handleKeyDown = useCallback(
     (event) => {
+      if (readOnly) {
+        return;
+      }
+
       if (event.key !== "/" || (!event.ctrlKey && !event.metaKey) || event.altKey) {
         return;
       }
@@ -2563,7 +2577,7 @@ function CodeEditor({
         syncScrollPosition(target);
       });
     },
-    [language, onChange, syncScrollPosition, value],
+    [language, onChange, readOnly, syncScrollPosition, value],
   );
 
   const jumpToMarker = useCallback(
@@ -2718,10 +2732,15 @@ function CodeEditor({
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              if (!readOnly) {
+                onChange(event.target.value);
+              }
+            }}
             onKeyDown={handleKeyDown}
             onScroll={handleScroll}
             className="homepage-editor-textarea selection:bg-theme-300/30 px-3 py-3 dark:selection:bg-white/20"
+            readOnly={readOnly}
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
@@ -3793,7 +3812,13 @@ function formatUpdateDate(value) {
 
 function formatUpdateDataFileContent(file) {
   if (!file?.content) {
-    return "Файл пока не создан. Он появится после проверки версии или запуска обновления.";
+    return JSON.stringify(
+      {
+        message: "Файл пока не создан. Он появится после проверки версии или запуска обновления.",
+      },
+      null,
+      2,
+    );
   }
 
   try {
@@ -7366,9 +7391,17 @@ function ConfiguratorUpdatePanel({ onSaved }) {
             <div className="text-xs text-theme-600 dark:text-theme-400">
               {activeUpdateFile.description}
             </div>
-            <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-theme-300/40 bg-theme-100/70 p-3 text-[11px] leading-relaxed text-theme-800 dark:border-white/10 dark:bg-theme-950/40 dark:text-theme-100">
-              {formatUpdateDataFileContent(activeUpdateFile)}
-            </pre>
+            <div className="mt-2">
+              <CodeEditor
+                label={activeUpdateFile.fileName}
+                language={detectEditorLanguage("json", activeUpdateFile.fileName)}
+                value={formatUpdateDataFileContent(activeUpdateFile)}
+                onChange={() => {}}
+                minHeightClassName="min-h-[18rem]"
+                zoomStorageKey="homepage-browser-editor-code-zoom-update-data"
+                readOnly
+              />
+            </div>
           </div>
         ) : (
           <div className="mt-3 rounded-md border border-theme-300/40 p-3 text-xs text-theme-600 dark:border-white/10 dark:text-theme-400">
