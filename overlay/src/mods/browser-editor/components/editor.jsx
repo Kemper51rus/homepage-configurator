@@ -3844,6 +3844,75 @@ function updateStateLabel(state) {
   }
 }
 
+function updateStateTitle(state) {
+  switch (state) {
+    case "running":
+      return "Идёт обновление";
+    case "restarting":
+      return "Обновление установлено";
+    case "completed":
+      return "Обновление успешно";
+    case "failed":
+      return "Ошибка обновления";
+    default:
+      return "Обновление не запускалось";
+  }
+}
+
+function updateStateToneClasses(state) {
+  switch (state) {
+    case "running":
+      return {
+        box: "border-sky-500/60 bg-sky-500/15 text-sky-950 dark:text-sky-100",
+        badge: "border-sky-500/50 bg-sky-500/20 text-sky-900 dark:text-sky-100",
+        bar: "bg-sky-500",
+      };
+    case "restarting":
+      return {
+        box: "border-amber-500/70 bg-amber-500/15 text-amber-950 dark:text-amber-100",
+        badge: "border-amber-500/60 bg-amber-500/20 text-amber-900 dark:text-amber-100",
+        bar: "bg-amber-500",
+      };
+    case "completed":
+      return {
+        box: "border-emerald-500/60 bg-emerald-500/15 text-emerald-950 dark:text-emerald-100",
+        badge: "border-emerald-500/50 bg-emerald-500/20 text-emerald-900 dark:text-emerald-100",
+        bar: "bg-emerald-500",
+      };
+    case "failed":
+      return {
+        box: "border-rose-500/70 bg-rose-500/15 text-rose-950 dark:text-rose-100",
+        badge: "border-rose-500/60 bg-rose-500/20 text-rose-900 dark:text-rose-100",
+        bar: "bg-rose-500",
+      };
+    default:
+      return {
+        box: "border-theme-300/50 bg-theme-100/20 text-theme-800 dark:border-white/10 dark:bg-white/5 dark:text-theme-200",
+        badge: "border-theme-300/50 bg-theme-50/50 text-theme-700 dark:border-white/10 dark:bg-white/10 dark:text-theme-200",
+        bar: "bg-theme-500",
+      };
+  }
+}
+
+function updateProgressPercent(status) {
+  const progress = Number(status?.progress);
+  if (Number.isFinite(progress)) {
+    return Math.min(100, Math.max(0, Math.round(progress)));
+  }
+
+  switch (status?.state) {
+    case "running":
+      return 35;
+    case "restarting":
+      return 98;
+    case "completed":
+    case "failed":
+      return 100;
+    default:
+      return 0;
+  }
+}
+
 const EDITOR_WINDOW_AUTOFIT_SELECTOR = "[data-editor-window-autofit-scroll]";
 const EDITOR_WINDOW_AUTOFIT_PADDING = 12;
 const EDITOR_WINDOW_AUTOFIT_THRESHOLD = 28;
@@ -7299,6 +7368,14 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const targetUpdateRequired = Boolean(updateInfo?.targetUpdateRequired);
   const targetUpdateCommand = updateInfo?.targetUpdateCommand || "update";
   const consoleUpdateCommand = `bash <(curl -Ls ${updateInfo?.latest?.installUrl || "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh"}) --action update`;
+  const updateProgress = updateProgressPercent(status);
+  const updateTone = updateStateToneClasses(status?.state);
+  const updateStatusTitle = updateStateTitle(status?.state);
+  const updateStatusMessage =
+    status?.message ||
+    (status?.state === "idle"
+      ? "Нажмите “Проверить версию” или “Обновить с GitHub”."
+      : "Подробности доступны в логе ниже.");
   const updateLogContent = (status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n");
   const serviceDataFiles = useMemo(
     () => [
@@ -7425,9 +7502,22 @@ function ConfiguratorUpdatePanel({ onSaved }) {
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Статус установки</h3>
-          <span className="rounded-md border border-theme-300/40 px-2 py-1 text-xs font-semibold dark:border-white/10">
+          <span className={classNames("rounded-md border px-2 py-1 text-xs font-semibold", updateTone.badge)}>
             {updateStateLabel(status?.state)}
           </span>
+        </div>
+        <div className={classNames("mt-3 rounded-md border p-3 shadow-sm", updateTone.box)}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-bold">{updateStatusTitle}</div>
+            <div className="font-mono text-xs font-bold">{updateProgress}%</div>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/45 dark:bg-black/25">
+            <div
+              className={classNames("h-full rounded-full transition-[width] duration-500", updateTone.bar)}
+              style={{ width: `${updateProgress}%` }}
+            />
+          </div>
+          <div className="mt-2 text-xs font-medium">{updateStatusMessage}</div>
         </div>
         <div className="mt-3 grid gap-2 text-xs text-theme-600 dark:text-theme-400 md:grid-cols-2">
           <div>Старт: {formatUpdateDate(status?.startedAt)}</div>

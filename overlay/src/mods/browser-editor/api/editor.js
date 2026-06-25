@@ -72,7 +72,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.11";
+const configuratorVersion = "0.6.12";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
@@ -696,6 +696,9 @@ async function readConfiguratorUpdateStatus() {
       const nextStatus = {
         ...status,
         state: "failed",
+        phase: "failed",
+        progress: 100,
+        message: "Обновление было прервано или зависло.",
         finishedAt: new Date().toISOString(),
         restartRequired: false,
       };
@@ -723,6 +726,43 @@ function appendUpdateLog(status, chunk) {
   status.updatedAt = new Date().toISOString();
 }
 
+function setUpdateProgress(status, phase, progress, message) {
+  status.phase = phase;
+  status.progress = Math.min(100, Math.max(0, progress));
+  status.message = message;
+  status.updatedAt = new Date().toISOString();
+}
+
+function updateProgressFromInstallerOutput(status, chunk) {
+  const text = String(chunk);
+  const stages = [
+    ["Downloading mod", "download", 20, "Скачиваю configurator с GitHub"],
+    ["Using mod source", "download", 25, "Configurator скачан"],
+    ["Install plan:", "install", 30, "Проверяю план установки"],
+    ["Existing browser editor install detected", "cleanup", 36, "Снимаю предыдущую установку"],
+    ["Core patch reverted", "cleanup", 44, "Предыдущий core patch снят"],
+    ["Restored ", "cleanup", 48, "Восстанавливаю файлы из backup"],
+    ["Core patch applied", "install", 58, "Core patch применён"],
+    ["Browser editor installed", "install", 66, "Файлы configurator установлены"],
+    ["Installing missing target dependencies", "dependencies", 72, "Устанавливаю зависимости"],
+    ["Building homepage", "build", 80, "Собираю Homepage"],
+    ["Compiled successfully", "build", 88, "Production build скомпилирован"],
+    ["Finalizing page optimization", "build", 92, "Завершаю оптимизацию страниц"],
+    ["Syncing standalone runtime assets", "runtime", 96, "Синхронизирую standalone runtime"],
+    ["Done", "done", 98, "Установщик завершает работу"],
+  ];
+  const match = stages.find(([needle]) => text.includes(needle));
+
+  if (!match) {
+    return;
+  }
+
+  const [, phase, progress, message] = match;
+  if ((status.progress ?? 0) <= progress) {
+    setUpdateProgress(status, phase, progress, message);
+  }
+}
+
 function getServiceName() {
   const serviceName = process.env.HOMEPAGE_SERVICE_NAME || "homepage.service";
   return /^[A-Za-z0-9_.@-]+$/.test(serviceName) ? serviceName : "homepage.service";
@@ -741,6 +781,9 @@ function scheduleHomepageRestart(status) {
     const nextStatus = {
       ...status,
       state: "completed",
+      phase: "restart-warning",
+      progress: 100,
+      message: "Обновление установлено, но перезапуск не был запланирован",
       restartRequired: true,
       restartError: error.message,
       finishedAt: new Date().toISOString(),
@@ -796,6 +839,9 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
     imagesDir,
     autoRestart,
     restartRequired: false,
+    phase: "start",
+    progress: 10,
+    message: "Подготовка обновления",
     log: [`Старт обновления ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`],
   };
   await writeConfiguratorUpdateStatus(status);
@@ -834,6 +880,7 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
 
   const writeChunk = async (chunk) => {
     appendUpdateLog(status, chunk);
+    updateProgressFromInstallerOutput(status, chunk);
     await writeConfiguratorUpdateStatus(status);
   };
 
@@ -846,6 +893,7 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
   child.on("error", async (error) => {
     activeConfiguratorUpdate = null;
     status.state = "failed";
+    setUpdateProgress(status, "failed", 100, `Не удалось запустить установщик: ${error.message}`);
     status.finishedAt = new Date().toISOString();
     appendUpdateLog(status, error.message);
     await writeConfiguratorUpdateStatus(status);
@@ -866,18 +914,21 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
       });
       if (autoRestart) {
         status.state = "restarting";
+        setUpdateProgress(status, "restarting", 98, `Обновление установлено. Перезапускаю ${getServiceName()}...`);
         status.restartRequired = false;
         appendUpdateLog(status, `Обновление установлено. Перезапускаю ${getServiceName()}...`);
         await writeConfiguratorUpdateStatus(status);
         scheduleHomepageRestart(status);
       } else {
         status.state = "completed";
+        setUpdateProgress(status, "completed", 100, "Обновление установлено. Нужен перезапуск Homepage.");
         status.restartRequired = true;
         appendUpdateLog(status, "Обновление установлено. Нужен перезапуск Homepage.");
         await writeConfiguratorUpdateStatus(status);
       }
     } else {
       status.state = "failed";
+      setUpdateProgress(status, "failed", 100, `Обновление не установлено. Установщик завершился с кодом ${code}.`);
       status.restartRequired = false;
       appendUpdateLog(status, `Установщик завершился с кодом ${code}`);
       await writeConfiguratorUpdateStatus(status);
