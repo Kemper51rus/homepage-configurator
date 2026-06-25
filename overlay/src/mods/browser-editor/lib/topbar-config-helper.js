@@ -46,10 +46,6 @@ function serializeListField(value) {
   return String(value ?? '').replace(/[\r\n,]+/g, ' ').trim();
 }
 
-function serializeJsString(value) {
-  return JSON.stringify(String(value ?? '').trim());
-}
-
 function parseStringConst(customJs, name, fallback = '') {
   const match = customJs.match(new RegExp(`const\\s+${name}\\s*=\\s*("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*')`));
   if (!match) return fallback;
@@ -89,6 +85,7 @@ export function parseRadioStations(customJs) {
   if (!match) return [];
 
   const text = match[1];
+  const legacyHakuranVoteApiKey = parseStringConst(customJs, 'hakuranVoteApiKey', '');
   return text
     .split('\n')
     .map((line) => line.trim())
@@ -101,9 +98,16 @@ export function parseRadioStations(customJs) {
 
       const label = parts[0];
       const url = parts[1];
-      const showTrackInfo = parts[2] === 'true';
+      const showTrackInfo = parts[2] === undefined || parts[2] === '' ? true : parts[2] === 'true';
       const trackInfoUrl = parts[3] || '';
       const trackInfoKey = parts[4] || '';
+      const hasVoteConfig = parts.length >= 8;
+      const legacyHakuranVote = !hasVoteConfig && legacyHakuranVoteApiKey && label.toLowerCase() === 'hakuran';
+      const voteApiEnabled = hasVoteConfig ? parts[5] === 'true' : Boolean(legacyHakuranVote);
+      const voteApiUrl = hasVoteConfig
+        ? parts[6] || ''
+        : legacyHakuranVote ? 'https://hakuran.ru/custom-api/vote' : '';
+      const voteApiKey = hasVoteConfig ? parts[7] || '' : legacyHakuranVote ? legacyHakuranVoteApiKey : '';
 
       return {
         id: `station-${index}`,
@@ -112,7 +116,10 @@ export function parseRadioStations(customJs) {
         isDefault,
         showTrackInfo,
         trackInfoUrl,
-        trackInfoKey
+        trackInfoKey,
+        voteApiEnabled,
+        voteApiUrl,
+        voteApiKey
       };
     })
     .filter(Boolean);
@@ -193,10 +200,6 @@ export function parseLinkIpFpsSizes(customJs) {
   return match ? match[1] === 'true' : false;
 }
 
-export function parseHakuranVoteApiKey(customJs) {
-  return parseStringConst(customJs, 'hakuranVoteApiKey', '');
-}
-
 // Check if radio is enabled in custom.js
 export function isRadioEnabled(customJs) {
   return customJs.includes('/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */');
@@ -214,8 +217,7 @@ export function updateRadioInCustomJs(
   radioIconSize = 10,
   radioButtonSize = 18,
   linkIpFpsSizes = false,
-  ipEnabled = true,
-  hakuranVoteApiKey = ''
+  ipEnabled = true
 ) {
   if (!radioEnabled && !ipEnabled) {
     return removeBlock(customJs, '/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */', '/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */');
@@ -230,7 +232,10 @@ export function updateRadioInCustomJs(
       serializeListField(s.url),
       showTrack,
       serializeListField(s.trackInfoUrl),
-      serializeListField(s.trackInfoKey)
+      serializeListField(s.trackInfoKey),
+      s.voteApiEnabled ? 'true' : 'false',
+      serializeListField(s.voteApiUrl),
+      serializeListField(s.voteApiKey)
     ].join(', ');
   }).join('\n');
   const serializedList = `\n${stationsText}\n  `;
@@ -259,7 +264,6 @@ export function updateRadioInCustomJs(
   const linkIpFpsLine = `const linkIpFpsSizes = ${linkIpFpsSizes};`;
   const radioEnabledLine = `const radioEnabled = ${radioEnabled};`;
   const ipEnabledLine = `const ipEnabled = ${ipEnabled};`;
-  const hakuranVoteApiKeyLine = `const hakuranVoteApiKey = ${serializeJsString(hakuranVoteApiKey)};`;
 
   // Always regenerate the block from baseTemplate to make sure the code matches the templates (including createRadioMarkup improvements)
   const baseTemplate = radioJsTemplate;
@@ -272,7 +276,6 @@ export function updateRadioInCustomJs(
   configuredBlock = configuredBlock.replace(/const\s+linkIpFpsSizes\s*=\s*(true|false);?/, linkIpFpsLine);
   configuredBlock = configuredBlock.replace(/const\s+radioEnabled\s*=\s*(true|false);?/, radioEnabledLine);
   configuredBlock = configuredBlock.replace(/const\s+ipEnabled\s*=\s*(true|false);?/, ipEnabledLine);
-  configuredBlock = configuredBlock.replace(/const\s+hakuranVoteApiKey\s*=\s*("([^"\\]|\\.)*"|'([^'\\]|\\.)*');?/, hakuranVoteApiKeyLine);
   configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
 
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);

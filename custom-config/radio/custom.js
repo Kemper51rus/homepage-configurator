@@ -24,7 +24,9 @@
   const linkIpFpsSizes = false;
   const radioEnabled = true;
   const ipEnabled = true;
+  // Legacy global key is kept only for migration from old configs.
   const hakuranVoteApiKey = "";
+  const defaultVoteApiUrl = "https://hakuran.ru/custom-api/vote";
 
   function parseIpProviders(definition) {
     return definition
@@ -57,14 +59,14 @@
   }
 
   // Radio stations format:
-  // Station name, stream URL
-  // * Station name, stream URL  -> default station
+  // Station name, stream URL, show track, track API URL, track JSON path, vote API enabled, vote API URL, vote API key
+  // * Station name, ...  -> default station
   const stationList = `
-    TNT, https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e
-    DFM, https://dfm.hostingradio.ru/dfm96.aacp
-    Power, https://radio.dline-media.com/powerhit128
-    Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99
-    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text
+    TNT, https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e, true, , , false, ,
+    DFM, https://dfm.hostingradio.ru/dfm96.aacp, true, , , false, ,
+    Power, https://radio.dline-media.com/powerhit128, true, , , false, ,
+    Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99, true, , , false, ,
+    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text, false, https://hakuran.ru/custom-api/vote,
   `;
 
   // Order of radio buttons: like, dislike, playlist, trackinfo, plapau, volumedown, volumeset, volumeup
@@ -103,9 +105,14 @@
 
         const label = parts[0];
         const url = parts[1];
-        const showTrackInfo = parts[2] === "true";
+        const showTrackInfo = parts[2] === undefined || parts[2] === "" ? true : parts[2] === "true";
         const trackInfoUrl = parts[3] || "";
         const trackInfoKey = parts[4] || "";
+        const hasVoteConfig = parts.length >= 8;
+        const legacyHakuranVote = !hasVoteConfig && hakuranVoteApiKey && label.toLowerCase() === "hakuran";
+        const voteApiEnabled = hasVoteConfig ? parts[5] === "true" : Boolean(legacyHakuranVote);
+        const voteApiUrl = hasVoteConfig ? parts[6] || "" : (legacyHakuranVote ? defaultVoteApiUrl : "");
+        const voteApiKey = hasVoteConfig ? parts[7] || "" : (legacyHakuranVote ? hakuranVoteApiKey : "");
 
         return {
           key: createStationKey(label, index),
@@ -115,6 +122,9 @@
           showTrackInfo,
           trackInfoUrl,
           trackInfoKey,
+          voteApiEnabled,
+          voteApiUrl,
+          voteApiKey,
         };
       })
       .filter(Boolean);
@@ -501,6 +511,7 @@
 
     let currentSongId = "";
     let nowPlayingIntervalId = 0;
+    let nowPlayingStationKey = "";
     let trackInfoIntervalId = 0;
     let lastTrackText = "";
 
@@ -509,6 +520,68 @@
       return keyPath.split('.').reduce((acc, part) => {
         return acc && acc[part] !== undefined ? acc[part] : undefined;
       }, obj);
+    }
+
+    function getSongIdFromPayload(data) {
+      return (
+        data?.now_playing?.song?.id ??
+        data?.song?.id ??
+        data?.current_song?.id ??
+        data?.current_track?.id ??
+        data?.track?.id ??
+        ""
+      );
+    }
+
+    function rememberSongId(data) {
+      const songId = getSongIdFromPayload(data);
+      if (songId) {
+        currentSongId = String(songId);
+      }
+    }
+
+    function getCurrentStationForControls() {
+      const currentStationKey = state.activeStation || state.lastStationKey;
+      return currentStationKey ? stationByKey.get(currentStationKey) : null;
+    }
+
+    function stationVoteEnabled(station) {
+      return Boolean(
+        station?.voteApiEnabled &&
+        station.trackInfoUrl &&
+        String(station.voteApiKey || "").trim() &&
+        (station.voteApiUrl || defaultVoteApiUrl)
+      );
+    }
+
+    function buildVoteUrl(station, type) {
+      const baseUrl = String(station?.voteApiUrl || defaultVoteApiUrl).trim();
+      if (!baseUrl) {
+        return "";
+      }
+
+      const replacements = {
+        apiKey: encodeURIComponent(station.voteApiKey),
+        songId: encodeURIComponent(currentSongId),
+        type: encodeURIComponent(type),
+      };
+
+      if (/[{]apiKey[}]|[{]songId[}]|[{]type[}]/.test(baseUrl)) {
+        return baseUrl
+          .replaceAll("{apiKey}", replacements.apiKey)
+          .replaceAll("{songId}", replacements.songId)
+          .replaceAll("{type}", replacements.type);
+      }
+
+      try {
+        const url = new URL(baseUrl, window.location.origin);
+        url.searchParams.set("api_key", station.voteApiKey);
+        url.searchParams.set("song_id", currentSongId);
+        url.searchParams.set("type", type);
+        return url.toString();
+      } catch {
+        return "";
+      }
     }
 
     function updateMarqueeText(text) {
@@ -564,8 +637,11 @@
       }
 
       async function poll() {
-        const url = station.trackInfoUrl || "https://hfm.hakuran.ru/api/nowplaying/1";
+        const url = station.trackInfoUrl;
         const key = station.trackInfoKey || "now_playing.song.text";
+        if (!url) {
+          return;
+        }
 
         try {
           const res = await fetch(url);
@@ -575,11 +651,7 @@
           const contentType = res.headers.get("content-type") || "";
           if (contentType.includes("application/json") || url.endsWith(".json") || url.includes("api/nowplaying")) {
             const data = await res.json();
-            if (url.includes("hfm.hakuran.ru")) {
-              if (data?.now_playing?.song?.id) {
-                currentSongId = data.now_playing.song.id;
-              }
-            }
+            rememberSongId(data);
             const val = getJsonValue(data, key);
             trackText = typeof val === "string" ? val : (val ? String(val) : "");
           } else {
@@ -617,7 +689,7 @@
 
       const currentStation = state.activeStation ? stationByKey.get(state.activeStation) : null;
       const isPlaying = !audio.paused && !audio.ended && state.activeStation;
-      const shouldShow = isPlaying && currentStation && currentStation.showTrackInfo;
+      const shouldShow = isPlaying && currentStation && currentStation.showTrackInfo && currentStation.trackInfoUrl;
 
       if (shouldShow) {
         trackContainer.style.display = "";
@@ -628,26 +700,40 @@
       }
     }
 
-    function fetchNowPlaying() {
-      fetch("https://hfm.hakuran.ru/api/nowplaying/1")
-        .then(r => r.json())
-        .then(data => {
-          if (data?.now_playing?.song?.id) {
-            currentSongId = data.now_playing.song.id;
-          }
-        })
-        .catch(err => {
-          console.error("Failed to fetch nowplaying info:", err);
-        });
+    function stopVoteInfoPolling() {
+      if (nowPlayingIntervalId) {
+        window.clearInterval(nowPlayingIntervalId);
+        nowPlayingIntervalId = 0;
+      }
+      nowPlayingStationKey = "";
+      currentSongId = "";
     }
 
-    if (hakuranVoteApiKey) {
-      fetchNowPlaying();
-      nowPlayingIntervalId = window.setInterval(fetchNowPlaying, 15000);
+    function startVoteInfoPolling(station) {
+      if (!station?.trackInfoUrl || nowPlayingStationKey === station.key) {
+        return;
+      }
+
+      stopVoteInfoPolling();
+      nowPlayingStationKey = station.key;
+
+      async function poll() {
+        try {
+          const response = await fetch(station.trackInfoUrl);
+          if (!response.ok) throw new Error("Fetch failed");
+          rememberSongId(await response.json());
+        } catch (err) {
+          console.error("Failed to fetch vote metadata:", err);
+        }
+      }
+
+      poll();
+      nowPlayingIntervalId = window.setInterval(poll, 15000);
     }
 
     addManagedListener(likeButton, "click", () => {
-      if (!hakuranVoteApiKey) {
+      const station = getCurrentStationForControls();
+      if (!stationVoteEnabled(station)) {
         return;
       }
 
@@ -658,7 +744,12 @@
 
       likeButton.classList.add("like-clicked");
 
-      const url = `https://hakuran.ru/custom-api/vote?api_key=${encodeURIComponent(hakuranVoteApiKey)}&song_id=${encodeURIComponent(currentSongId)}&type=up`;
+      const url = buildVoteUrl(station, "up");
+      if (!url) {
+        console.warn("Vote API URL is invalid");
+        return;
+      }
+
       fetch(url)
         .then(r => {
           if (r.ok) {
@@ -677,7 +768,8 @@
     });
 
     addManagedListener(dislikeButton, "click", () => {
-      if (!hakuranVoteApiKey) {
+      const station = getCurrentStationForControls();
+      if (!stationVoteEnabled(station)) {
         return;
       }
 
@@ -688,7 +780,12 @@
 
       dislikeButton.classList.add("dislike-clicked");
 
-      const url = `https://hakuran.ru/custom-api/vote?api_key=${encodeURIComponent(hakuranVoteApiKey)}&song_id=${encodeURIComponent(currentSongId)}&type=down`;
+      const url = buildVoteUrl(station, "down");
+      if (!url) {
+        console.warn("Vote API URL is invalid");
+        return;
+      }
+
       fetch(url)
         .then(r => {
           if (r.ok) {
@@ -864,11 +961,8 @@
 
     function updateLikesVisibility() {
       if (!isRadioInitialized) return;
-      const hakuranStation = stations.find((s) => s.label.toLowerCase() === "hakuran");
-      const hakuranKey = hakuranStation ? hakuranStation.key : null;
-
-      const currentStationKey = state.activeStation || state.lastStationKey;
-      const shouldShow = Boolean(hakuranVoteApiKey && currentStationKey === hakuranKey);
+      const currentStation = getCurrentStationForControls();
+      const shouldShow = stationVoteEnabled(currentStation);
 
       const likeLi = radioRoot.querySelector("#like-container");
       const dislikeLi = radioRoot.querySelector("#dislike-container");
@@ -878,6 +972,12 @@
       }
       if (dislikeLi) {
         dislikeLi.style.display = shouldShow ? "" : "none";
+      }
+
+      if (shouldShow) {
+        startVoteInfoPolling(currentStation);
+      } else {
+        stopVoteInfoPolling();
       }
     }
 

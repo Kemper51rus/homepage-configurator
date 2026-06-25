@@ -16,8 +16,7 @@ import {
   parseRadioButtonsStyle,
   parseRadioIconSize,
   parseRadioButtonSize,
-  parseLinkIpFpsSizes,
-  parseHakuranVoteApiKey
+  parseLinkIpFpsSizes
 } from '../lib/topbar-config-helper';
 
 const AVAILABLE_EFFECTS = [
@@ -28,6 +27,8 @@ const AVAILABLE_EFFECTS = [
   { id: 'lava', label: 'Лава' },
   { id: 'meteor', label: 'Метеор' }
 ];
+
+const DEFAULT_VOTE_API_URL = 'https://hakuran.ru/custom-api/vote';
 
 export default function TopBarSettingsEditor({
   customJs,
@@ -49,7 +50,6 @@ export default function TopBarSettingsEditor({
   const [radioIconSize, setRadioIconSize] = useState(10);
   const [radioButtonSize, setRadioButtonSize] = useState(18);
   const [linkIpFpsSizes, setLinkIpFpsSizes] = useState(false);
-  const [hakuranVoteApiKey, setHakuranVoteApiKey] = useState('');
 
   // Particles States
   const [particlesEnabled, setParticlesEnabled] = useState(false);
@@ -72,15 +72,14 @@ export default function TopBarSettingsEditor({
       setRadioIconSize(parseRadioIconSize(customJs));
       setRadioButtonSize(parseRadioButtonSize(customJs));
       setLinkIpFpsSizes(parseLinkIpFpsSizes(customJs));
-      setHakuranVoteApiKey(parseHakuranVoteApiKey(customJs));
     } else {
       // Default initial stations
       setStations([
-        { id: 'initial-1', label: 'TNT', url: 'https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
-        { id: 'initial-2', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
-        { id: 'initial-3', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
-        { id: 'initial-4', label: 'Energy', url: 'https://pub0302.101.ru:8443/stream/air/aac/64/99', isDefault: false, showTrackInfo: false, trackInfoUrl: '', trackInfoKey: '' },
-        { id: 'initial-5', label: 'Hakuran', url: 'https://hfm.hakuran.ru/listen/hfm/radio.mp3', isDefault: true, showTrackInfo: true, trackInfoUrl: 'https://hfm.hakuran.ru/api/nowplaying/1', trackInfoKey: 'now_playing.song.text' }
+        { id: 'initial-1', label: 'TNT', url: 'https://tntradio.hostingradio.ru:8027/tntradio128.mp3?6c8e', isDefault: false, showTrackInfo: true, trackInfoUrl: '', trackInfoKey: '', voteApiEnabled: false, voteApiUrl: '', voteApiKey: '' },
+        { id: 'initial-2', label: 'DFM', url: 'https://dfm.hostingradio.ru/dfm96.aacp', isDefault: false, showTrackInfo: true, trackInfoUrl: '', trackInfoKey: '', voteApiEnabled: false, voteApiUrl: '', voteApiKey: '' },
+        { id: 'initial-3', label: 'Power', url: 'https://radio.dline-media.com/powerhit128', isDefault: false, showTrackInfo: true, trackInfoUrl: '', trackInfoKey: '', voteApiEnabled: false, voteApiUrl: '', voteApiKey: '' },
+        { id: 'initial-4', label: 'Energy', url: 'https://pub0302.101.ru:8443/stream/air/aac/64/99', isDefault: false, showTrackInfo: true, trackInfoUrl: '', trackInfoKey: '', voteApiEnabled: false, voteApiUrl: '', voteApiKey: '' },
+        { id: 'initial-5', label: 'Hakuran', url: 'https://hfm.hakuran.ru/listen/hfm/radio.mp3', isDefault: true, showTrackInfo: true, trackInfoUrl: 'https://hfm.hakuran.ru/api/nowplaying/1', trackInfoKey: 'now_playing.song.text', voteApiEnabled: false, voteApiUrl: DEFAULT_VOTE_API_URL, voteApiKey: '' }
       ]);
       setRadioButtonsOrder([
         'trackinfo', 'like', 'dislike', 'playlist', 'plapau', 'volumedown', 'volumeset', 'volumeup'
@@ -89,7 +88,6 @@ export default function TopBarSettingsEditor({
       setRadioIconSize(10);
       setRadioButtonSize(18);
       setLinkIpFpsSizes(false);
-      setHakuranVoteApiKey('');
     }
 
     const isParticles = isParticlesEnabled(customJs);
@@ -132,8 +130,7 @@ export default function TopBarSettingsEditor({
     nextRadioIconSize = radioIconSize,
     nextRadioButtonSize = radioButtonSize,
     nextLinkIpFpsSizes = linkIpFpsSizes,
-    nextIpEnabled = ipEnabled,
-    nextHakuranVoteApiKey = hakuranVoteApiKey
+    nextIpEnabled = ipEnabled
   ) => {
     let newJs = customJs;
     let newCss = customCss;
@@ -150,8 +147,7 @@ export default function TopBarSettingsEditor({
       nextRadioIconSize,
       nextRadioButtonSize,
       nextLinkIpFpsSizes,
-      nextIpEnabled,
-      nextHakuranVoteApiKey
+      nextIpEnabled
     );
     newCss = updateRadioInCustomCss(newCss, nextRadioEnabled || nextIpEnabled);
 
@@ -282,6 +278,19 @@ export default function TopBarSettingsEditor({
     }
   };
 
+  const handleVoteApiToggle = (id, checked) => {
+    const nextStations = stations.map((station) => {
+      if (station.id !== id) return station;
+      const isHakuranStation = station.label.trim().toLowerCase() === 'hakuran';
+      return {
+        ...station,
+        voteApiEnabled: checked,
+        voteApiUrl: checked && isHakuranStation && !station.voteApiUrl ? DEFAULT_VOTE_API_URL : station.voteApiUrl
+      };
+    });
+    applyStations(nextStations);
+  };
+
   const handleSetDefaultStation = (id) => {
     const nextStations = stations.map(s => ({
       ...s,
@@ -298,7 +307,13 @@ export default function TopBarSettingsEditor({
         id: `station-new-${Date.now()}`,
         label: 'Новое Радио',
         url: '',
-        isDefault: stations.length === 0
+        isDefault: stations.length === 0,
+        showTrackInfo: true,
+        trackInfoUrl: '',
+        trackInfoKey: '',
+        voteApiEnabled: false,
+        voteApiUrl: '',
+        voteApiKey: ''
       }
     ];
     setStations(nextStations);
@@ -665,44 +680,41 @@ export default function TopBarSettingsEditor({
               </div>
             </div>
 
-            {/* Выбор стиля кнопок плеера */}
-            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Стиль кнопок плеера</span>
-                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Внешний вид элементов управления (классические картинки или современные SVG-иконки)</p>
+            <div className="mb-5 grid gap-3 border-b border-theme-300/20 pb-4 dark:border-white/5 lg:grid-cols-2">
+              <div className="rounded-lg border border-theme-300/20 bg-theme-100/10 p-3 dark:border-white/5 dark:bg-white/5">
+                <label className="block">
+                  <span className="block text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400">Стиль кнопок плеера</span>
+                  <select
+                    value={radioButtonsStyle}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRadioButtonsStyle(val);
+                      syncChanges(
+                        radioEnabled,
+                        stations,
+                        particlesEnabled,
+                        enabledEffects,
+                        defaultEffect,
+                        ipProviders,
+                        ipHideOnError,
+                        radioButtonsOrder,
+                        val
+                      );
+                    }}
+                    className="mt-2 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="classic">Картинки</option>
+                    <option value="modern">SVG-иконки</option>
+                    <option value="modern-plus-minus">SVG +/-</option>
+                  </select>
+                </label>
               </div>
-              <select
-                value={radioButtonsStyle}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setRadioButtonsStyle(val);
-                  syncChanges(
-                    radioEnabled,
-                    stations,
-                    particlesEnabled,
-                    enabledEffects,
-                    defaultEffect,
-                    ipProviders,
-                    ipHideOnError,
-                    radioButtonsOrder,
-                    val
-                  );
-                }}
-                className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="classic">Картинки (Классический)</option>
-                <option value="modern">Иконки (Современный SVG)</option>
-                <option value="modern-plus-minus">Иконки с +/- (Современный SVG)</option>
-              </select>
-            </div>
 
-            {/* Выбор размера иконок плеера */}
-            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Размер иконок радио</span>
-                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Размер иконок и элементов управления в пикселях (по умолчанию 10px)</p>
-              </div>
-              <div className="flex items-center gap-3">
+              <div className="rounded-lg border border-theme-300/20 bg-theme-100/10 p-3 dark:border-white/5 dark:bg-white/5">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400">Иконки радио</span>
+                  <span className="min-w-[40px] rounded border border-white/10 bg-white/5 px-2 py-0.5 text-center text-xs font-semibold">{radioIconSize}px</span>
+                </div>
                 <input
                   type="range"
                   min="8"
@@ -725,19 +737,15 @@ export default function TopBarSettingsEditor({
                       val
                     );
                   }}
-                  className="w-32 h-1 bg-theme-300 dark:bg-theme-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-theme-300 accent-emerald-500 dark:bg-theme-700"
                 />
-                <span className="text-xs font-semibold bg-white/5 px-2 py-1 rounded border border-white/10 min-w-[36px] text-center">{radioIconSize}px</span>
               </div>
-            </div>
 
-            {/* Выбор размера кнопок плеера */}
-            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Размер кнопок радио</span>
-                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Размер (высота) кнопок плеера в пикселях (по умолчанию 18px)</p>
-              </div>
-              <div className="flex items-center gap-3">
+              <div className="rounded-lg border border-theme-300/20 bg-theme-100/10 p-3 dark:border-white/5 dark:bg-white/5">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400">Кнопки радио</span>
+                  <span className="min-w-[40px] rounded border border-white/10 bg-white/5 px-2 py-0.5 text-center text-xs font-semibold">{radioButtonSize}px</span>
+                </div>
                 <input
                   type="range"
                   min="12"
@@ -761,65 +769,20 @@ export default function TopBarSettingsEditor({
                       val
                     );
                   }}
-                  className="w-32 h-1 bg-theme-300 dark:bg-theme-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-theme-300 accent-emerald-500 dark:bg-theme-700"
                 />
-                <span className="text-xs font-semibold bg-white/5 px-2 py-1 rounded border border-white/10 min-w-[36px] text-center">{radioButtonSize}px</span>
               </div>
-            </div>
 
-            {/* Связывание размеров с виджетами IP и FPS */}
-            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex justify-between items-center">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Привязать размеры к IP и FPS</span>
-                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Применить настроенные размеры кнопок и иконок к виджетам IP и FPS слева</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const val = !linkIpFpsSizes;
-                  setLinkIpFpsSizes(val);
-                  syncChanges(
-                    radioEnabled,
-                    stations,
-                    particlesEnabled,
-                    enabledEffects,
-                    defaultEffect,
-                    ipProviders,
-                    ipHideOnError,
-                    radioButtonsOrder,
-                    radioButtonsStyle,
-                    radioIconSize,
-                    radioButtonSize,
-                    val
-                  );
-                }}
-                className={classNames(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors",
-                  linkIpFpsSizes
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500/20"
-                    : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                <span>{linkIpFpsSizes ? "🔒 Связано" : "🔓 Раздельно"}</span>
-              </button>
-            </div>
-
-            {/* Ключ для голосования Hakuran */}
-            <div className="mb-6 pb-5 border-b border-theme-300/20 dark:border-white/5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400 block">Hakuran vote API key</span>
-                <p className="text-[10px] text-theme-500 dark:text-theme-400 mt-0.5">Пустое поле скрывает кнопки лайка и дизлайка для Hakuran</p>
-              </div>
-              <div className="flex w-full gap-2 md:w-[360px]">
-                <input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-label="Hakuran vote API key"
-                  value={hakuranVoteApiKey}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setHakuranVoteApiKey(val);
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-theme-300/20 bg-theme-100/10 p-3 dark:border-white/5 dark:bg-white/5">
+                <div className="min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wider text-theme-500 dark:text-theme-400">Размеры IP/FPS</span>
+                  <span className="block truncate text-[10px] text-theme-500 dark:text-theme-400">Привязать к радио</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = !linkIpFpsSizes;
+                    setLinkIpFpsSizes(val);
                     syncChanges(
                       radioEnabled,
                       stations,
@@ -832,39 +795,17 @@ export default function TopBarSettingsEditor({
                       radioButtonsStyle,
                       radioIconSize,
                       radioButtonSize,
-                      linkIpFpsSizes,
-                      ipEnabled,
                       val
                     );
                   }}
-                  placeholder="Вставьте API key"
-                  className="min-w-0 flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  type="button"
-                  disabled={!hakuranVoteApiKey}
-                  onClick={() => {
-                    setHakuranVoteApiKey('');
-                    syncChanges(
-                      radioEnabled,
-                      stations,
-                      particlesEnabled,
-                      enabledEffects,
-                      defaultEffect,
-                      ipProviders,
-                      ipHideOnError,
-                      radioButtonsOrder,
-                      radioButtonsStyle,
-                      radioIconSize,
-                      radioButtonSize,
-                      linkIpFpsSizes,
-                      ipEnabled,
-                      ''
-                    );
-                  }}
-                  className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className={classNames(
+                    "shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    linkIpFpsSizes
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500/20"
+                      : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
+                  )}
                 >
-                  Очистить
+                  {linkIpFpsSizes ? "Связано" : "Раздельно"}
                 </button>
               </div>
             </div>
@@ -954,6 +895,39 @@ export default function TopBarSettingsEditor({
                               {probingTrackInfoIds[station.id] ? 'Ищу метаданные трека...' : trackInfoProbeErrors[station.id]}
                             </p>
                           )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-black/10 dark:bg-white/5 p-1.5 rounded-[4px]">
+                      <label className="flex items-center gap-1.5 text-[11px] cursor-pointer text-theme-600 dark:text-theme-300 font-medium shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={station.voteApiEnabled === true}
+                          onChange={(e) => handleVoteApiToggle(station.id, e.target.checked)}
+                          className="rounded text-emerald-500 focus:ring-emerald-500 border-theme-300 dark:border-white/10 w-3 h-3"
+                        />
+                        <span>API</span>
+                      </label>
+
+                      {station.voteApiEnabled && (
+                        <div className="flex-1 grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                          <input
+                            type="password"
+                            autoComplete="off"
+                            spellCheck={false}
+                            value={station.voteApiKey || ''}
+                            onChange={(e) => handleStationChange(station.id, 'voteApiKey', e.target.value)}
+                            placeholder="API key"
+                            className="min-w-0 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                          />
+                          <input
+                            type="text"
+                            value={station.voteApiUrl || ''}
+                            onChange={(e) => handleStationChange(station.id, 'voteApiUrl', e.target.value)}
+                            placeholder="URL API голосования"
+                            className="min-w-0 rounded border border-theme-300/50 bg-theme-50/95 px-2 py-0.5 text-[10px] text-theme-900 dark:border-white/10 dark:bg-theme-900/95 dark:text-theme-100 focus:outline-none focus:border-emerald-500"
+                          />
                         </div>
                       )}
                     </div>
