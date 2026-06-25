@@ -7200,6 +7200,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const minimumTargetVersion = updateInfo?.minimumTargetVersion || status?.minimumTargetVersion || "неизвестно";
   const targetUpdateRequired = Boolean(updateInfo?.targetUpdateRequired);
   const targetUpdateCommand = updateInfo?.targetUpdateCommand || "update";
+  const consoleUpdateCommand = `bash <(curl -Ls ${updateInfo?.latest?.installUrl || "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh"}) --action update`;
   const activeUpdateFile = updateFiles.find((file) => file.fileName === activeUpdateFileName) ?? updateFiles[0] ?? null;
 
   async function startUpdate() {
@@ -7268,8 +7269,22 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         )}
 
         {targetUpdateRequired && (
-          <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-800 dark:text-rose-200">
-            Сначала обновите target проект Homepage из консоли командой <code>{targetUpdateCommand}</code>, затем вернитесь сюда и повторите проверку.
+          <div
+            role="alert"
+            className="mt-3 rounded-md border border-red-500/70 bg-red-500/15 p-3 text-xs font-semibold text-red-900 shadow-sm dark:text-red-100"
+          >
+            <div>
+              ⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать, пока configurator не будет адаптирован под новую версию.
+            </div>
+            <div className="mt-2 font-medium">
+              Сначала обновите target проект Homepage из консоли командой <code>{targetUpdateCommand}</code>, затем вернитесь сюда и повторите проверку.
+            </div>
+            <div className="mt-2 font-medium">
+              Если после этого браузерный редактор не откроется, обновите configurator из консоли:
+              <code className="mt-1 block overflow-x-auto whitespace-nowrap rounded border border-red-500/30 bg-red-950/10 px-2 py-1 dark:bg-red-950/30">
+                {consoleUpdateCommand}
+              </code>
+            </div>
           </div>
         )}
 

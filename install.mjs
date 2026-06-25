@@ -11,6 +11,9 @@ const backupDirName = ".homepage-configurator-backups";
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const versionMetadata = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
 const targetMetadata = versionMetadata.target ?? {};
+const consoleUpdateCommand = `bash <(curl -Ls ${versionMetadata.installUrl}) --action update`;
+const targetUpdateRiskWarning =
+  `⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать. Если браузерный редактор не откроется, обновите configurator из консоли: ${consoleUpdateCommand}`;
 
 const managedDependencies = {
   prismjs: "^1.29.0",
@@ -147,6 +150,7 @@ function ensureSupportedTargetVersion(target) {
         `Не удалось определить версию target Homepage в ${join(target, "package.json")}.`,
         `Минимальная поддерживаемая версия Homepage для ${packageJson.name} ${packageJson.version}: ${minimumVersion}.`,
         "Сначала обновите target проект из консоли командой `update`, затем повторите установку/обновление мода.",
+        targetUpdateRiskWarning,
       ].join("\n"),
     );
   }
@@ -157,6 +161,7 @@ function ensureSupportedTargetVersion(target) {
         `Target Homepage слишком старый для ${packageJson.name} ${packageJson.version}.`,
         `Установлено: ${currentVersion}. Минимум: ${minimumVersion}.`,
         "Сначала обновите target проект из консоли командой `update`, затем повторите установку/обновление мода.",
+        targetUpdateRiskWarning,
       ].join("\n"),
     );
   }

@@ -72,7 +72,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.4";
+const configuratorVersion = "0.6.5";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
@@ -671,7 +671,7 @@ async function checkConfiguratorUpdate({ force = false } = {}) {
     reason: !targetDir
       ? "Не найден полный checkout Homepage. Для standalone-only runtime используйте внешний deploy."
       : targetUpdateRequired
-      ? `Target Homepage ${targetInfo.version || "неизвестной версии"} слишком старый. Минимум для мода: ${targetInfo.minimumVersion}. Сначала обновите target проект из консоли командой \`${targetInfo.updateCommand}\`, затем повторите обновление configurator.`
+      ? `Target Homepage ${targetInfo.version || "неизвестной версии"} слишком старый. Минимум для мода: ${targetInfo.minimumVersion}. Сначала обновите target проект из консоли командой \`${targetInfo.updateCommand}\`, затем повторите обновление configurator. ⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать. Если браузерный редактор не откроется, обновите configurator из консоли: bash <(curl -Ls ${metadata.installUrl}) --action update`
       : "",
     nextCheckAfter: new Date(Date.now() + updateCheckIntervalMs).toISOString(),
   };
