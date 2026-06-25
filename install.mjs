@@ -1,5 +1,6 @@
 import { execFileSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
 
@@ -420,7 +421,7 @@ function preflightInstallPatchState(target, manifest) {
     return;
   }
 
-  if (manifest && backupCanAcceptCurrentPatch(target, manifest)) {
+  if (manifest && existingInstallCanAcceptCurrentPatch(target, manifest)) {
     return;
   }
 
@@ -433,15 +434,54 @@ function preflightInstallPatchState(target, manifest) {
   );
 }
 
-function backupCanAcceptCurrentPatch(target, manifest) {
+function existingInstallCanAcceptCurrentPatch(target, manifest) {
   const backupRoot = manifest?.backup?.backupRoot;
+  const backupFiles = manifest?.backup?.files ?? [];
 
   if (!isSafeRelativePath(backupRoot)) {
     return false;
   }
 
   const backupRootPath = join(target, backupRoot);
-  return existsSync(backupRootPath) && canApplyPatch(backupRootPath);
+  if (!existsSync(backupRootPath)) {
+    return false;
+  }
+
+  const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-preflight-"));
+
+  try {
+    for (const file of patchFiles()) {
+      if (!isSafeRelativePath(file)) {
+        return false;
+      }
+
+      copyRelativeFileIfExists(target, tempRoot, file);
+    }
+
+    for (const file of backupFiles) {
+      if (!isSafeRelativePath(file)) {
+        return false;
+      }
+
+      copyRelativeFileIfExists(backupRootPath, tempRoot, file);
+    }
+
+    return canApplyPatch(tempRoot);
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
+function copyRelativeFileIfExists(sourceRoot, targetRoot, file) {
+  const sourcePath = join(sourceRoot, file);
+  if (!existsSync(sourcePath)) {
+    return false;
+  }
+
+  const targetPath = join(targetRoot, file);
+  mkdirSync(dirname(targetPath), { recursive: true });
+  cpSync(sourcePath, targetPath);
+  return true;
 }
 
 function uninstall(target, options = {}) {

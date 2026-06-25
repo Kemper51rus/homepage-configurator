@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { isAbsolute, join } from "path";
 import { tmpdir } from "os";
 
@@ -13,6 +13,13 @@ function run(command, args, options = {}) {
     stdio: options.stdio ?? "pipe",
     encoding: "utf8",
   });
+}
+
+function currentPatchFiles() {
+  return run("git", ["apply", "--numstat", join(root, "browser-editor.patch")])
+    .split(/\r?\n/)
+    .map((line) => line.trim().split("\t").at(-1))
+    .filter(Boolean);
 }
 
 try {
@@ -75,6 +82,28 @@ try {
   if (!existsSync(join(target, manifest.backup.backupRoot))) {
     throw new Error("Install manifest backup root does not exist under target checkout");
   }
+
+  const staleBackupFile = currentPatchFiles().find((file) => existsSync(join(target, manifest.backup.backupRoot, file)));
+  if (!staleBackupFile) {
+    throw new Error("Could not find a backed-up patch file for stale manifest preflight smoke");
+  }
+  cpSync(join(target, manifest.backup.backupRoot, staleBackupFile), join(target, staleBackupFile));
+  rmSync(join(target, manifest.backup.backupRoot, staleBackupFile), { force: true });
+  writeFileSync(
+    join(target, ".homepage-configurator-manifest.json"),
+    `${JSON.stringify(
+      {
+        ...manifest,
+        backup: {
+          ...manifest.backup,
+          files: manifest.backup.files.filter((file) => file !== staleBackupFile),
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
 
   run("node", ["install.mjs", "--dry-run", "--uninstall", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
