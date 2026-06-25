@@ -3791,6 +3791,18 @@ function formatUpdateDate(value) {
   }
 }
 
+function formatUpdateDataFileContent(file) {
+  if (!file?.content) {
+    return "Файл пока не создан. Он появится после проверки версии или запуска обновления.";
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(file.content), null, 2);
+  } catch {
+    return file.content;
+  }
+}
+
 function updateStateLabel(state) {
   switch (state) {
     case "running":
@@ -7122,13 +7134,28 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const [status, setStatus] = useState(null);
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [updateFiles, setUpdateFiles] = useState([]);
+  const [activeUpdateFileName, setActiveUpdateFileName] = useState("");
   const [error, setError] = useState("");
+
+  const loadUpdateFiles = useCallback(async () => {
+    const nextData = await postEditorAction({ action: "get-configurator-update-files" });
+    const nextFiles = nextData?.files ?? [];
+    setUpdateFiles(nextFiles);
+    setActiveUpdateFileName((currentFileName) =>
+      nextFiles.some((file) => file.fileName === currentFileName) ? currentFileName : nextFiles[0]?.fileName ?? "",
+    );
+    return nextFiles;
+  }, []);
 
   const loadStatus = useCallback(async () => {
     const nextStatus = await postEditorAction({ action: "get-configurator-update-status" });
     setStatus(nextStatus);
+    if (!["running", "restarting"].includes(nextStatus?.state)) {
+      loadUpdateFiles().catch((filesError) => setError(filesError.message));
+    }
     return nextStatus;
-  }, []);
+  }, [loadUpdateFiles]);
 
   const checkUpdate = useCallback(async (force = false) => {
     setChecking(true);
@@ -7137,6 +7164,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
     try {
       const nextInfo = await postEditorAction({ action: "check-configurator-update", force });
       setUpdateInfo(nextInfo);
+      loadUpdateFiles().catch((filesError) => setError(filesError.message));
       return nextInfo;
     } catch (checkError) {
       setError(checkError.message);
@@ -7144,12 +7172,13 @@ function ConfiguratorUpdatePanel({ onSaved }) {
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [loadUpdateFiles]);
 
   useEffect(() => {
     checkUpdate(false);
     loadStatus().catch((statusError) => setError(statusError.message));
-  }, [checkUpdate, loadStatus]);
+    loadUpdateFiles().catch((filesError) => setError(filesError.message));
+  }, [checkUpdate, loadStatus, loadUpdateFiles]);
 
   useEffect(() => {
     if (!status || !["running", "restarting"].includes(status.state)) {
@@ -7167,6 +7196,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const canUpdate = Boolean(updateInfo?.canUpdate && updateAvailable && !running && !updating);
   const currentVersion = updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
   const latestVersion = updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
+  const activeUpdateFile = updateFiles.find((file) => file.fileName === activeUpdateFileName) ?? updateFiles[0] ?? null;
 
   async function startUpdate() {
     setUpdating(true);
@@ -7175,6 +7205,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
     try {
       const nextStatus = await postEditorAction({ action: "run-configurator-update", autoRestart: true });
       setStatus(nextStatus);
+      loadUpdateFiles().catch((filesError) => setError(filesError.message));
       onSaved("Обновление запущено");
     } catch (updateError) {
       setError(updateError.message);
@@ -7271,6 +7302,49 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         <pre className="mt-3 max-h-64 overflow-auto rounded-md border border-theme-300/40 bg-theme-100/70 p-3 text-[11px] leading-relaxed text-theme-800 dark:border-white/10 dark:bg-theme-950/40 dark:text-theme-100">
           {(status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n")}
         </pre>
+      </div>
+
+      <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
+        <div>
+          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Служебные данные</h3>
+          <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
+            Эти файлы создает updater. Они нужны только для диагностики проверки версии и последнего запуска обновления.
+          </p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {updateFiles.map((file) => (
+            <button
+              key={file.fileName}
+              type="button"
+              onClick={() => setActiveUpdateFileName(file.fileName)}
+              className={classNames(
+                "rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                activeUpdateFile?.fileName === file.fileName
+                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+              )}
+            >
+              <div className="font-semibold">{file.label}</div>
+              <div className="mt-0.5 max-w-[16rem] truncate opacity-70">{file.fileName}</div>
+            </button>
+          ))}
+        </div>
+
+        {activeUpdateFile ? (
+          <div className="mt-3">
+            <div className="text-xs text-theme-600 dark:text-theme-400">
+              {activeUpdateFile.description}
+            </div>
+            <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-theme-300/40 bg-theme-100/70 p-3 text-[11px] leading-relaxed text-theme-800 dark:border-white/10 dark:bg-theme-950/40 dark:text-theme-100">
+              {formatUpdateDataFileContent(activeUpdateFile)}
+            </pre>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-md border border-theme-300/40 p-3 text-xs text-theme-600 dark:border-white/10 dark:text-theme-400">
+            Служебные файлы обновления пока не найдены.
+          </div>
+        )}
       </div>
     </div>
   );

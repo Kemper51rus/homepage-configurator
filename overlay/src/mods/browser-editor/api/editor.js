@@ -32,12 +32,23 @@ const settingsTabFiles = [
 ];
 
 const settingsTabFilesByName = new Map(settingsTabFiles.map((file) => [file.fileName, file]));
-const excludedSettingsTabFiles = new Set(["bookmarks.yaml", "services.yaml"]);
+const updateStatusFileName = ".homepage-configurator-update-status.json";
+const updateCheckCacheFileName = ".homepage-configurator-update-check.json";
+const configuratorUpdateDataFiles = [
+  {
+    fileName: updateCheckCacheFileName,
+    label: "Последняя проверка версии",
+    description: "Кеш ответа GitHub version.json и результат сравнения версий.",
+  },
+  {
+    fileName: updateStatusFileName,
+    label: "Последнее обновление",
+    description: "Состояние и лог последнего запуска обновления с GitHub.",
+  },
+];
+const configuratorUpdateDataFileNames = new Set(configuratorUpdateDataFiles.map((file) => file.fileName));
+const excludedSettingsTabFiles = new Set(["bookmarks.yaml", "services.yaml", ...configuratorUpdateDataFileNames]);
 const supportedSettingsTabExtensions = new Set([".yaml", ".yml", ".css", ".js", ".json", ".txt"]);
-const settingsTabLabelOverrides = new Map([
-  [".homepage-configurator-update-check.json", "Проверка обновлений конфигуратора"],
-  [".homepage-configurator-update-status.json", "Статус обновления конфигуратора"],
-]);
 
 const backgroundTypes = {
   "image/gif": ".gif",
@@ -61,7 +72,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.2";
+const configuratorVersion = "0.6.3";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
@@ -70,9 +81,6 @@ const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
 const updateFetchTimeoutMs = 10000;
 const maxUpdateMetadataBytes = 64 * 1024;
 const maxInstallScriptBytes = 1024 * 1024;
-const updateStatusFileName = ".homepage-configurator-update-status.json";
-const updateCheckCacheFileName = ".homepage-configurator-update-check.json";
-
 let activeConfiguratorUpdate = null;
 
 function isEditorEnabled() {
@@ -371,9 +379,30 @@ async function readJsonIfExists(filePath) {
   }
 }
 
+async function readTextIfExists(filePath) {
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
 async function writeJsonFile(filePath, data) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+async function getConfiguratorUpdateFiles() {
+  return Promise.all(
+    configuratorUpdateDataFiles.map(async (file) => {
+      const content = await readTextIfExists(path.join(CONF_DIR, file.fileName));
+      return {
+        ...file,
+        exists: content.length > 0,
+        content,
+      };
+    }),
+  );
 }
 
 function parseVersionParts(version) {
@@ -900,11 +929,6 @@ function isSupportedSettingsTabFile(fileName) {
 }
 
 function prettifySettingsTabLabel(fileName) {
-  const labelOverride = settingsTabLabelOverrides.get(fileName);
-  if (labelOverride) {
-    return labelOverride;
-  }
-
   const basename = fileName.replace(/\.[^.]+$/, "");
   return basename
     .split(/[-_.\s]+/)
@@ -1464,6 +1488,10 @@ export default async function handler(req, res) {
 
       if (action === "get-configurator-update-status") {
         return res.status(200).json(await readConfiguratorUpdateStatus());
+      }
+
+      if (action === "get-configurator-update-files") {
+        return res.status(200).json({ files: await getConfiguratorUpdateFiles() });
       }
 
       if (action === "run-configurator-update") {
