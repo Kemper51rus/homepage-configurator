@@ -1101,10 +1101,57 @@ run_in_target() {
   (cd "$TARGET" && "$@")
 }
 
+target_home() {
+  local owner="$1"
+  local home=""
+
+  if command -v getent >/dev/null 2>&1; then
+    home="$(getent passwd "$owner" | cut -d: -f6 || true)"
+  fi
+
+  if [[ -z "$home" ]]; then
+    home="${HOME:-/tmp}"
+  fi
+
+  printf '%s\n' "$home"
+}
+
+run_clean_in_target() {
+  local owner home key value
+  local -a clean_env=()
+
+  owner="$(target_owner)"
+  home="$(target_home "$owner")"
+
+  clean_env=(
+    env -i
+    "PATH=${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
+    "HOME=$home"
+    "USER=$owner"
+    "LOGNAME=$owner"
+    "LANG=${LANG:-C.UTF-8}"
+    "NEXT_TELEMETRY_DISABLED=1"
+  )
+
+  for key in LC_ALL TMPDIR TEMP TMP HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy PNPM_HOME COREPACK_HOME; do
+    value="${!key-}"
+    if [[ -n "$value" ]]; then
+      clean_env+=("$key=$value")
+    fi
+  done
+
+  if [[ "$(id -u)" -eq 0 && "$owner" != "root" && "$(command -v sudo || true)" ]]; then
+    (cd "$TARGET" && sudo -u "$owner" "${clean_env[@]}" "$@")
+    return
+  fi
+
+  (cd "$TARGET" && "${clean_env[@]}" "$@")
+}
+
 run_target_build_command() {
   local -a build_command=("$@")
 
-  if run_in_target "${build_command[@]}"; then
+  if run_clean_in_target "${build_command[@]}"; then
     return 0
   fi
 
@@ -1112,7 +1159,7 @@ run_target_build_command() {
   ensure_target_dependencies
   rm -rf -- "$TARGET/.next/cache"
   sleep 5
-  run_in_target "${build_command[@]}"
+  run_clean_in_target "${build_command[@]}"
 }
 
 fix_target_ownership() {
