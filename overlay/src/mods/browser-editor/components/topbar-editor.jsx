@@ -632,7 +632,7 @@ export default function TopBarSettingsEditor({
   };
 
   return (
-    <div className="topbar-settings-editor flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-2 pb-4 text-sm text-theme-800 dark:text-theme-200">
+    <div data-editor-window-autofit-scroll className="topbar-settings-editor flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-2 pb-4 text-sm text-theme-800 dark:text-theme-200">
       {/* 1. RADIO SECTION */}
       {(mode === 'all' || mode === 'radio') && (
         <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">

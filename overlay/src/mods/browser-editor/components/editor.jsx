@@ -3844,6 +3844,52 @@ function updateStateLabel(state) {
   }
 }
 
+const EDITOR_WINDOW_AUTOFIT_SELECTOR = "[data-editor-window-autofit-scroll]";
+const EDITOR_WINDOW_AUTOFIT_PADDING = 12;
+const EDITOR_WINDOW_AUTOFIT_THRESHOLD = 28;
+
+function isVisibleEditorElement(element) {
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 && window.getComputedStyle(element).display !== "none";
+}
+
+function measureEditorElementNaturalHeight(element) {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  const paddingBottom = Number.parseFloat(style.paddingBottom) || 0;
+  const children = Array.from(element.children ?? []).filter(isVisibleEditorElement);
+
+  const childHeight = children.reduce((height, child) => {
+    const childRect = child.getBoundingClientRect();
+    return Math.max(height, childRect.bottom - rect.top + element.scrollTop + paddingBottom);
+  }, 0);
+  const overflowHeight = element.scrollHeight > element.clientHeight + 1 ? element.scrollHeight : 0;
+
+  return Math.ceil(Math.max(childHeight, overflowHeight, 0));
+}
+
+function measureEditorWindowAutoFitHeight(bodyElement, targetElement) {
+  const bodyRect = bodyElement.getBoundingClientRect();
+  const bodyStyle = window.getComputedStyle(bodyElement);
+  const bodyPaddingBottom = Number.parseFloat(bodyStyle.paddingBottom) || 0;
+  const scrollRoots = [
+    ...(targetElement.matches?.(EDITOR_WINDOW_AUTOFIT_SELECTOR) ? [targetElement] : []),
+    ...Array.from(targetElement.querySelectorAll?.(EDITOR_WINDOW_AUTOFIT_SELECTOR) ?? []),
+  ].filter(isVisibleEditorElement);
+
+  if (scrollRoots.length === 0) {
+    const targetRect = targetElement.getBoundingClientRect();
+    return Math.ceil(targetRect.top - bodyRect.top + measureEditorElementNaturalHeight(targetElement) + bodyPaddingBottom);
+  }
+
+  const measuredBottom = scrollRoots.reduce((bottom, element) => {
+    const rect = element.getBoundingClientRect();
+    return Math.max(bottom, rect.top - bodyRect.top + measureEditorElementNaturalHeight(element));
+  }, 0);
+
+  return Math.ceil(measuredBottom + bodyPaddingBottom);
+}
+
 function useEditorWindow({
   storageKey,
   defaultWidth,
@@ -3986,6 +4032,7 @@ function useEditorWindow({
 
   return {
     panelRef,
+    resizeRef,
     windowRect,
     setWindowRect,
     handleDragStart,
@@ -4010,9 +4057,11 @@ function EditorWindow({
   windowApiRef = null,
   resizeDirections = ["left", "right", "bottom", "bottom-left", "bottom-right"],
   wrapperClassName = "",
+  autoFitKey = null,
 }) {
   const bodyRef = useRef(null);
-  const { panelRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
+  const lastAutoFitKeyRef = useRef(null);
+  const { panelRef, resizeRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
     storageKey,
     defaultWidth,
     defaultHeight,
@@ -4022,16 +4071,37 @@ function EditorWindow({
   });
 
   useLayoutEffect(() => {
-    if (!windowRect || !autoFitContent || !bodyRef.current || typeof ResizeObserver === "undefined") {
+    if (
+      !windowRect ||
+      !autoFitContent ||
+      autoFitKey === null ||
+      autoFitKey === undefined ||
+      !bodyRef.current ||
+      typeof window === "undefined"
+    ) {
       return;
     }
 
-    const bodyElement = bodyRef.current;
-    const targetElement = autoFitTargetRef?.current ?? bodyElement;
+    if (lastAutoFitKeyRef.current === autoFitKey) {
+      return;
+    }
+    lastAutoFitKeyRef.current = autoFitKey;
 
-    const fitToContent = () => {
-      const heightDelta = targetElement.scrollHeight - bodyElement.clientHeight;
-      if (Math.abs(heightDelta) <= 8) {
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    const fitToContentOnce = () => {
+      if (!bodyRef.current || resizeRef.current) {
+        return;
+      }
+
+      const bodyElement = bodyRef.current;
+      const targetElement = autoFitTargetRef?.current ?? bodyElement;
+      const contentHeight = measureEditorWindowAutoFitHeight(bodyElement, targetElement);
+      const desiredBodyHeight = contentHeight + EDITOR_WINDOW_AUTOFIT_PADDING;
+      const heightDelta = desiredBodyHeight - bodyElement.clientHeight;
+
+      if (!Number.isFinite(heightDelta) || Math.abs(heightDelta) <= EDITOR_WINDOW_AUTOFIT_THRESHOLD) {
         return;
       }
 
@@ -4040,7 +4110,7 @@ function EditorWindow({
           ? clampEditorWindow(
               {
                 ...current,
-                height: current.height + heightDelta + (heightDelta > 0 ? 8 : 0),
+                height: current.height + heightDelta,
               },
               minWidth,
               minHeight,
@@ -4049,15 +4119,15 @@ function EditorWindow({
       );
     };
 
-    fitToContent();
-
-    const observer = new ResizeObserver(() => {
-      fitToContent();
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(fitToContentOnce);
     });
 
-    observer.observe(targetElement);
-    return () => observer.disconnect();
-  }, [autoFitContent, autoFitTargetRef, minHeight, minWidth, setWindowRect, windowRect]);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [autoFitContent, autoFitKey, autoFitTargetRef, minHeight, minWidth, resizeRef, setWindowRect, windowRect]);
 
   useEffect(() => {
     if (!windowApiRef) {
@@ -6491,7 +6561,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
   ];
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2">
+    <div data-editor-window-autofit-scroll className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
           <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Стиль вкладок страниц</h3>
@@ -6711,7 +6781,7 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden">
       {/* Left panel: Visual controls */}
-      <div className="lg:col-span-7 flex flex-col min-h-0 border border-theme-300/30 rounded-xl dark:border-white/10 bg-theme-50/10 dark:bg-white/5 p-4 overflow-y-auto">
+      <div data-editor-window-autofit-scroll className="lg:col-span-7 flex flex-col min-h-0 border border-theme-300/30 rounded-xl dark:border-white/10 bg-theme-50/10 dark:bg-white/5 p-4 overflow-y-auto">
         <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100 mb-4 flex items-center gap-2">
           ⚙️ Панель настроек дашборда
           {yamlError && (
@@ -7454,6 +7524,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const { settings, setSettings } = useContext(SettingsContext);
   const currentSettings = settings ?? initialSettings;
   const [activeFileName, setActiveFileName] = useState("__page_styling__");
+  const configuratorAutoFitRef = useRef(null);
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])),
   );
@@ -7594,6 +7665,9 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       defaultHeight={780}
       minWidth={760}
       minHeight={520}
+      autoFitContent
+      autoFitTargetRef={configuratorAutoFitRef}
+      autoFitKey={`configurator:${activeFileName}:${error ? "error" : "ready"}`}
       headerActions={
         <button
           type="button"
@@ -7605,6 +7679,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         </button>
       }
     >
+      <div ref={configuratorAutoFitRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div>
         <div className="flex flex-wrap gap-2 pb-1.5 border-b border-theme-300/30 mb-4">
           <button
@@ -7779,6 +7854,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           </div>
         )}
 
+      </div>
       </div>
     </EditorWindow>
   );
