@@ -8,8 +8,8 @@ const metadata = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
 
 const expectedRepo = "Kemper51rus/homepage-configurator";
 const expectedBranch = "main";
-const expectedMetadataUrl = `https://github.com/${expectedRepo}/raw/refs/heads/${expectedBranch}/version.json`;
-const expectedInstallUrl = `https://github.com/${expectedRepo}/raw/refs/heads/${expectedBranch}/install.sh`;
+const expectedMetadataUrl = `https://raw.githubusercontent.com/${expectedRepo}/${expectedBranch}/version.json`;
+const expectedInstallUrl = `https://raw.githubusercontent.com/${expectedRepo}/${expectedBranch}/install.sh`;
 
 function fail(message) {
   console.error(message);

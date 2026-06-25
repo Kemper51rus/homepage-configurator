@@ -72,11 +72,11 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.17";
+const configuratorVersion = "0.6.18";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
-const defaultConfiguratorMetadataUrl = `https://github.com/${defaultConfiguratorRepo}/raw/refs/heads/${defaultConfiguratorBranch}/version.json`;
-const defaultConfiguratorInstallUrl = `https://github.com/${defaultConfiguratorRepo}/raw/refs/heads/${defaultConfiguratorBranch}/install.sh`;
+const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
+const defaultConfiguratorInstallUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/install.sh`;
 const defaultMinimumHomepageVersion = "1.13.2";
 const defaultHomepageUpdateCommand = "update";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
@@ -493,13 +493,19 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
   if (!url) {
     throw new Error("URL обновления некорректен или небезопасен");
   }
+  url.searchParams.set("_homepage_configurator_t", String(Date.now()));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
-      headers: { "User-Agent": "homepage-browser-editor/1.0" },
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "User-Agent": "homepage-browser-editor/1.0",
+      },
       signal: controller.signal,
     });
 
