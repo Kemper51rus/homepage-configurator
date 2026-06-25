@@ -30,17 +30,17 @@ usage() {
 После запуска скрипт спросит, что сделать.
 
 Параметры:
-  --action NAME      install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall или status
+  --action NAME      install, update, update-target, uninstall или status
   --target PATH       путь к checkout gethomepage/homepage
   --config-dir PATH   путь к внешней папке config Homepage
   --images-dir PATH   путь к папке, которая отдается Homepage как /images
-  --custom MODE       что ставить после install/update: all, skip, cards, extras, radio, particles или prompt
+  --custom MODE       что ставить после install/update: all или skip
   --clean-custom MODE что делать с содержимым вне managed-блоков: prompt, keep или delete
   --mode MODE         auto, local или docker
   --repo URL          git-репозиторий мода
   --branch NAME       ветка мода
   --no-build          не запускать сборку после установки/обновления/удаления
-  --no-restart        не перезапускать homepage.service после установки/обновления/удаления/custom-дополнений
+  --no-restart        не перезапускать homepage.service после установки/обновления/удаления
   -h, --help          показать эту справку
 
 Переменные окружения:
@@ -48,7 +48,7 @@ usage() {
   HOMEPAGE_CONFIG_DIR       то же самое, что --config-dir
   HOMEPAGE_IMAGES_DIR       то же самое, что --images-dir; можно также задать IMAGES_REAL_DIR
   HOMEPAGE_EDITOR_CUSTOM_INSTALL
-                            all, skip, cards, extras, radio, particles или prompt для custom.css/custom.js дополнений
+                            all или skip для custom.css/custom.js дополнений
   HOMEPAGE_EDITOR_CLEAN_CUSTOM
                             prompt, keep или delete для содержимого вне managed-блоков
   HOMEPAGE_EDITOR_MOD_DIR   использовать уже скачанную директорию мода
@@ -94,7 +94,7 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --action)
-        [[ $# -ge 2 ]] || die "--action requires install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall, or status"
+        [[ $# -ge 2 ]] || die "--action requires install, update, update-target, uninstall, or status"
         ACTION="$2"
         shift 2
         ;;
@@ -114,7 +114,7 @@ parse_args() {
         shift 2
         ;;
       --custom)
-        [[ $# -ge 2 ]] || die "--custom requires all, skip, cards, extras, radio, particles, or prompt"
+        [[ $# -ge 2 ]] || die "--custom requires all or skip"
         CUSTOM_INSTALL="$2"
         shift 2
         ;;
@@ -162,17 +162,20 @@ parse_args() {
   esac
 
   case "$ACTION" in
-    update) ACTION="update-mod" ;;
+    update|update-mod) ACTION="update-mod" ;;
   esac
 
   case "$ACTION" in
-    ""|install|update-mod|update-target|install-cards|install-extras|install-radio|install-particles|install-custom|uninstall|status) ;;
-    *) die "--action must be install, update-mod, update-target, install-cards, install-extras, install-radio, install-particles, install-custom, uninstall, or status" ;;
+    ""|install|update-mod|update-target|uninstall|status) ;;
+    *) die "--action must be install, update, update-target, uninstall, or status" ;;
   esac
 
   case "$CUSTOM_INSTALL" in
-    prompt|skip|none|cards|extras|radio|particles|all) ;;
-    *) die "--custom must be prompt, skip, cards, extras, radio, particles, or all" ;;
+    skip|none|all) ;;
+    prompt|cards|extras|radio|particles)
+      die "--custom $CUSTOM_INSTALL больше не поддерживается. Используйте --custom all или --custom skip."
+      ;;
+    *) die "--custom must be all or skip" ;;
   esac
 
   case "$CUSTOM_CLEAN" in
@@ -192,26 +195,16 @@ Homepage configurator
   1) Установить
   2) Обновить мод из GitHub
   3) Обновить интеграцию в target из текущего каталога
-
-  -----------------------------
-  Через custom.css/custom.js:
-  4) Установить/обновить цветные карточки
-  5) Установить/обновить остальные правки custom.css
-  6) Установить радио
-  7) Установить эффекты фона particles
-  8) Установить все дополнения custom.css/custom.js
-  -----------------------------
-
-  9) Удалить
-  10) Проверить статус
-  11) Отмена
+  4) Удалить
+  5) Проверить статус
+  6) Отмена
 EOF
 
   while true; do
     if [[ -t 0 ]]; then
-      read -r -p "Введите 1-11: " choice
+      read -r -p "Введите 1-6: " choice
     else
-      read -r -p "Введите 1-11: " choice || die "Не выбрано действие."
+      read -r -p "Введите 1-6: " choice || die "Не выбрано действие."
     fi
 
     case "$choice" in
@@ -228,39 +221,19 @@ EOF
         return 0
         ;;
       4)
-        ACTION="install-cards"
-        return 0
-        ;;
-      5)
-        ACTION="install-extras"
-        return 0
-        ;;
-      6)
-        ACTION="install-radio"
-        return 0
-        ;;
-      7)
-        ACTION="install-particles"
-        return 0
-        ;;
-      8)
-        ACTION="install-custom"
-        return 0
-        ;;
-      9)
         ACTION="uninstall"
         return 0
         ;;
-      10)
+      5)
         ACTION="status"
         return 0
         ;;
-      11)
+      6)
         log "Отменено"
         exit 0
         ;;
       *)
-        printf 'Введите число от 1 до 11.\n' >&2
+        printf 'Введите число от 1 до 6.\n' >&2
         ;;
     esac
   done
@@ -342,7 +315,7 @@ EOF
     fi
 
     case "$candidate" in
-      4|q|Q|quit|exit)
+      q|Q|quit|exit)
         log "Отменено"
         exit 0
         ;;
@@ -478,7 +451,7 @@ EOF
     candidate="${candidate:-$default_config_dir}"
 
     case "$candidate" in
-      7|q|Q|quit|exit)
+      q|Q|quit|exit)
         log "Отменено"
         exit 0
         ;;
@@ -764,8 +737,8 @@ EOF
 
   cat >&2 <<'EOF'
 
-Удалить эти custom.css/custom.js перед установкой выбранных presets?
-Будет создан .cleanup-*.bak backup. После удаления install.sh пересоздаст только выбранные presets.
+Удалить эти custom.css/custom.js перед установкой полного managed-набора?
+Будет создан .cleanup-*.bak backup. После удаления install.sh пересоздаст managed-блоки.
 EOF
 
   read -r -p "Удалить custom-файлы с содержимым вне managed-блоков? [y/N]: " answer
@@ -1096,89 +1069,14 @@ ensure_config_dir() {
   fi
 }
 
-prompt_custom_install_choice() {
-  [[ "$CUSTOM_INSTALL" == "prompt" ]] || return 0
-  [[ -t 0 ]] || {
-    CUSTOM_INSTALL="skip"
-    return 0
-  }
-
-  local choice=""
-  cat <<'EOF'
-
-Установить/обновить custom.css/custom.js дополнения?
-  1) Только цветные карточки
-  2) Цветные карточки + остальные правки custom.css без радио/фона
-  3) Только радио
-  4) Только эффекты фона particles/FPS
-  5) Все дополнения: цветные карточки + остальные правки custom.css + радио + фон particles/FPS
-  6) Пропустить
-EOF
-
-  while true; do
-    read -r -p "Введите 1-6 [1]: " choice
-    choice="${choice:-1}"
-
-    case "$choice" in
-      1)
-        CUSTOM_INSTALL="cards"
-        return 0
-        ;;
-      2)
-        CUSTOM_INSTALL="extras"
-        return 0
-        ;;
-      3)
-        CUSTOM_INSTALL="radio"
-        return 0
-        ;;
-      4)
-        CUSTOM_INSTALL="particles"
-        return 0
-        ;;
-      5)
-        CUSTOM_INSTALL="all"
-        return 0
-        ;;
-      6)
-        CUSTOM_INSTALL="skip"
-        return 0
-        ;;
-      *)
-        printf 'Введите число от 1 до 6.\n' >&2
-        ;;
-    esac
-  done
-}
-
 install_requested_custom() {
   case "$CUSTOM_INSTALL" in
-    cards)
-      ensure_config_dir
-      install_custom_presets cards
-      ;;
-    extras)
-      ensure_config_dir
-      install_custom_presets cards extras
-      ;;
-    radio)
-      ensure_config_dir
-      install_custom_presets radio
-      ;;
-    particles)
-      ensure_config_dir
-      install_custom_presets particles
-      ;;
     all)
       ensure_config_dir
       install_custom_presets cards extras radio particles
       ;;
     skip|none)
       log "Custom additions skipped"
-      ;;
-    prompt)
-      prompt_custom_install_choice
-      install_requested_custom
       ;;
   esac
 }
@@ -1352,7 +1250,7 @@ sync_standalone_assets() {
 
 action_restarts_service() {
   case "$ACTION" in
-    install|update-mod|update-target|uninstall|enable|disable|install-cards|install-extras|install-radio|install-particles|install-custom)
+    install|update-mod|update-target|uninstall)
       return 0
       ;;
     *)
@@ -1411,30 +1309,6 @@ main() {
 
   download_mod
 
-  if [[ "$ACTION" == "install-cards" || "$ACTION" == "install-extras" || "$ACTION" == "install-radio" || "$ACTION" == "install-particles" || "$ACTION" == "install-custom" ]]; then
-    local detected_target=""
-
-    case "$ACTION" in
-      install-cards) CUSTOM_INSTALL="cards" ;;
-      install-extras) CUSTOM_INSTALL="extras" ;;
-      install-radio) CUSTOM_INSTALL="radio" ;;
-      install-particles) CUSTOM_INSTALL="particles" ;;
-      install-custom) CUSTOM_INSTALL="all" ;;
-      *) die "Unknown custom preset action: $ACTION" ;;
-    esac
-
-    if detected_target="$(find_target)"; then
-      TARGET="$detected_target"
-      log "Using Homepage checkout: $TARGET"
-    fi
-
-    install_requested_custom
-    sync_standalone_assets
-    restart_target
-    log "Done"
-    return 0
-  fi
-
   local detected_target=""
   if detected_target="$(find_target)"; then
     TARGET="$detected_target"
@@ -1460,12 +1334,6 @@ main() {
       ;;
     uninstall)
       run_mod_installer uninstall
-      ;;
-    enable)
-      run_mod_installer enable
-      ;;
-    disable)
-      run_mod_installer disable
       ;;
     status)
       run_mod_installer status

@@ -72,11 +72,13 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.3";
+const configuratorVersion = "0.6.4";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
 const defaultConfiguratorInstallUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/install.sh`;
+const defaultMinimumHomepageVersion = "1.13.2";
+const defaultHomepageUpdateCommand = "update";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
 const updateFetchTimeoutMs = 10000;
 const maxUpdateMetadataBytes = 64 * 1024;
@@ -482,6 +484,9 @@ function normalizeConfiguratorMetadata(rawMetadata) {
 
   const repo = String(metadata.repo || defaultConfiguratorRepo).trim();
   const branch = String(metadata.branch || defaultConfiguratorBranch).trim();
+  const target = metadata.target && typeof metadata.target === "object" ? metadata.target : {};
+  const minimumVersion = String(target.minimumVersion || defaultMinimumHomepageVersion).trim();
+  const updateCommand = String(target.updateCommand || defaultHomepageUpdateCommand).trim();
 
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
     throw new Error("В version.json некорректный repo");
@@ -491,12 +496,25 @@ function normalizeConfiguratorMetadata(rawMetadata) {
     throw new Error("В version.json некорректная branch");
   }
 
+  if (!parseVersionParts(minimumVersion)) {
+    throw new Error("В version.json нет корректной минимальной версии Homepage");
+  }
+
+  if (updateCommand !== "update") {
+    throw new Error("В version.json некорректная команда обновления target");
+  }
+
   return {
     schema: metadata.schema ?? 1,
     name: String(metadata.name || configuratorName),
     version,
     repo,
     branch,
+    target: {
+      name: "homepage",
+      minimumVersion,
+      updateCommand,
+    },
     metadataUrl: String(metadata.metadataUrl || defaultConfiguratorMetadataUrl),
     installUrl: String(metadata.installUrl || defaultConfiguratorInstallUrl),
     commitUrl: String(metadata.commitUrl || `https://github.com/${repo}/commits/${branch}`),
@@ -583,6 +601,37 @@ async function getInstalledConfiguratorInfo(targetDir) {
   };
 }
 
+async function getHomepageTargetInfo(targetDir, metadata) {
+  const minimumVersion = metadata?.target?.minimumVersion || defaultMinimumHomepageVersion;
+  const updateCommand = metadata?.target?.updateCommand || defaultHomepageUpdateCommand;
+  const result = {
+    name: "homepage",
+    version: "",
+    minimumVersion,
+    updateCommand,
+    updateRequired: false,
+    supported: false,
+  };
+
+  if (!targetDir) {
+    return result;
+  }
+
+  try {
+    const packageJson = JSON.parse(await fs.readFile(path.join(targetDir, "package.json"), "utf8"));
+    result.name = packageJson.name || "homepage";
+    result.version = String(packageJson.version || "");
+    result.supported = parseVersionParts(result.version)
+      ? compareVersions(result.version, minimumVersion) >= 0
+      : false;
+    result.updateRequired = !result.supported;
+    return result;
+  } catch {
+    result.updateRequired = true;
+    return result;
+  }
+}
+
 async function readUpdateCheckCache() {
   return readJsonIfExists(getUpdateCheckCachePath());
 }
@@ -595,26 +644,35 @@ async function checkConfiguratorUpdate({ force = false } = {}) {
   const cached = await readUpdateCheckCache();
   const checkedAtMs = cached?.checkedAt ? Date.parse(cached.checkedAt) : 0;
 
-  if (!force && cached && checkedAtMs && Date.now() - checkedAtMs < updateCheckIntervalMs) {
+  if (!force && cached?.target && checkedAtMs && Date.now() - checkedAtMs < updateCheckIntervalMs) {
     return { ...cached, cached: true };
   }
 
   const [metadata, targetDir] = await Promise.all([fetchConfiguratorMetadata(), getHomepageTargetDir()]);
   const installed = await getInstalledConfiguratorInfo(targetDir);
+  const targetInfo = await getHomepageTargetInfo(targetDir, metadata);
   const updateAvailable = compareVersions(installed.version, metadata.version) < 0;
+  const targetUpdateRequired = Boolean(targetDir && targetInfo.updateRequired);
   const result = {
     checkedAt: new Date().toISOString(),
     cached: false,
     current: installed,
     latest: metadata,
+    target: targetInfo,
     currentVersion: installed.version,
     latestVersion: metadata.version,
+    targetVersion: targetInfo.version,
+    minimumTargetVersion: targetInfo.minimumVersion,
+    targetUpdateCommand: targetInfo.updateCommand,
+    targetUpdateRequired,
     updateAvailable,
-    canUpdate: Boolean(targetDir),
+    canUpdate: Boolean(targetDir && !targetUpdateRequired),
     targetDir,
-    reason: targetDir
-      ? ""
-      : "Не найден полный checkout Homepage. Для standalone-only runtime используйте внешний deploy.",
+    reason: !targetDir
+      ? "Не найден полный checkout Homepage. Для standalone-only runtime используйте внешний deploy."
+      : targetUpdateRequired
+      ? `Target Homepage ${targetInfo.version || "неизвестной версии"} слишком старый. Минимум для мода: ${targetInfo.minimumVersion}. Сначала обновите target проект из консоли командой \`${targetInfo.updateCommand}\`, затем повторите обновление configurator.`
+      : "",
     nextCheckAfter: new Date(Date.now() + updateCheckIntervalMs).toISOString(),
   };
 
@@ -731,6 +789,8 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
     updatedAt: new Date().toISOString(),
     currentVersion: updateCheck.currentVersion,
     latestVersion: updateCheck.latestVersion,
+    targetVersion: updateCheck.targetVersion,
+    minimumTargetVersion: updateCheck.minimumTargetVersion,
     targetDir: updateCheck.targetDir,
     configDir: CONF_DIR,
     imagesDir,
@@ -743,15 +803,13 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
   const args = [
     scriptPath,
     "--action",
-    "update-mod",
+    "update",
     "--target",
     updateCheck.targetDir,
     "--config-dir",
     CONF_DIR,
     "--images-dir",
     imagesDir,
-    "--custom",
-    "all",
     "--clean-custom",
     "keep",
     "--no-restart",

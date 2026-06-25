@@ -46,7 +46,9 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Ассеты радио копируются в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`. После установки дополнений скрипт перезапускает `homepage.service`, потому что `next start` не начинает отдавать новые файлы из `public/images` без перезапуска процесса.
 
-Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
+Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой полного managed-набора. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
+
+Минимальная поддерживаемая версия target-проекта Homepage хранится в [`version.json`](version.json). Если target старее, консольный установщик и браузерное окно `Обновления` остановят обновление мода и попросят сначала выполнить `update` для самого Homepage.
 
 ## Обновление Из Браузера
 

@@ -48,4 +48,16 @@ if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(metadata.version)) {
   fail("version.json version must be semver-like");
 }
 
+if (metadata.target?.name !== "homepage") {
+  fail("version.json target.name must be homepage");
+}
+
+if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(metadata.target?.minimumVersion ?? "")) {
+  fail("version.json target.minimumVersion must be semver-like");
+}
+
+if (metadata.target?.updateCommand !== "update") {
+  fail("version.json target.updateCommand must be update");
+}
+
 console.log(`Version metadata OK: ${metadata.version}`);

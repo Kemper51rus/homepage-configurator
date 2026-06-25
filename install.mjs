@@ -10,10 +10,18 @@ const manifestName = ".homepage-configurator-manifest.json";
 const backupDirName = ".homepage-configurator-backups";
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const versionMetadata = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
+const targetMetadata = versionMetadata.target ?? {};
+
 const managedDependencies = {
   prismjs: "^1.29.0",
   "react-simple-code-editor": "^0.14.1",
 };
+
+function ensureConfiguratorMetadata() {
+  if (versionMetadata.version !== packageJson.version) {
+    throw new Error(`Configurator metadata version ${versionMetadata.version} does not match package.json ${packageJson.version}`);
+  }
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -86,6 +94,74 @@ function isGitWorkTree(target) {
   }
 }
 
+function parseVersionParts(version) {
+  const normalized = String(version ?? "").trim().replace(/^v/i, "");
+  const [main, preRelease = ""] = normalized.split("-", 2);
+  const parts = main.split(".").map((part) => Number(part));
+
+  if (parts.length < 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
+    return null;
+  }
+
+  return { parts, preRelease };
+}
+
+function compareVersions(left, right) {
+  const leftParsed = parseVersionParts(left);
+  const rightParsed = parseVersionParts(right);
+
+  if (!leftParsed || !rightParsed) {
+    return 0;
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    const diff = leftParsed.parts[index] - rightParsed.parts[index];
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+
+  if (leftParsed.preRelease && !rightParsed.preRelease) return -1;
+  if (!leftParsed.preRelease && rightParsed.preRelease) return 1;
+  return leftParsed.preRelease.localeCompare(rightParsed.preRelease);
+}
+
+function targetPackageJson(target) {
+  return JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+}
+
+function targetVersion(target) {
+  return String(targetPackageJson(target).version ?? "");
+}
+
+function ensureSupportedTargetVersion(target) {
+  const minimumVersion = String(targetMetadata.minimumVersion ?? "").trim();
+  if (!minimumVersion) {
+    return;
+  }
+
+  const currentVersion = targetVersion(target);
+  if (!parseVersionParts(currentVersion)) {
+    throw new Error(
+      [
+        `Не удалось определить версию target Homepage в ${join(target, "package.json")}.`,
+        `Минимальная поддерживаемая версия Homepage для ${packageJson.name} ${packageJson.version}: ${minimumVersion}.`,
+        "Сначала обновите target проект из консоли командой `update`, затем повторите установку/обновление мода.",
+      ].join("\n"),
+    );
+  }
+
+  if (compareVersions(currentVersion, minimumVersion) < 0) {
+    throw new Error(
+      [
+        `Target Homepage слишком старый для ${packageJson.name} ${packageJson.version}.`,
+        `Установлено: ${currentVersion}. Минимум: ${minimumVersion}.`,
+        "Сначала обновите target проект из консоли командой `update`, затем повторите установку/обновление мода.",
+      ].join("\n"),
+    );
+  }
+}
+
 function patchFiles() {
   const output = execFileSync("git", ["apply", "--numstat", patchPath], {
     cwd: root,
@@ -127,9 +203,9 @@ function ensureTarget(target) {
     throw new Error(`${target} does not look like a homepage checkout`);
   }
 
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-  if (packageJson.name !== "homepage") {
-    throw new Error(`${target} package name is ${packageJson.name ?? "<missing>"}, expected homepage`);
+  const targetPackage = targetPackageJson(target);
+  if (targetPackage.name !== "homepage") {
+    throw new Error(`${target} package name is ${targetPackage.name ?? "<missing>"}, expected homepage`);
   }
 
   const requiredFiles = [
@@ -276,12 +352,14 @@ function status(target) {
 
 function install(target, options = {}) {
   ensureTarget(target);
+  ensureSupportedTargetVersion(target);
 
   const files = overlayFiles().map((file) => file.relativePath);
   const patchTouchedFiles = patchFiles();
   const existingManifest = readManifest(target);
   const plan = [
     `validate Homepage checkout: ${target}`,
+    `validate Homepage version: ${targetVersion(target)} >= ${targetMetadata.minimumVersion}`,
     ...(existingManifest ? [`remove existing browser editor install from ${manifestName}`] : []),
     `sync managed dependencies: ${Object.keys(managedDependencies).join(", ")}`,
     `copy overlay files: ${files.length}`,
@@ -313,6 +391,7 @@ function install(target, options = {}) {
       version: packageJson.version,
       repo: versionMetadata.repo,
       branch: versionMetadata.branch,
+      target: targetMetadata,
       metadataUrl: versionMetadata.metadataUrl,
       installUrl: versionMetadata.installUrl,
     },
@@ -556,6 +635,7 @@ function reversePatch(target) {
 const { command, target, dryRun, force } = parseArgs();
 
 try {
+  ensureConfiguratorMetadata();
   if (command === "install") install(target, { dryRun, force });
   if (command === "uninstall") uninstall(target, { dryRun, force });
   if (command === "enable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "true");

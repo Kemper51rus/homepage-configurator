@@ -72,15 +72,17 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 После установки или обновления мода `install.sh` сразу устанавливает весь managed-набор `custom.css/custom.js`: `cards`, `extras`, `radio` и `particles`.
 
-Для нестандартного запуска можно явно указать `--custom skip`, `--custom cards`, `--custom extras`, `--custom radio`, `--custom particles`, `--custom prompt` или `--custom all`. Штатный режим - `all`, потому что topbar, радио, фон и настройки теперь связаны с managed custom-файлами; отключение отдельных частей выполняется через интерфейс редактора.
+Для нестандартной диагностики можно явно указать только `--custom skip` или `--custom all`. Штатный режим - `all`, потому что topbar, радио, фон и настройки теперь связаны с managed custom-файлами; отключение отдельных частей выполняется через интерфейс редактора.
 
-Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный запуск покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. При удалении создаётся timestamp backup вида `.cleanup-YYYYMMDD-HHMMSS.bak`.
+Минимальная поддерживаемая версия target-проекта Homepage хранится в [`version.json`](../version.json) в поле `target.minimumVersion`. Если версия target ниже этого минимума, установка или обновление мода остановится с сообщением сначала обновить target проект из консоли командой `update`.
+
+Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный запуск покажет найденные строки и спросит, удалять ли такие файлы перед установкой полного managed-набора. При удалении создаётся timestamp backup вида `.cleanup-YYYYMMDD-HHMMSS.bak`.
 
 Для неинтерактивного режима можно явно выбрать поведение:
 
 ```bash
-bash ./install.sh --action install-custom --clean-custom keep
-bash ./install.sh --action install-custom --clean-custom delete
+bash ./install.sh --action install --clean-custom keep
+bash ./install.sh --action update --clean-custom delete
 ```
 
 После установки target-проекта наш `install.sh` должен найти Homepage автоматически, потому что оба варианта создают `/opt/homepage` и `homepage.service` с `WorkingDirectory=/opt/homepage`.
@@ -148,7 +150,9 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 
 Автопроверка выполняется при загрузке страницы, но кешируется в `localStorage` браузера на 24 часа. Кнопка ручной проверки всегда делает свежий запрос к GitHub.
 
-Обновление из браузера запускает `install.sh --action update-mod --custom all --clean-custom keep --no-restart`, пишет лог в config-папку, а после успешной сборки планирует перезапуск `homepage.service`. YAML-конфиги не устанавливаются и не заменяются; managed custom-блоки обновляются так же, как при обычной установке.
+Обновление из браузера запускает `install.sh --action update --clean-custom keep --no-restart`, пишет лог в config-папку, а после успешной сборки планирует перезапуск `homepage.service`. YAML-конфиги не устанавливаются и не заменяются; managed custom-блоки обновляются так же, как при обычной установке.
+
+Окно обновлений также показывает версию target Homepage и минимальную поддерживаемую версию из `version.json`. Если target старый, кнопка обновления мода блокируется; сначала нужно обновить Homepage из консоли командой `update`.
 
 Для нестандартных установок можно задать переменные окружения сервиса:
 

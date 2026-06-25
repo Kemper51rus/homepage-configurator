@@ -17,6 +17,20 @@ function run(command, args, options = {}) {
 
 try {
   run("git", ["clone", "--depth", "1", "https://github.com/gethomepage/homepage.git", target], { stdio: "inherit" });
+
+  const originalPackageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+  writeFileSync(join(target, "package.json"), `${JSON.stringify({ ...originalPackageJson, version: "0.0.1" }, null, 2)}\n`);
+  try {
+    run("node", ["install.mjs", "--dry-run", "--target", target]);
+    throw new Error("Old Homepage target version should be rejected");
+  } catch (error) {
+    if (!String(error.stderr || error.message).includes("Target Homepage слишком старый")) {
+      throw error;
+    }
+  } finally {
+    writeFileSync(join(target, "package.json"), `${JSON.stringify(originalPackageJson, null, 2)}\n`);
+  }
+
   run("node", ["install.mjs", "--dry-run", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--enable", "--target", target], { stdio: "inherit" });

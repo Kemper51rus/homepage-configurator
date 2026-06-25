@@ -7196,6 +7196,10 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const canUpdate = Boolean(updateInfo?.canUpdate && updateAvailable && !running && !updating);
   const currentVersion = updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
   const latestVersion = updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
+  const targetVersion = updateInfo?.targetVersion || status?.targetVersion || "неизвестно";
+  const minimumTargetVersion = updateInfo?.minimumTargetVersion || status?.minimumTargetVersion || "неизвестно";
+  const targetUpdateRequired = Boolean(updateInfo?.targetUpdateRequired);
+  const targetUpdateCommand = updateInfo?.targetUpdateCommand || "update";
   const activeUpdateFile = updateFiles.find((file) => file.fileName === activeUpdateFileName) ?? updateFiles[0] ?? null;
 
   async function startUpdate() {
@@ -7236,7 +7240,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 border-t border-theme-300/30 pt-3 dark:border-white/10 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 border-t border-theme-300/30 pt-3 dark:border-white/10 md:grid-cols-3">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">Установлено</div>
             <div className="mt-1 text-lg font-semibold">{currentVersion}</div>
@@ -7244,6 +7248,11 @@ function ConfiguratorUpdatePanel({ onSaved }) {
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">На GitHub</div>
             <div className="mt-1 text-lg font-semibold">{latestVersion}</div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">Homepage target</div>
+            <div className="mt-1 text-lg font-semibold">{targetVersion}</div>
+            <div className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Минимум: {minimumTargetVersion}</div>
           </div>
         </div>
 
@@ -7255,6 +7264,12 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         {updateInfo?.reason && (
           <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
             {updateInfo.reason}
+          </div>
+        )}
+
+        {targetUpdateRequired && (
+          <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-800 dark:text-rose-200">
+            Сначала обновите target проект Homepage из консоли командой <code>{targetUpdateCommand}</code>, затем вернитесь сюда и повторите проверку.
           </div>
         )}
 

@@ -1,9 +1,14 @@
 {
   "schema": 1,
   "name": "homepage-configurator",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "repo": "Kemper51rus/homepage-configurator",
   "branch": "main",
+  "target": {
+    "name": "homepage",
+    "minimumVersion": "1.13.2",
+    "updateCommand": "update"
+  },
   "metadataUrl": "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/version.json",
   "installUrl": "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh",
   "commitUrl": "https://github.com/Kemper51rus/homepage-configurator/commits/main",
