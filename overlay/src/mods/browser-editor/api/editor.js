@@ -72,7 +72,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.15";
+const configuratorVersion = "0.6.17";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://github.com/${defaultConfiguratorRepo}/raw/refs/heads/${defaultConfiguratorBranch}/version.json`;
@@ -363,6 +363,55 @@ function getConfiguratorBranch(metadata = {}) {
 
 function getConfiguratorInstallUrl(metadata = {}) {
   return process.env.HOMEPAGE_CONFIGURATOR_INSTALL_URL || metadata.installUrl || defaultConfiguratorInstallUrl;
+}
+
+function getConfiguratorUpdateEnv(updateCheck, imagesDir) {
+  const env = {
+    PATH: process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || process.env.LOGNAME || "root",
+    LOGNAME: process.env.LOGNAME || process.env.USER || "root",
+    SHELL: process.env.SHELL || "/bin/sh",
+    LANG: process.env.LANG || "C.UTF-8",
+  };
+
+  [
+    "LC_ALL",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "PNPM_HOME",
+    "COREPACK_HOME",
+    "HOMEPAGE_CONFIGURATOR_RESTART_COMMAND",
+    "HOMEPAGE_SERVICE_NAME",
+  ].forEach((key) => {
+    if (process.env[key]) {
+      env[key] = process.env[key];
+    }
+  });
+
+  Object.entries(process.env).forEach(([key, value]) => {
+    if (key.startsWith("npm_config_") || key.startsWith("HOMEPAGE_CONFIGURATOR_")) {
+      env[key] = value;
+    }
+  });
+
+  return {
+    ...env,
+    HOMEPAGE_EDITOR_REPO: getConfiguratorRepoUrl(updateCheck.latest),
+    HOMEPAGE_EDITOR_BRANCH: getConfiguratorBranch(updateCheck.latest),
+    HOMEPAGE_EDITOR_CUSTOM_INSTALL: "all",
+    HOMEPAGE_EDITOR_CLEAN_CUSTOM: "keep",
+    HOMEPAGE_TARGET_DIR: updateCheck.targetDir,
+    HOMEPAGE_CONFIG_DIR: CONF_DIR,
+    HOMEPAGE_IMAGES_DIR: imagesDir,
+  };
 }
 
 function getUpdateStatusPath() {
@@ -708,6 +757,25 @@ async function readConfiguratorUpdateStatus() {
     }
   }
 
+  if (status.state === "restarting" && !activeConfiguratorUpdate) {
+    const installed = await getInstalledConfiguratorInfo(status.targetDir);
+    if (compareVersions(installed.version, status.latestVersion) >= 0) {
+      const nextStatus = {
+        ...status,
+        state: "completed",
+        phase: "completed",
+        progress: 100,
+        message: `Обновление ${status.latestVersion} установлено. Homepage перезапущен.`,
+        restartRequired: false,
+        finishedAt: status.finishedAt || new Date().toISOString(),
+        currentVersion: status.latestVersion,
+      };
+      appendUpdateLog(nextStatus, "Homepage перезапущен. Обновление завершено.");
+      await writeConfiguratorUpdateStatus(nextStatus);
+      return nextStatus;
+    }
+  }
+
   return status;
 }
 
@@ -863,16 +931,7 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
 
   const child = spawn("bash", args, {
     cwd: updateCheck.targetDir,
-    env: {
-      ...process.env,
-      HOMEPAGE_EDITOR_REPO: getConfiguratorRepoUrl(updateCheck.latest),
-      HOMEPAGE_EDITOR_BRANCH: getConfiguratorBranch(updateCheck.latest),
-      HOMEPAGE_EDITOR_CUSTOM_INSTALL: "all",
-      HOMEPAGE_EDITOR_CLEAN_CUSTOM: "keep",
-      HOMEPAGE_TARGET_DIR: updateCheck.targetDir,
-      HOMEPAGE_CONFIG_DIR: CONF_DIR,
-      HOMEPAGE_IMAGES_DIR: imagesDir,
-    },
+    env: getConfiguratorUpdateEnv(updateCheck, imagesDir),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
