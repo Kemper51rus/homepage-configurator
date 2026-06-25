@@ -1108,8 +1108,10 @@ run_target_build_command() {
     return 0
   fi
 
-  log "Build failed. Refreshing target dependencies and retrying once"
+  log "Build failed. Refreshing target dependencies and retrying once after a short cache reset"
   ensure_target_dependencies
+  rm -rf -- "$TARGET/.next/cache"
+  sleep 5
   run_in_target "${build_command[@]}"
 }
 
