@@ -1101,6 +1101,18 @@ run_in_target() {
   (cd "$TARGET" && "$@")
 }
 
+run_target_build_command() {
+  local -a build_command=("$@")
+
+  if run_in_target "${build_command[@]}"; then
+    return 0
+  fi
+
+  log "Build failed. Refreshing target dependencies and retrying once"
+  ensure_target_dependencies
+  run_in_target "${build_command[@]}"
+}
+
 fix_target_ownership() {
   [[ "$(id -u)" -eq 0 ]] || return 0
 
@@ -1190,27 +1202,27 @@ build_target() {
   log "Building homepage in $TARGET"
 
   if [[ -f "$TARGET/pnpm-lock.yaml" && "$(command -v pnpm || true)" ]]; then
-    run_in_target pnpm run build
+    run_target_build_command pnpm run build
     return 0
   fi
 
   if [[ -f "$TARGET/package-lock.json" && "$(command -v npm || true)" ]]; then
-    run_in_target npm run build
+    run_target_build_command npm run build
     return 0
   fi
 
   if [[ -f "$TARGET/yarn.lock" && "$(command -v yarn || true)" ]]; then
-    run_in_target yarn build
+    run_target_build_command yarn build
     return 0
   fi
 
   if command -v pnpm >/dev/null 2>&1; then
-    run_in_target pnpm run build
+    run_target_build_command pnpm run build
     return 0
   fi
 
   if command -v npm >/dev/null 2>&1; then
-    run_in_target npm run build
+    run_target_build_command npm run build
     return 0
   fi
 
