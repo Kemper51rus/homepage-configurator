@@ -72,10 +72,10 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.18";
+const configuratorVersion = "0.6.19";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
-const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
+const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
 const defaultConfiguratorInstallUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/install.sh`;
 const defaultMinimumHomepageVersion = "1.13.2";
 const defaultHomepageUpdateCommand = "update";
@@ -502,6 +502,7 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
     const response = await fetch(url, {
       cache: "no-store",
       headers: {
+        "Accept": "application/vnd.github.raw, application/vnd.github+json",
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
         "User-Agent": "homepage-browser-editor/1.0",
@@ -521,6 +522,20 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
     const text = await response.text();
     if (Buffer.byteLength(text, "utf8") > maxBytes) {
       throw new Error("Ответ GitHub слишком большой");
+    }
+
+    let contentsResponse = null;
+    try {
+      contentsResponse = JSON.parse(text);
+    } catch {
+      contentsResponse = null;
+    }
+    if (contentsResponse?.encoding === "base64" && typeof contentsResponse.content === "string") {
+      const decoded = Buffer.from(contentsResponse.content.replace(/\s+/g, ""), "base64").toString("utf8");
+      if (Buffer.byteLength(decoded, "utf8") > maxBytes) {
+        throw new Error("Ответ GitHub слишком большой");
+      }
+      return decoded;
     }
 
     return text;
