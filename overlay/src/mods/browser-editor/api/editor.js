@@ -1,7 +1,9 @@
+import { spawn } from "child_process";
 import { existsSync, promises as fs } from "fs";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { lookup } from "dns/promises";
 import net from "net";
+import os from "os";
 import path from "path";
 
 import yaml from "js-yaml";
@@ -54,6 +56,20 @@ const iconExtensions = new Set([".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg",
 const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
+const configuratorName = "homepage-configurator";
+const configuratorVersion = "0.6.0";
+const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
+const defaultConfiguratorBranch = "main";
+const defaultConfiguratorMetadataUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/version.json`;
+const defaultConfiguratorInstallUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/install.sh`;
+const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
+const updateFetchTimeoutMs = 10000;
+const maxUpdateMetadataBytes = 64 * 1024;
+const maxInstallScriptBytes = 1024 * 1024;
+const updateStatusFileName = ".homepage-configurator-update-status.json";
+const updateCheckCacheFileName = ".homepage-configurator-update-check.json";
+
+let activeConfiguratorUpdate = null;
 
 function isEditorEnabled() {
   return process.env.HOMEPAGE_BROWSER_EDITOR === "true";
@@ -312,6 +328,474 @@ async function probeRadioTrackInfo(stationUrl) {
   }
 
   throw new Error("Метаданные трека по этой ссылке не найдены");
+}
+
+function getConfiguratorMetadataUrl() {
+  return process.env.HOMEPAGE_CONFIGURATOR_VERSION_URL || defaultConfiguratorMetadataUrl;
+}
+
+function getConfiguratorRepoUrl(metadata = {}) {
+  if (process.env.HOMEPAGE_CONFIGURATOR_REPO) {
+    return process.env.HOMEPAGE_CONFIGURATOR_REPO;
+  }
+
+  const repo = metadata.repo || defaultConfiguratorRepo;
+  return `https://github.com/${repo}.git`;
+}
+
+function getConfiguratorBranch(metadata = {}) {
+  return process.env.HOMEPAGE_CONFIGURATOR_BRANCH || metadata.branch || defaultConfiguratorBranch;
+}
+
+function getConfiguratorInstallUrl(metadata = {}) {
+  return process.env.HOMEPAGE_CONFIGURATOR_INSTALL_URL || metadata.installUrl || defaultConfiguratorInstallUrl;
+}
+
+function getUpdateStatusPath() {
+  return path.join(CONF_DIR, updateStatusFileName);
+}
+
+function getUpdateCheckCachePath() {
+  return path.join(CONF_DIR, updateCheckCacheFileName);
+}
+
+async function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonFile(filePath, data) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function parseVersionParts(version) {
+  const normalized = String(version ?? "").trim().replace(/^v/i, "");
+  const [main, preRelease = ""] = normalized.split("-", 2);
+  const parts = main.split(".").map((part) => Number(part));
+
+  if (parts.length < 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
+    return null;
+  }
+
+  return { parts, preRelease };
+}
+
+function compareVersions(left, right) {
+  const leftParsed = parseVersionParts(left);
+  const rightParsed = parseVersionParts(right);
+
+  if (!leftParsed || !rightParsed) {
+    return 0;
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    const diff = leftParsed.parts[index] - rightParsed.parts[index];
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+
+  if (leftParsed.preRelease && !rightParsed.preRelease) return -1;
+  if (!leftParsed.preRelease && rightParsed.preRelease) return 1;
+  return leftParsed.preRelease.localeCompare(rightParsed.preRelease);
+}
+
+async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
+  const url = await getSafeRemoteProbeUrl(rawUrl);
+  if (!url) {
+    throw new Error("URL обновления некорректен или небезопасен");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "homepage-browser-editor/1.0" },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub ответил HTTP ${response.status}`);
+    }
+
+    const contentLength = Number(response.headers.get("content-length") || "0");
+    if (contentLength > maxBytes) {
+      throw new Error("Ответ GitHub слишком большой");
+    }
+
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) {
+      throw new Error("Ответ GitHub слишком большой");
+    }
+
+    return text;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function normalizeConfiguratorMetadata(rawMetadata) {
+  const metadata = rawMetadata && typeof rawMetadata === "object" ? rawMetadata : {};
+  const version = String(metadata.version || "").trim();
+
+  if (!parseVersionParts(version)) {
+    throw new Error("В version.json нет корректной версии");
+  }
+
+  const repo = String(metadata.repo || defaultConfiguratorRepo).trim();
+  const branch = String(metadata.branch || defaultConfiguratorBranch).trim();
+
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+    throw new Error("В version.json некорректный repo");
+  }
+
+  if (!/^[A-Za-z0-9_.\/-]+$/.test(branch) || branch.includes("..")) {
+    throw new Error("В version.json некорректная branch");
+  }
+
+  return {
+    schema: metadata.schema ?? 1,
+    name: String(metadata.name || configuratorName),
+    version,
+    repo,
+    branch,
+    metadataUrl: String(metadata.metadataUrl || defaultConfiguratorMetadataUrl),
+    installUrl: String(metadata.installUrl || defaultConfiguratorInstallUrl),
+    commitUrl: String(metadata.commitUrl || `https://github.com/${repo}/commits/${branch}`),
+    updatedAt: String(metadata.updatedAt || ""),
+  };
+}
+
+async function fetchConfiguratorMetadata() {
+  const metadataUrl = getConfiguratorMetadataUrl();
+  const text = await fetchBoundedText(metadataUrl, {
+    maxBytes: maxUpdateMetadataBytes,
+    timeoutMs: updateFetchTimeoutMs,
+  });
+
+  return normalizeConfiguratorMetadata(JSON.parse(text));
+}
+
+async function looksLikeHomepageTarget(candidate) {
+  if (!candidate) {
+    return false;
+  }
+
+  const targetDir = path.resolve(candidate);
+  const requiredFiles = [
+    "package.json",
+    "next.config.js",
+    "src/pages/index.jsx",
+    "src/components/services/group.jsx",
+    "src/components/bookmarks/group.jsx",
+  ];
+
+  try {
+    const packageJson = JSON.parse(await fs.readFile(path.join(targetDir, "package.json"), "utf8"));
+    if (packageJson.name !== "homepage") {
+      return false;
+    }
+
+    for (const fileName of requiredFiles.slice(1)) {
+      if (!(await fileExists(path.join(targetDir, fileName)))) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getHomepageTargetDir() {
+  const candidates = [
+    process.env.HOMEPAGE_CONFIGURATOR_TARGET_DIR,
+    process.env.HOMEPAGE_TARGET_DIR,
+    path.resolve(process.cwd(), "..", ".."),
+    process.cwd(),
+    "/opt/homepage",
+    "/app",
+    "/usr/src/app",
+  ];
+  const seen = new Set();
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const targetDir = path.resolve(candidate);
+    if (seen.has(targetDir)) continue;
+    seen.add(targetDir);
+
+    if (await looksLikeHomepageTarget(targetDir)) {
+      return targetDir;
+    }
+  }
+
+  return null;
+}
+
+async function getInstalledConfiguratorInfo(targetDir) {
+  const manifest = targetDir ? await readJsonIfExists(path.join(targetDir, ".homepage-configurator-manifest.json")) : null;
+  return {
+    name: manifest?.configurator?.name || configuratorName,
+    version: manifest?.configurator?.version || configuratorVersion,
+    installedAt: manifest?.installedAt || null,
+    targetDir,
+    manifestFound: Boolean(manifest),
+  };
+}
+
+async function readUpdateCheckCache() {
+  return readJsonIfExists(getUpdateCheckCachePath());
+}
+
+async function writeUpdateCheckCache(data) {
+  await writeJsonFile(getUpdateCheckCachePath(), data);
+}
+
+async function checkConfiguratorUpdate({ force = false } = {}) {
+  const cached = await readUpdateCheckCache();
+  const checkedAtMs = cached?.checkedAt ? Date.parse(cached.checkedAt) : 0;
+
+  if (!force && cached && checkedAtMs && Date.now() - checkedAtMs < updateCheckIntervalMs) {
+    return { ...cached, cached: true };
+  }
+
+  const [metadata, targetDir] = await Promise.all([fetchConfiguratorMetadata(), getHomepageTargetDir()]);
+  const installed = await getInstalledConfiguratorInfo(targetDir);
+  const updateAvailable = compareVersions(installed.version, metadata.version) < 0;
+  const result = {
+    checkedAt: new Date().toISOString(),
+    cached: false,
+    current: installed,
+    latest: metadata,
+    currentVersion: installed.version,
+    latestVersion: metadata.version,
+    updateAvailable,
+    canUpdate: Boolean(targetDir),
+    targetDir,
+    reason: targetDir
+      ? ""
+      : "Не найден полный checkout Homepage. Для standalone-only runtime используйте внешний deploy.",
+    nextCheckAfter: new Date(Date.now() + updateCheckIntervalMs).toISOString(),
+  };
+
+  await writeUpdateCheckCache(result);
+  return result;
+}
+
+async function readConfiguratorUpdateStatus() {
+  const status = await readJsonIfExists(getUpdateStatusPath());
+  if (!status) {
+    return { state: "idle", log: [] };
+  }
+
+  if (activeConfiguratorUpdate?.id === status.id && status.state !== "running") {
+    return { ...status, state: "running" };
+  }
+
+  if (status.state === "running" && !activeConfiguratorUpdate) {
+    const updatedAtMs = Date.parse(status.updatedAt || status.startedAt || "");
+    if (updatedAtMs && Date.now() - updatedAtMs > 2 * 60 * 60 * 1000) {
+      const nextStatus = {
+        ...status,
+        state: "failed",
+        finishedAt: new Date().toISOString(),
+        restartRequired: false,
+      };
+      appendUpdateLog(nextStatus, "Обновление было прервано или зависло.");
+      await writeConfiguratorUpdateStatus(nextStatus);
+      return nextStatus;
+    }
+  }
+
+  return status;
+}
+
+async function writeConfiguratorUpdateStatus(status) {
+  await writeJsonFile(getUpdateStatusPath(), status);
+}
+
+function appendUpdateLog(status, chunk) {
+  const nextLines = String(chunk)
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => (line.length > 600 ? `${line.slice(0, 597)}...` : line));
+
+  status.log = [...(status.log ?? []), ...nextLines].slice(-200);
+  status.updatedAt = new Date().toISOString();
+}
+
+function getServiceName() {
+  const serviceName = process.env.HOMEPAGE_SERVICE_NAME || "homepage.service";
+  return /^[A-Za-z0-9_.@-]+$/.test(serviceName) ? serviceName : "homepage.service";
+}
+
+function scheduleHomepageRestart(status) {
+  const restartCommand = process.env.HOMEPAGE_CONFIGURATOR_RESTART_COMMAND;
+  const child = restartCommand
+    ? spawn("sh", ["-lc", `sleep 1; ${restartCommand}`], { detached: true, stdio: "ignore" })
+    : spawn("sh", ["-c", "sleep 1; exec systemctl restart \"$1\"", "homepage-configurator-restart", getServiceName()], {
+        detached: true,
+        stdio: "ignore",
+      });
+
+  child.on("error", async (error) => {
+    const nextStatus = {
+      ...status,
+      state: "completed",
+      restartRequired: true,
+      restartError: error.message,
+      finishedAt: new Date().toISOString(),
+    };
+    appendUpdateLog(nextStatus, `Не удалось запланировать перезапуск: ${error.message}`);
+    await writeConfiguratorUpdateStatus(nextStatus);
+  });
+  child.unref();
+}
+
+async function fetchInstallScript(metadata) {
+  const installUrl = getConfiguratorInstallUrl(metadata);
+  const text = await fetchBoundedText(installUrl, {
+    maxBytes: maxInstallScriptBytes,
+    timeoutMs: updateFetchTimeoutMs,
+  });
+
+  if (!text.includes("homepage-configurator") || !text.includes("run_mod_installer")) {
+    throw new Error("Скачанный install.sh не похож на установщик homepage-configurator");
+  }
+
+  return text;
+}
+
+async function startConfiguratorUpdate({ autoRestart = true } = {}) {
+  const currentStatus = await readConfiguratorUpdateStatus();
+  if (activeConfiguratorUpdate || currentStatus.state === "running") {
+    return currentStatus;
+  }
+
+  const updateCheck = await checkConfiguratorUpdate({ force: true });
+  if (!updateCheck.canUpdate || !updateCheck.targetDir) {
+    throw new Error(updateCheck.reason || "Не найден target Homepage для обновления");
+  }
+
+  const installScript = await fetchInstallScript(updateCheck.latest);
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "homepage-configurator-update-"));
+  const scriptPath = path.join(tmpDir, "install.sh");
+  await fs.writeFile(scriptPath, installScript, { encoding: "utf8", mode: 0o700 });
+
+  const imagesDir = getImagesDir();
+  const status = {
+    id: randomUUID(),
+    state: "running",
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    currentVersion: updateCheck.currentVersion,
+    latestVersion: updateCheck.latestVersion,
+    targetDir: updateCheck.targetDir,
+    configDir: CONF_DIR,
+    imagesDir,
+    autoRestart,
+    restartRequired: false,
+    log: [`Старт обновления ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`],
+  };
+  await writeConfiguratorUpdateStatus(status);
+
+  const args = [
+    scriptPath,
+    "--action",
+    "update-mod",
+    "--target",
+    updateCheck.targetDir,
+    "--config-dir",
+    CONF_DIR,
+    "--images-dir",
+    imagesDir,
+    "--custom",
+    "all",
+    "--clean-custom",
+    "keep",
+    "--no-restart",
+  ];
+
+  const child = spawn("bash", args, {
+    cwd: updateCheck.targetDir,
+    env: {
+      ...process.env,
+      HOMEPAGE_EDITOR_REPO: getConfiguratorRepoUrl(updateCheck.latest),
+      HOMEPAGE_EDITOR_BRANCH: getConfiguratorBranch(updateCheck.latest),
+      HOMEPAGE_EDITOR_CUSTOM_INSTALL: "all",
+      HOMEPAGE_EDITOR_CLEAN_CUSTOM: "keep",
+      HOMEPAGE_TARGET_DIR: updateCheck.targetDir,
+      HOMEPAGE_CONFIG_DIR: CONF_DIR,
+      HOMEPAGE_IMAGES_DIR: imagesDir,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  activeConfiguratorUpdate = { id: status.id, child };
+
+  const writeChunk = async (chunk) => {
+    appendUpdateLog(status, chunk);
+    await writeConfiguratorUpdateStatus(status);
+  };
+
+  child.stdout.on("data", (chunk) => {
+    writeChunk(chunk).catch((error) => logger.error(error));
+  });
+  child.stderr.on("data", (chunk) => {
+    writeChunk(chunk).catch((error) => logger.error(error));
+  });
+  child.on("error", async (error) => {
+    activeConfiguratorUpdate = null;
+    status.state = "failed";
+    status.finishedAt = new Date().toISOString();
+    appendUpdateLog(status, error.message);
+    await writeConfiguratorUpdateStatus(status);
+  });
+  child.on("close", async (code) => {
+    activeConfiguratorUpdate = null;
+    status.exitCode = code;
+    status.finishedAt = new Date().toISOString();
+
+    if (code === 0) {
+      await writeUpdateCheckCache({
+        ...updateCheck,
+        cached: false,
+        currentVersion: updateCheck.latestVersion,
+        current: { ...updateCheck.current, version: updateCheck.latestVersion },
+        updateAvailable: false,
+        checkedAt: new Date().toISOString(),
+      });
+      if (autoRestart) {
+        status.state = "restarting";
+        status.restartRequired = false;
+        appendUpdateLog(status, `Обновление установлено. Перезапускаю ${getServiceName()}...`);
+        await writeConfiguratorUpdateStatus(status);
+        scheduleHomepageRestart(status);
+      } else {
+        status.state = "completed";
+        status.restartRequired = true;
+        appendUpdateLog(status, "Обновление установлено. Нужен перезапуск Homepage.");
+        await writeConfiguratorUpdateStatus(status);
+      }
+    } else {
+      status.state = "failed";
+      status.restartRequired = false;
+      appendUpdateLog(status, `Установщик завершился с кодом ${code}`);
+      await writeConfiguratorUpdateStatus(status);
+    }
+
+    fs.rm(tmpDir, { recursive: true, force: true }).catch((error) => logger.error(error));
+  });
+
+  return status;
 }
 
 function getImagesDir() {
@@ -958,11 +1442,23 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, background, backgroundPath, provider, q, apiKey, stationUrl } = req.body ?? {};
+      const { action, background, backgroundPath, provider, q, apiKey, stationUrl, force, autoRestart } = req.body ?? {};
 
       if (action === "localize-icons") {
         const iconLocalization = await localizeRemoteIcons();
         return res.status(200).json({ ...(await getEditorConfig()), iconLocalization });
+      }
+
+      if (action === "check-configurator-update") {
+        return res.status(200).json(await checkConfiguratorUpdate({ force: Boolean(force) }));
+      }
+
+      if (action === "get-configurator-update-status") {
+        return res.status(200).json(await readConfiguratorUpdateStatus());
+      }
+
+      if (action === "run-configurator-update") {
+        return res.status(202).json(await startConfiguratorUpdate({ autoRestart: autoRestart !== false }));
       }
 
       if (action === "probe-radio-track-info") {

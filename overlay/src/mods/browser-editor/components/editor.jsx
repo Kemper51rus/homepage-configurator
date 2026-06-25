@@ -91,6 +91,8 @@ const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
 const GROUP_ORDER_SETTINGS_KEY = "__browserEditorGroupOrderByPage";
 const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
+const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-checked-at";
+const CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
@@ -3760,6 +3762,50 @@ async function refreshConfigData(mutate, keys = ["/api/config/editor", "/api/ser
   }
 }
 
+async function postEditorAction(body) {
+  const response = await editorWriteFetch("/api/config/editor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error((await response.text()) || "Запрос к редактору не выполнен");
+  }
+
+  return response.json();
+}
+
+function formatUpdateDate(value) {
+  if (!value) {
+    return "никогда";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function updateStateLabel(state) {
+  switch (state) {
+    case "running":
+      return "Обновляется";
+    case "restarting":
+      return "Перезапуск";
+    case "completed":
+      return "Готово";
+    case "failed":
+      return "Ошибка";
+    default:
+      return "Ожидание";
+  }
+}
+
 function useEditorWindow({
   storageKey,
   defaultWidth,
@@ -7071,6 +7117,165 @@ function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChan
   );
 }
 
+function ConfiguratorUpdatePanel({ onSaved }) {
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadStatus = useCallback(async () => {
+    const nextStatus = await postEditorAction({ action: "get-configurator-update-status" });
+    setStatus(nextStatus);
+    return nextStatus;
+  }, []);
+
+  const checkUpdate = useCallback(async (force = false) => {
+    setChecking(true);
+    setError("");
+
+    try {
+      const nextInfo = await postEditorAction({ action: "check-configurator-update", force });
+      setUpdateInfo(nextInfo);
+      return nextInfo;
+    } catch (checkError) {
+      setError(checkError.message);
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkUpdate(false);
+    loadStatus().catch((statusError) => setError(statusError.message));
+  }, [checkUpdate, loadStatus]);
+
+  useEffect(() => {
+    if (!status || !["running", "restarting"].includes(status.state)) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadStatus().catch((statusError) => setError(statusError.message));
+    }, 2500);
+    return () => window.clearInterval(intervalId);
+  }, [loadStatus, status]);
+
+  const running = status && ["running", "restarting"].includes(status.state);
+  const updateAvailable = Boolean(updateInfo?.updateAvailable);
+  const canUpdate = Boolean(updateInfo?.canUpdate && updateAvailable && !running && !updating);
+  const currentVersion = updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
+  const latestVersion = updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
+
+  async function startUpdate() {
+    setUpdating(true);
+    setError("");
+
+    try {
+      const nextStatus = await postEditorAction({ action: "run-configurator-update", autoRestart: true });
+      setStatus(nextStatus);
+      onSaved("Обновление запущено");
+    } catch (updateError) {
+      setError(updateError.message);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-2 text-sm text-theme-800 dark:text-theme-200">
+      <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Обновления configurator</h3>
+            <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
+              Проверка берёт версию из GitHub `version.json`, автоматическая проверка выполняется не чаще одного раза в сутки.
+            </p>
+          </div>
+          <div
+            className={classNames(
+              "rounded-md border px-3 py-1.5 text-xs font-semibold",
+              updateAvailable
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
+            )}
+          >
+            {updateAvailable ? "Есть обновление" : "Актуально"}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 border-t border-theme-300/30 pt-3 dark:border-white/10 md:grid-cols-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">Установлено</div>
+            <div className="mt-1 text-lg font-semibold">{currentVersion}</div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">На GitHub</div>
+            <div className="mt-1 text-lg font-semibold">{latestVersion}</div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 text-xs text-theme-600 dark:text-theme-400 md:grid-cols-2">
+          <div>Последняя проверка: {formatUpdateDate(updateInfo?.checkedAt)}</div>
+          <div className="truncate">Target: {updateInfo?.targetDir || status?.targetDir || "не найден"}</div>
+        </div>
+
+        {updateInfo?.reason && (
+          <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+            {updateInfo.reason}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => checkUpdate(true)}
+            disabled={checking || running}
+            className="rounded-md border border-theme-400/60 px-3 py-2 text-sm font-medium transition-colors hover:bg-theme-200/40 disabled:cursor-wait disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+          >
+            {checking ? "Проверка..." : "Проверить версию"}
+          </button>
+          <button
+            type="button"
+            onClick={startUpdate}
+            disabled={!canUpdate}
+            className="rounded-md bg-theme-800 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-theme-100 dark:text-theme-900 dark:hover:bg-white"
+          >
+            {updating || running ? "Обновление..." : "Обновить с GitHub"}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Статус установки</h3>
+          <span className="rounded-md border border-theme-300/40 px-2 py-1 text-xs font-semibold dark:border-white/10">
+            {updateStateLabel(status?.state)}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs text-theme-600 dark:text-theme-400 md:grid-cols-2">
+          <div>Старт: {formatUpdateDate(status?.startedAt)}</div>
+          <div>Финиш: {formatUpdateDate(status?.finishedAt)}</div>
+        </div>
+        {status?.restartRequired && (
+          <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+            Обновление установлено, но Homepage ещё нужно перезапустить.
+          </div>
+        )}
+        {error && (
+          <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-800 dark:text-rose-200">
+            {error}
+          </div>
+        )}
+        <pre className="mt-3 max-h-64 overflow-auto rounded-md border border-theme-300/40 bg-theme-100/70 p-3 text-[11px] leading-relaxed text-theme-800 dark:border-white/10 dark:bg-theme-950/40 dark:text-theme-100">
+          {(status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n")}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { settings, setSettings } = useContext(SettingsContext);
@@ -7092,6 +7297,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       activeFileName !== "__page_styling__" &&
       activeFileName !== "__top_bar__" &&
       activeFileName !== "__radio__" &&
+      activeFileName !== "__updates__" &&
       !tabs?.some((tab) => tab.fileName === activeFileName)
     ) {
       setActiveFileName("__page_styling__");
@@ -7253,6 +7459,19 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             <div className="truncate text-sm font-semibold leading-5">Радио</div>
             <div className="truncate opacity-70">Настройки радио</div>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__updates__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__updates__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Обновления</div>
+            <div className="truncate opacity-70">Версия мода</div>
+          </button>
           {(tabs ?? []).map((tab) => (
             <button
               key={tab.fileName}
@@ -7326,6 +7545,11 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             />
           </div>
         )}
+        {activeFileName === "__updates__" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ConfiguratorUpdatePanel onSaved={onSaved} />
+          </div>
+        )}
         {(tabs ?? []).map((tab) => {
           const active = activeFileName === tab.fileName;
           const isSettingsYaml = tab.fileName === "settings.yaml";
@@ -7374,7 +7598,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
             </div>
           );
         })}
-        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && (
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && activeFileName !== "__updates__" && (
           <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
             В config-папке пока нет дополнительных файлов для редактирования.
           </div>
@@ -7386,19 +7610,21 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
           </div>
         )}
 
-        <div
-          className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
-          style={{ paddingRight: "5px", paddingBottom: "5px" }}
-        >
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
-            className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        {activeFileName !== "__updates__" && (
+          <div
+            className="pointer-events-none mt-4 flex min-w-0 shrink-0 justify-end"
+            style={{ paddingRight: "5px", paddingBottom: "5px" }}
           >
-            {saving ? "Сохранение..." : "Сохранить"}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={(activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && !activeTab) || saving}
+              className="pointer-events-auto relative z-[70] rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+            >
+              {saving ? "Сохранение..." : "Сохранить"}
+            </button>
+          </div>
+        )}
       </div>
     </EditorWindow>
   );
@@ -8546,6 +8772,37 @@ export function ConfigEditorProvider({ children }) {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3000);
   }
+
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") {
+      return;
+    }
+
+    const lastCheckedAt = Number(localStorage.getItem(CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY) || "0");
+    if (Number.isFinite(lastCheckedAt) && Date.now() - lastCheckedAt < CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS) {
+      return;
+    }
+
+    localStorage.setItem(CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY, String(Date.now()));
+    let cancelled = false;
+
+    postEditorAction({ action: "check-configurator-update", force: false })
+      .then((updateInfo) => {
+        if (cancelled || !updateInfo?.updateAvailable) {
+          return;
+        }
+
+        setNotice(`Доступно обновление configurator: ${updateInfo.currentVersion} -> ${updateInfo.latestVersion}`);
+        window.setTimeout(() => setNotice(""), 6000);
+      })
+      .catch(() => {
+        // Silent background check. Manual check in settings shows the actual error.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
 
   const localizeIcons = useCallback(async () => {
     if (iconsSaving) {

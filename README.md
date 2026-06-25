@@ -12,6 +12,7 @@
 - визуальное редактирование групп и layout-параметров;
 - загрузка фонового изображения;
 - загрузка внешних URL-иконок в локальный каталог иконок;
+- проверка и запуск обновления мода из браузера;
 - режим редактирования поверх текущего интерфейса, без отдельной длинной страницы настроек.
 
 <img src="preview.png" width="100%">
@@ -46,6 +47,14 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 Ассеты радио копируются в каталог, который Homepage отдаёт как `/images/radio`: обычно `/srv/homepage-images/radio`, а в LXC от Proxmox VE Community Scripts - `/opt/homepage/public/images/radio`. После установки дополнений скрипт перезапускает `homepage.service`, потому что `next start` не начинает отдавать новые файлы из `public/images` без перезапуска процесса.
 
 Если в существующих `custom.css` или `custom.js` есть содержимое вне `HOMEPAGE-EDITOR` managed-блоков, интерактивный установщик покажет найденные строки и спросит, удалять ли такие файлы перед установкой выбранных presets. Для автоматического запуска можно явно задать `--clean-custom keep` или `--clean-custom delete`.
+
+## Обновление Из Браузера
+
+Версия мода публикуется в [`version.json`](version.json). Установленный редактор проверяет этот файл на GitHub не чаще одного раза в сутки для каждого браузера. Ручная проверка и запуск обновления доступны в режиме редактирования: `Ручная правка` -> `Обновления`.
+
+Кнопка `Обновить с GitHub` запускает на сервере тот же установщик из `main`, ставит полный managed-набор `custom.js/custom.css`, собирает Homepage и после успешной установки перезапускает `homepage.service`. Для нестандартных layout можно задать env-переменные сервиса: `HOMEPAGE_CONFIGURATOR_TARGET_DIR`, `HOMEPAGE_CONFIGURATOR_VERSION_URL`, `HOMEPAGE_CONFIGURATOR_REPO`, `HOMEPAGE_CONFIGURATOR_BRANCH`, `HOMEPAGE_CONFIGURATOR_INSTALL_URL`.
+
+Если в окружении есть только standalone runtime без полного checkout Homepage, браузерный updater не будет пытаться патчить неполную сборку и покажет причину. В таком случае обновление выполняется внешним deploy-процессом.
 
 ## Использование
 

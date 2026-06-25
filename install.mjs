@@ -8,6 +8,8 @@ const patchPath = join(root, "browser-editor.patch");
 const overlayPath = join(root, "overlay");
 const manifestName = ".homepage-configurator-manifest.json";
 const backupDirName = ".homepage-configurator-backups";
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const versionMetadata = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
 const managedDependencies = {
   prismjs: "^1.29.0",
   "react-simple-code-editor": "^0.14.1",
@@ -306,6 +308,14 @@ function install(target, options = {}) {
   writeManifest(target, {
     installedAt: new Date().toISOString(),
     source: root,
+    configurator: {
+      name: packageJson.name,
+      version: packageJson.version,
+      repo: versionMetadata.repo,
+      branch: versionMetadata.branch,
+      metadataUrl: versionMetadata.metadataUrl,
+      installUrl: versionMetadata.installUrl,
+    },
     overlayFiles: files,
     patchFiles: patchTouchedFiles,
     managedDependencies,

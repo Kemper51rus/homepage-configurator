@@ -142,6 +142,24 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 6. синхронизацию `.next/static` и `public` в `.next/standalone`, если используется standalone;
 7. один перезапуск `homepage.service`, если сервис активен.
 
+## Обновление Из Интерфейса Редактора
+
+После установки мода в окне `Ручная правка` появляется вкладка `Обновления`. Она сравнивает установленную версию с [`version.json`](../version.json) в ветке `main` и может запустить обновление прямо с сервера.
+
+Автопроверка выполняется при загрузке страницы, но кешируется в `localStorage` браузера на 24 часа. Кнопка ручной проверки всегда делает свежий запрос к GitHub.
+
+Обновление из браузера запускает `install.sh --action update-mod --custom all --clean-custom keep --no-restart`, пишет лог в config-папку, а после успешной сборки планирует перезапуск `homepage.service`. YAML-конфиги не устанавливаются и не заменяются; managed custom-блоки обновляются так же, как при обычной установке.
+
+Для нестандартных установок можно задать переменные окружения сервиса:
+
+- `HOMEPAGE_CONFIGURATOR_TARGET_DIR` - полный checkout Homepage, если autodetect не подходит;
+- `HOMEPAGE_CONFIGURATOR_VERSION_URL` - альтернативный URL `version.json`;
+- `HOMEPAGE_CONFIGURATOR_REPO` и `HOMEPAGE_CONFIGURATOR_BRANCH` - источник обновления;
+- `HOMEPAGE_CONFIGURATOR_INSTALL_URL` - URL `install.sh`;
+- `HOMEPAGE_CONFIGURATOR_RESTART_COMMAND` - команда перезапуска, если `systemctl restart homepage.service` не подходит.
+
+Если updater не находит полный checkout Homepage, он не пытается обновлять standalone-only runtime. Для такого окружения используйте внешний deploy.
+
 ## Custom-Дополнения
 
 При установке мода инсталлятор автоматически интегрирует весь managed-набор дополнений (`cards`, `extras`, `radio` и `particles`) в файлы `custom.js` и `custom.css`. 
