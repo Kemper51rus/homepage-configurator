@@ -734,19 +734,9 @@ prompt_clean_unmanaged_custom_files() {
 
   [[ "${#files[@]}" -gt 0 ]] || return 0
 
-  cat >&2 <<'EOF'
-
-Найдены строки вне HOMEPAGE-EDITOR managed-блоков.
-Они не обновляются автоматически и могут дублировать текущие presets.
-EOF
-
-  for file in "${files[@]}"; do
-    printf '  - %s\n' "$file" >&2
-    print_unmanaged_preview "$file" >&2
-  done
-
   case "$CUSTOM_CLEAN" in
     delete)
+      log "Found unmanaged custom content; deleting selected custom files after backup"
       delete_unmanaged_custom_files "${files[@]}"
       return 0
       ;;
@@ -760,6 +750,17 @@ EOF
     log "Keeping unmanaged custom content outside managed blocks (non-interactive run)"
     return 0
   fi
+
+  cat >&2 <<'EOF'
+
+Найдены строки вне HOMEPAGE-EDITOR managed-блоков.
+Они не обновляются автоматически и могут дублировать текущие presets.
+EOF
+
+  for file in "${files[@]}"; do
+    printf '  - %s\n' "$file" >&2
+    print_unmanaged_preview "$file" >&2
+  done
 
   cat >&2 <<'EOF'
 
