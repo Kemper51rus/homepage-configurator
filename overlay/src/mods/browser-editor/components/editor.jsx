@@ -6697,6 +6697,8 @@ function PageStylingEditor({ settingsContent, onChange }) {
     ["20px", "Очень крупный (20px)"],
     ["24px", "Огромный (24px)"],
   ];
+  const serviceStatusPreviewOffsetX = Math.round(serviceStatusOffsetX * 0.35);
+  const serviceStatusPreviewOffsetY = Math.round(serviceStatusOffsetY * 0.35);
 
   useEffect(() => {
     applyServiceStatusOffsets({ serviceStatusOffsetX, serviceStatusOffsetY });
@@ -6857,13 +6859,17 @@ function PageStylingEditor({ settingsContent, onChange }) {
                 <h4 className="text-xs font-semibold text-theme-900 dark:text-theme-100">Позиция статуса карточек</h4>
                 <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Running / Exited</p>
               </div>
-              <div
-                className="shrink-0 rounded-md border border-theme-300/40 bg-theme-100/70 px-2 py-1 text-[10px] font-bold uppercase text-emerald-600 dark:border-white/10 dark:bg-white/10 dark:text-emerald-300"
-                style={{
-                  transform: `translate(${serviceStatusOffsetX}px, ${serviceStatusOffsetY}px)`,
-                }}
-              >
-                Running
+              <div className="relative h-14 w-36 shrink-0 overflow-hidden rounded-md border border-theme-300/40 bg-theme-100/50 dark:border-white/10 dark:bg-theme-950/30">
+                <div className="absolute inset-2 rounded-md border border-theme-300/30 bg-theme-50/60 dark:border-white/10 dark:bg-white/5">
+                  <div
+                    className="absolute left-1/2 top-1/2 rounded-md border border-theme-300/40 bg-theme-100/80 px-2 py-1 text-[10px] font-bold uppercase text-emerald-600 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-emerald-300"
+                    style={{
+                      transform: `translate(calc(-50% + ${serviceStatusPreviewOffsetX}px), calc(-50% + ${serviceStatusPreviewOffsetY}px))`,
+                    }}
+                  >
+                    Running
+                  </div>
+                </div>
               </div>
             </div>
 
