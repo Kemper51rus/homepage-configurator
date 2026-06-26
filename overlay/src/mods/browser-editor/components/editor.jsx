@@ -9123,8 +9123,17 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
 }
 
 function EditorUiScaleControl({ value, onChange }) {
+  const stopOverlayClose = (event) => {
+    event.stopPropagation();
+  };
+
   return (
-    <div className="rounded-md border border-theme-300/40 bg-theme-100/20 px-3 py-2 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-theme-900/20">
+    <div
+      onPointerDown={stopOverlayClose}
+      onMouseDown={stopOverlayClose}
+      onClick={stopOverlayClose}
+      className="rounded-md border border-theme-300/40 bg-theme-100/20 px-3 py-2 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-theme-900/20"
+    >
       <input
         type="range"
         min={EDITOR_UI_SCALE_MIN}
@@ -9556,42 +9565,44 @@ export function ConfigEditorProvider({ children }) {
   return (
     <ConfigEditorContext.Provider value={value}>
       {children}
-      {editMode ? (
-        <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start gap-2" style={editorBottomLeftScaleStyle}>
+      {editMode && (
+        <div className="fixed bottom-20 left-5 z-[90]" style={editorBottomLeftScaleStyle}>
           <EditorUiScaleControl value={editorUiScale} onChange={handleEditorUiScaleChange} />
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setDraggedGroup(null);
-                setModal(null);
-                setEditMode(false);
-              }}
-              className={toolbarPrimaryButtonClassName}
-            >
-              Готово
-            </button>
-            <button
-              ref={backgroundButtonRef}
-              type="button"
-              onClick={() => setModal({ type: "background" })}
-              className={toolbarButtonClassName}
-            >
-              Фон
-            </button>
-            <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
-              Новая группа
-            </button>
-            <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
-              Иконки
-            </button>
-            <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
-              Конфигуратор
-            </button>
-            <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
-              Обновления
-            </button>
-          </div>
+        </div>
+      )}
+      {editMode ? (
+        <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2" style={editorBottomLeftScaleStyle}>
+          <button
+            type="button"
+            onClick={() => {
+              setDraggedGroup(null);
+              setModal(null);
+              setEditMode(false);
+            }}
+            className={toolbarPrimaryButtonClassName}
+          >
+            Готово
+          </button>
+          <button
+            ref={backgroundButtonRef}
+            type="button"
+            onClick={() => setModal({ type: "background" })}
+            className={toolbarButtonClassName}
+          >
+            Фон
+          </button>
+          <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
+            Новая группа
+          </button>
+          <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
+            Иконки
+          </button>
+          <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
+            Конфигуратор
+          </button>
+          <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
+            Обновления
+          </button>
         </div>
       ) : (
         <div className="fixed bottom-0 left-0 z-50 h-36 w-36" style={editorBottomLeftScaleStyle}>
@@ -9622,7 +9633,13 @@ export function ConfigEditorProvider({ children }) {
         </div>
       )}
       {notice && (
-        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20" style={editorBottomLeftScaleStyle}>
+        <div
+          className={classNames(
+            "fixed left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20",
+            editMode ? "bottom-32" : "bottom-20",
+          )}
+          style={editorBottomLeftScaleStyle}
+        >
           {notice}
         </div>
       )}
