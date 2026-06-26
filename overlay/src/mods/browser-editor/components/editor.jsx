@@ -98,6 +98,7 @@ const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
 const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-checked-at";
 const CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const EDITOR_UI_SCALE_STORAGE_KEY = "homepage-browser-editor-ui-scale";
+const CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY = "homepage-browser-editor-configurator-transparent-backdrop";
 const EDITOR_UI_SCALE_MIN = 0.75;
 const EDITOR_UI_SCALE_MAX = 1.35;
 const EDITOR_UI_SCALE_STEP = 0.05;
@@ -138,6 +139,22 @@ function writeStoredEditorUiScale(value) {
   window.localStorage.setItem(EDITOR_UI_SCALE_STORAGE_KEY, String(normalizeEditorUiScale(value)));
 }
 
+function readStoredConfiguratorTransparentBackdrop() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY) === "true";
+}
+
+function writeStoredConfiguratorTransparentBackdrop(value) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY, value ? "true" : "false");
+}
+
 function normalizeServiceStatusOffset(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -160,6 +177,15 @@ function applyServiceStatusOffsets(pageStyles = {}) {
     "--homepage-service-status-offset-y",
     `${normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetY)}px`,
   );
+}
+
+function parseSettingsDraft(content) {
+  try {
+    const parsed = yaml.load(content) ?? {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function getEntryName(entry) {
@@ -4186,6 +4212,7 @@ function EditorWindow({
   windowApiRef = null,
   resizeDirections = ["left", "right", "bottom", "bottom-left", "bottom-right"],
   wrapperClassName = "",
+  dimBackdrop = true,
   autoFitKey = null,
 }) {
   const bodyRef = useRef(null);
@@ -4294,7 +4321,10 @@ function EditorWindow({
   const canResizeBottomRight = resizeDirections.includes("bottom-right");
 
   return (
-    <div className={classNames("fixed inset-0 z-[60] bg-black/50", wrapperClassName)} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div
+      className={classNames("fixed inset-0 z-[60]", dimBackdrop ? "bg-black/50" : "bg-transparent", wrapperClassName)}
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
       <div
         ref={panelRef}
         style={{
@@ -7741,6 +7771,8 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [transparentBackdrop, setTransparentBackdrop] = useState(readStoredConfiguratorTransparentBackdrop);
+  const committedSettingsRef = useRef(currentSettings);
 
   useEffect(() => {
     const nextDrafts = Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]));
@@ -7761,11 +7793,53 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? null;
   const activeContent = activeTab ? drafts[activeTab.fileName] ?? activeTab.content ?? "" : "";
   const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
+  const hasSettingsDraft = Object.prototype.hasOwnProperty.call(drafts, "settings.yaml");
+  const settingsDraft = hasSettingsDraft ? drafts["settings.yaml"] ?? "" : null;
   const canSave =
     activeFileName === "__page_styling__" ||
     activeFileName === "__top_bar__" ||
     activeFileName === "__radio__" ||
     Boolean(activeTab);
+
+  useEffect(() => {
+    if (settingsDraft === null) {
+      return;
+    }
+
+    const previewSettings = parseSettingsDraft(settingsDraft);
+    if (!previewSettings) {
+      return;
+    }
+
+    setSettings(previewSettings);
+  }, [setSettings, settingsDraft]);
+
+  useEffect(
+    () => () => {
+      if (!committedSettingsRef.current) {
+        return;
+      }
+
+      setSettings(committedSettingsRef.current);
+      applyServiceStatusOffsets(committedSettingsRef.current.pageStyles ?? {});
+    },
+    [setSettings],
+  );
+
+  const handleClose = useCallback(() => {
+    if (committedSettingsRef.current) {
+      setSettings(committedSettingsRef.current);
+      applyServiceStatusOffsets(committedSettingsRef.current.pageStyles ?? {});
+    }
+
+    onClose();
+  }, [onClose, setSettings]);
+
+  const handleTransparentBackdropChange = useCallback((event) => {
+    const nextValue = event.target.checked;
+    setTransparentBackdrop(nextValue);
+    writeStoredConfiguratorTransparentBackdrop(nextValue);
+  }, []);
 
   async function handleSave() {
     const isTopBar = activeFileName === "__top_bar__" || activeFileName === "__radio__";
@@ -7847,8 +7921,13 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         }
       }
 
-      if (nextData?.settings) {
-        setSettings(nextData.settings);
+      const committedSettings =
+        nextData?.settings ??
+        (!isTopBar && targetFileName === "settings.yaml" ? parseSettingsDraft(drafts["settings.yaml"] ?? "") : null);
+
+      if (committedSettings) {
+        committedSettingsRef.current = committedSettings;
+        setSettings(committedSettings);
       }
 
       setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
@@ -7871,23 +7950,35 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
     <EditorWindow
       storageKey="homepage-browser-editor-window-settings"
       title="Конфигуратор"
-      onClose={onClose}
+      onClose={handleClose}
       defaultWidth={1120}
       defaultHeight={780}
       minWidth={760}
       minHeight={520}
+      dimBackdrop={!transparentBackdrop}
       autoFitContent
       autoFitTargetRef={configuratorAutoFitRef}
       autoFitKey={`configurator:${activeFileName}:${error ? "error" : "ready"}`}
       headerActions={
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={!canSave || saving}
-          className="rounded-md bg-theme-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white"
-        >
-          {saving ? "Сохранение..." : "Сохранить"}
-        </button>
+        <>
+          <label className="flex h-10 items-center gap-2 rounded-md border border-theme-300/50 bg-theme-100/40 px-3 text-xs font-medium text-theme-800 shadow-sm transition-colors hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:hover:bg-white/10">
+            <input
+              type="checkbox"
+              checked={transparentBackdrop}
+              onChange={handleTransparentBackdropChange}
+              className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
+            />
+            Без затемнения
+          </label>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave || saving}
+            className="rounded-md bg-theme-700 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white"
+          >
+            {saving ? "Сохранение..." : "Сохранить"}
+          </button>
+        </>
       }
     >
       <div ref={configuratorAutoFitRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
