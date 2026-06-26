@@ -6697,8 +6697,6 @@ function PageStylingEditor({ settingsContent, onChange }) {
     ["20px", "Очень крупный (20px)"],
     ["24px", "Огромный (24px)"],
   ];
-  const serviceStatusPreviewOffsetX = Math.round(serviceStatusOffsetX * 0.35);
-  const serviceStatusPreviewOffsetY = Math.round(serviceStatusOffsetY * 0.35);
 
   useEffect(() => {
     applyServiceStatusOffsets({ serviceStatusOffsetX, serviceStatusOffsetY });
@@ -6815,62 +6813,51 @@ function PageStylingEditor({ settingsContent, onChange }) {
           </div>
         </div>
 
-        <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col min-h-[300px]">
-          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Иконки страниц (вкладок)</h3>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[400px]">
-            {tabsList.length === 0 ? (
-              <p className="text-xs text-theme-500 dark:text-theme-400">Нет вкладок. Создайте их в разметке групп.</p>
-            ) : (
-              tabsList.map((tabName) => {
-                const iconVal = pageIcons[tabName] ?? "";
-                return (
-                  <div key={tabName} className="flex flex-col gap-1.5 p-2 rounded-md border border-theme-300/10 dark:border-white/5 bg-theme-50/40 dark:bg-white/5">
-                    <span className="text-xs font-semibold text-theme-800 dark:text-theme-200">{tabName}</span>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="mdi-home, si-proxmox, etc."
-                        value={iconVal}
-                        onChange={(e) => updateIcon(tabName, e.target.value)}
-                        className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-xs"
-                      />
-                      {editor && typeof editor.selectIcon === "function" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            editor.selectIcon((selectedIcon) => {
-                              updateIcon(tabName, selectedIcon);
-                            });
-                          }}
-                          className="rounded-md border border-theme-300/50 bg-theme-100/50 hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 px-3 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center shrink-0"
-                        >
-                          Выбрать
-                        </button>
-                      )}
+        <div className="space-y-4">
+          <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col min-h-[300px]">
+            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Иконки страниц (вкладок)</h3>
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[400px]">
+              {tabsList.length === 0 ? (
+                <p className="text-xs text-theme-500 dark:text-theme-400">Нет вкладок. Создайте их в разметке групп.</p>
+              ) : (
+                tabsList.map((tabName) => {
+                  const iconVal = pageIcons[tabName] ?? "";
+                  return (
+                    <div key={tabName} className="flex flex-col gap-1.5 p-2 rounded-md border border-theme-300/10 dark:border-white/5 bg-theme-50/40 dark:bg-white/5">
+                      <span className="text-xs font-semibold text-theme-800 dark:text-theme-200">{tabName}</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="mdi-home, si-proxmox, etc."
+                          value={iconVal}
+                          onChange={(e) => updateIcon(tabName, e.target.value)}
+                          className="flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 text-xs"
+                        />
+                        {editor && typeof editor.selectIcon === "function" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              editor.selectIcon((selectedIcon) => {
+                                updateIcon(tabName, selectedIcon);
+                              });
+                            }}
+                            className="rounded-md border border-theme-300/50 bg-theme-100/50 hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 px-3 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                          >
+                            Выбрать
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-          <div className="rounded-md border border-theme-300/30 bg-theme-50/40 p-3 dark:border-white/10 dark:bg-white/5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h4 className="text-xs font-semibold text-theme-900 dark:text-theme-100">Позиция статуса карточек</h4>
-                <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Running / Exited</p>
-              </div>
-              <div className="relative h-14 w-36 shrink-0 overflow-hidden rounded-md border border-theme-300/40 bg-theme-100/50 dark:border-white/10 dark:bg-theme-950/30">
-                <div className="absolute inset-2 rounded-md border border-theme-300/30 bg-theme-50/60 dark:border-white/10 dark:bg-white/5">
-                  <div
-                    className="absolute left-1/2 top-1/2 rounded-md border border-theme-300/40 bg-theme-100/80 px-2 py-1 text-[10px] font-bold uppercase text-emerald-600 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-emerald-300"
-                    style={{
-                      transform: `translate(calc(-50% + ${serviceStatusPreviewOffsetX}px), calc(-50% + ${serviceStatusPreviewOffsetY}px))`,
-                    }}
-                  >
-                    Running
-                  </div>
-                </div>
-              </div>
+
+          <div className="rounded-md border border-theme-300/50 bg-theme-50/10 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Позиция статуса карточек</h3>
+              <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Сдвиг надписей Running / Exited на карточках с мониторингом</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
