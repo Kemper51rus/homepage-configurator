@@ -99,6 +99,7 @@ const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-chec
 const CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const EDITOR_UI_SCALE_STORAGE_KEY = "homepage-browser-editor-ui-scale";
 const CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY = "homepage-browser-editor-configurator-transparent-backdrop";
+const CUSTOM_CSS_PREVIEW_STYLE_ID = "homepage-configurator-custom-css-preview";
 const EDITOR_UI_SCALE_MIN = 0.75;
 const EDITOR_UI_SCALE_MAX = 1.35;
 const EDITOR_UI_SCALE_STEP = 0.05;
@@ -106,6 +107,8 @@ const EDITOR_UI_SCALE_DEFAULT = 1;
 const SERVICE_STATUS_OFFSET_MIN = -48;
 const SERVICE_STATUS_OFFSET_MAX = 48;
 const SERVICE_STATUS_OFFSET_DEFAULT = 0;
+const RADIO_JS_START_MARKER = "/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */";
+const RADIO_JS_END_MARKER = "/* <<< HOMEPAGE-EDITOR RADIO JS END <<< */";
 
 let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
@@ -185,6 +188,78 @@ function parseSettingsDraft(content) {
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function extractMarkedBlock(content, startMarker, endMarker) {
+  const source = String(content ?? "");
+  const startIndex = source.indexOf(startMarker);
+  const endIndex = source.indexOf(endMarker);
+
+  if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+    return "";
+  }
+
+  return source.slice(startIndex, endIndex + endMarker.length);
+}
+
+function applyCustomCssPreview(content) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  let styleElement = document.getElementById(CUSTOM_CSS_PREVIEW_STYLE_ID);
+  if (!styleElement) {
+    styleElement = document.createElement("style");
+    styleElement.id = CUSTOM_CSS_PREVIEW_STYLE_ID;
+    styleElement.setAttribute("data-homepage-configurator-preview", "custom-css");
+    document.head.appendChild(styleElement);
+  }
+
+  styleElement.textContent = String(content ?? "");
+}
+
+function cleanupRadioManagedPreview() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (typeof window.__homepageRadioWidgetCleanup === "function") {
+    try {
+      window.__homepageRadioWidgetCleanup();
+    } catch {
+      // Ignore cleanup failures from a previous managed preview.
+    }
+  }
+
+  window.__homepageRadioWidgetCleanup = null;
+  window.__homepageRadioWidgetInitialized = false;
+  document.getElementById("homepage-topbar-root")?.remove();
+  document.getElementById("homepage-radio-root")?.remove();
+  document.getElementById("homepage-ip-root")?.remove();
+}
+
+function runRadioManagedPreview(customJs) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const radioBlock = extractMarkedBlock(customJs, RADIO_JS_START_MARKER, RADIO_JS_END_MARKER);
+  if (!radioBlock.trim()) {
+    cleanupRadioManagedPreview();
+    return;
+  }
+
+  const scriptElement = document.createElement("script");
+  scriptElement.setAttribute("data-homepage-configurator-preview", "radio-js");
+  scriptElement.text = `${radioBlock}\n//# sourceURL=homepage-configurator-radio-preview.js`;
+
+  try {
+    document.documentElement.appendChild(scriptElement);
+  } catch (error) {
+    console.error("Homepage configurator radio preview failed", error);
+  } finally {
+    scriptElement.remove();
   }
 }
 
@@ -7773,9 +7848,14 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const [error, setError] = useState("");
   const [transparentBackdrop, setTransparentBackdrop] = useState(readStoredConfiguratorTransparentBackdrop);
   const committedSettingsRef = useRef(currentSettings);
+  const committedCustomCssRef = useRef("");
+  const committedCustomJsRef = useRef("");
+  const radioManagedPreviewAppliedRef = useRef(false);
 
   useEffect(() => {
     const nextDrafts = Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]));
+    committedCustomCssRef.current = nextDrafts["custom.css"] ?? "";
+    committedCustomJsRef.current = nextDrafts["custom.js"] ?? "";
     setDrafts(nextDrafts);
   }, [tabs]);
 
@@ -7795,11 +7875,25 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
   const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
   const hasSettingsDraft = Object.prototype.hasOwnProperty.call(drafts, "settings.yaml");
   const settingsDraft = hasSettingsDraft ? drafts["settings.yaml"] ?? "" : null;
+  const hasCustomCssDraft = Object.prototype.hasOwnProperty.call(drafts, "custom.css");
+  const customCssDraft = hasCustomCssDraft ? drafts["custom.css"] ?? "" : null;
   const canSave =
     activeFileName === "__page_styling__" ||
     activeFileName === "__top_bar__" ||
     activeFileName === "__radio__" ||
     Boolean(activeTab);
+
+  const updateDraft = useCallback((fileName, content, options = {}) => {
+    setDrafts((current) => ({
+      ...current,
+      [fileName]: content,
+    }));
+
+    if (fileName === "custom.js" && options.previewRadioManaged) {
+      radioManagedPreviewAppliedRef.current = true;
+      runRadioManagedPreview(content);
+    }
+  }, []);
 
   useEffect(() => {
     if (settingsDraft === null) {
@@ -7814,26 +7908,37 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
     setSettings(previewSettings);
   }, [setSettings, settingsDraft]);
 
+  useEffect(() => {
+    if (customCssDraft === null) {
+      return;
+    }
+
+    applyCustomCssPreview(customCssDraft);
+  }, [customCssDraft]);
+
   useEffect(
     () => () => {
       if (!committedSettingsRef.current) {
+        applyCustomCssPreview(committedCustomCssRef.current);
+        if (radioManagedPreviewAppliedRef.current) {
+          runRadioManagedPreview(committedCustomJsRef.current);
+        }
         return;
       }
 
       setSettings(committedSettingsRef.current);
       applyServiceStatusOffsets(committedSettingsRef.current.pageStyles ?? {});
+      applyCustomCssPreview(committedCustomCssRef.current);
+      if (radioManagedPreviewAppliedRef.current) {
+        runRadioManagedPreview(committedCustomJsRef.current);
+      }
     },
     [setSettings],
   );
 
   const handleClose = useCallback(() => {
-    if (committedSettingsRef.current) {
-      setSettings(committedSettingsRef.current);
-      applyServiceStatusOffsets(committedSettingsRef.current.pageStyles ?? {});
-    }
-
     onClose();
-  }, [onClose, setSettings]);
+  }, [onClose]);
 
   const handleTransparentBackdropChange = useCallback((event) => {
     const nextValue = event.target.checked;
@@ -7928,6 +8033,20 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
       if (committedSettings) {
         committedSettingsRef.current = committedSettings;
         setSettings(committedSettings);
+      }
+
+      if (isTopBar) {
+        committedCustomJsRef.current = drafts["custom.js"] ?? "";
+        committedCustomCssRef.current = drafts["custom.css"] ?? "";
+        applyCustomCssPreview(committedCustomCssRef.current);
+        if (radioManagedPreviewAppliedRef.current) {
+          runRadioManagedPreview(committedCustomJsRef.current);
+        }
+      } else if (targetFileName === "custom.css") {
+        committedCustomCssRef.current = drafts["custom.css"] ?? "";
+        applyCustomCssPreview(committedCustomCssRef.current);
+      } else if (targetFileName === "custom.js") {
+        committedCustomJsRef.current = drafts["custom.js"] ?? "";
       }
 
       setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
@@ -8046,12 +8165,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
         <div style={{ display: activeFileName === "__page_styling__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
           <PageStylingEditor
             settingsContent={drafts["settings.yaml"] ?? ""}
-            onChange={(newContent) =>
-              setDrafts((current) => ({
-                ...current,
-                "settings.yaml": newContent,
-              }))
-            }
+            onChange={(newContent) => updateDraft("settings.yaml", newContent)}
           />
         </div>
         {activeFileName === "__top_bar__" && (
@@ -8060,18 +8174,8 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
               customJs={drafts["custom.js"] ?? ""}
               customCss={drafts["custom.css"] ?? ""}
               mode="topbar"
-              onChangeCustomJs={(newJs) =>
-                setDrafts((current) => ({
-                  ...current,
-                  "custom.js": newJs,
-                }))
-              }
-              onChangeCustomCss={(newCss) =>
-                setDrafts((current) => ({
-                  ...current,
-                  "custom.css": newCss,
-                }))
-              }
+              onChangeCustomJs={(newJs) => updateDraft("custom.js", newJs, { previewRadioManaged: true })}
+              onChangeCustomCss={(newCss) => updateDraft("custom.css", newCss)}
             />
           </div>
         )}
@@ -8081,18 +8185,8 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
               customJs={drafts["custom.js"] ?? ""}
               customCss={drafts["custom.css"] ?? ""}
               mode="radio"
-              onChangeCustomJs={(newJs) =>
-                setDrafts((current) => ({
-                  ...current,
-                  "custom.js": newJs,
-                }))
-              }
-              onChangeCustomCss={(newCss) =>
-                setDrafts((current) => ({
-                  ...current,
-                  "custom.css": newCss,
-                }))
-              }
+              onChangeCustomJs={(newJs) => updateDraft("custom.js", newJs, { previewRadioManaged: true })}
+              onChangeCustomCss={(newCss) => updateDraft("custom.css", newCss)}
             />
           </div>
         )}
@@ -8108,19 +8202,9 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
               {isSettingsYaml ? (
                 <SettingsVisualEditor
                   content={drafts["settings.yaml"] ?? ""}
-                  onChange={(value) =>
-                    setDrafts((current) => ({
-                      ...current,
-                      "settings.yaml": value,
-                    }))
-                  }
+                  onChange={(value) => updateDraft("settings.yaml", value)}
                   widgetsContent={drafts["widgets.yaml"] ?? ""}
-                  onWidgetsChange={(value) =>
-                    setDrafts((current) => ({
-                      ...current,
-                      "widgets.yaml": value,
-                    }))
-                  }
+                  onWidgetsChange={(value) => updateDraft("widgets.yaml", value)}
                 />
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
@@ -8128,12 +8212,7 @@ function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved })
                     label="Содержимое файла"
                     language={detectEditorLanguage(tab.format, tab.fileName)}
                     value={drafts[tab.fileName] ?? ""}
-                    onChange={(value) =>
-                      setDrafts((current) => ({
-                        ...current,
-                        [tab.fileName]: value,
-                      }))
-                    }
+                    onChange={(value) => updateDraft(tab.fileName, value)}
                     minHeightClassName="min-h-0"
                     fillAvailableHeight
                     zoomStorageKey="homepage-browser-editor-code-zoom-settings"
