@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { mergeRadioCustomJsTemplate } from "../scripts/merge-radio-custom-js.mjs";
 import {
+  parseIpConfig,
+  parseLinkIpFpsSizes,
+  parseRadioButtonSize,
+  parseRadioButtonsOrder,
+  parseRadioButtonsStyle,
   parseRadioStations,
+  parseRadioEnabled,
+  parseRadioIconSize,
   updateRadioInCustomJs,
 } from "../overlay/src/mods/browser-editor/lib/topbar-config-helper.js";
 
@@ -95,5 +104,67 @@ test("updateRadioInCustomJs serializes per-station vote API settings", () => {
         voteApiKey: "station-secret",
       },
     ],
+  );
+});
+
+test("mergeRadioCustomJsTemplate preserves user radio station order during installer update", () => {
+  const template = readFileSync(new URL("../custom-config/radio/custom.js", import.meta.url), "utf8");
+  const existing = updateRadioInCustomJs(
+    "",
+    [
+      {
+        label: "Station B",
+        url: "https://example.test/b.mp3",
+        isDefault: true,
+        showTrackInfo: true,
+        trackInfoUrl: "https://example.test/b.json",
+        trackInfoKey: "song.title",
+        voteApiEnabled: true,
+        voteApiUrl: "https://example.test/vote/$&",
+        voteApiKey: "station-$1-secret",
+      },
+      {
+        label: "Station A",
+        url: "https://example.test/a.mp3",
+        isDefault: false,
+        showTrackInfo: false,
+        trackInfoUrl: "",
+        trackInfoKey: "",
+        voteApiEnabled: false,
+        voteApiUrl: "",
+        voteApiKey: "",
+      },
+    ],
+    true,
+    [{ label: "local", url: "https://ip.example.test/json", jsonKey: "ip" }],
+    false,
+    ["playlist", "trackinfo", "plapau"],
+    "modern",
+    14,
+    26,
+    true,
+    false,
+  );
+
+  const { content, preserved } = mergeRadioCustomJsTemplate(template, existing);
+  const stations = parseRadioStations(content);
+  const ipConfig = parseIpConfig(content);
+
+  assert.ok(preserved.includes("stationList"));
+  assert.deepEqual(stations.map((station) => station.label), ["Station B", "Station A"]);
+  assert.equal(stations[0].isDefault, true);
+  assert.equal(stations[0].voteApiUrl, "https://example.test/vote/$&");
+  assert.equal(stations[0].voteApiKey, "station-$1-secret");
+  assert.equal(stations[1].showTrackInfo, false);
+  assert.deepEqual(parseRadioButtonsOrder(content), ["playlist", "trackinfo", "plapau"]);
+  assert.equal(parseRadioButtonsStyle(content), "modern");
+  assert.equal(parseRadioIconSize(content), 14);
+  assert.equal(parseRadioButtonSize(content), 26);
+  assert.equal(parseLinkIpFpsSizes(content), true);
+  assert.equal(parseRadioEnabled(content), true);
+  assert.equal(ipConfig.ipEnabled, false);
+  assert.deepEqual(
+    ipConfig.ipProviders.map(({ label, url, jsonKey }) => ({ label, url, jsonKey })),
+    [{ label: "local", url: "https://ip.example.test/json", jsonKey: "ip" }],
   );
 });

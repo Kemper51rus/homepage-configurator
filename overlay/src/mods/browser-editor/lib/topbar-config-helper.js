@@ -267,8 +267,14 @@ export function updateRadioInCustomJs(
 
   // Always regenerate the block from baseTemplate to make sure the code matches the templates (including createRadioMarkup improvements)
   const baseTemplate = radioJsTemplate;
-  let configuredBlock = baseTemplate.replace(/(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedList}$3`);
-  configuredBlock = configuredBlock.replace(/(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedIpList}$3`);
+  let configuredBlock = baseTemplate.replace(
+    /(const\s+stationList\s*=\s*`)([\s\S]*?)(`)/,
+    (_match, prefix, _list, suffix) => `${prefix}${serializedList}${suffix}`,
+  );
+  configuredBlock = configuredBlock.replace(
+    /(const\s+ipProviderList\s*=\s*`)([\s\S]*?)(`)/,
+    (_match, prefix, _list, suffix) => `${prefix}${serializedIpList}${suffix}`,
+  );
   configuredBlock = configuredBlock.replace(/const\s+ipHideOnError\s*=\s*(true|false);?/, hideLine);
   configuredBlock = configuredBlock.replace(/const\s+radioButtonsStyle\s*=\s*"[^"]+";?/, styleLine);
   configuredBlock = configuredBlock.replace(/const\s+radioIconSize\s*=\s*\d+;?/, sizeLine);
@@ -276,7 +282,10 @@ export function updateRadioInCustomJs(
   configuredBlock = configuredBlock.replace(/const\s+linkIpFpsSizes\s*=\s*(true|false);?/, linkIpFpsLine);
   configuredBlock = configuredBlock.replace(/const\s+radioEnabled\s*=\s*(true|false);?/, radioEnabledLine);
   configuredBlock = configuredBlock.replace(/const\s+ipEnabled\s*=\s*(true|false);?/, ipEnabledLine);
-  configuredBlock = configuredBlock.replace(/(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/, `$1${serializedButtonsOrder}$3`);
+  configuredBlock = configuredBlock.replace(
+    /(const\s+radioButtonsOrder\s*=\s*`)([\s\S]*?)(`)/,
+    (_match, prefix, _list, suffix) => `${prefix}${serializedButtonsOrder}${suffix}`,
+  );
 
   return upsertBlock(customJs, startMarker, endMarker, configuredBlock);
 }
