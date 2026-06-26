@@ -3,15 +3,19 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { mergeRadioCustomJsTemplate } from "../scripts/merge-radio-custom-js.mjs";
+import { mergeParticlesCustomJsTemplate } from "../scripts/merge-particles-custom-js.mjs";
 import {
   parseIpConfig,
+  isParticlesEnabled,
   parseLinkIpFpsSizes,
+  parseParticlesConfig,
   parseRadioButtonSize,
   parseRadioButtonsOrder,
   parseRadioButtonsStyle,
   parseRadioStations,
   parseRadioEnabled,
   parseRadioIconSize,
+  updateParticlesInCustomJs,
   updateRadioInCustomJs,
 } from "../overlay/src/mods/browser-editor/lib/topbar-config-helper.js";
 
@@ -167,4 +171,38 @@ test("mergeRadioCustomJsTemplate preserves user radio station order during insta
     ipConfig.ipProviders.map(({ label, url, jsonKey }) => ({ label, url, jsonKey })),
     [{ label: "local", url: "https://ip.example.test/json", jsonKey: "ip" }],
   );
+});
+
+test("updateRadioInCustomJs keeps managed block when radio and IP are disabled", () => {
+  const updated = updateRadioInCustomJs("", [], false, [], true, [], "classic", 10, 18, false, false);
+
+  assert.ok(updated.includes("/* >>> HOMEPAGE-EDITOR RADIO JS START >>> */"));
+  assert.equal(parseRadioEnabled(updated), false);
+  assert.equal(parseIpConfig(updated).ipEnabled, false);
+});
+
+test("updateParticlesInCustomJs keeps managed block and disabled state", () => {
+  const updated = updateParticlesInCustomJs("", ["stars", "rocket"], "stars", false);
+
+  assert.ok(updated.includes("/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */"));
+  assert.equal(isParticlesEnabled(updated), false);
+  assert.deepEqual(parseParticlesConfig(updated), {
+    enabledEffects: ["stars", "rocket"],
+    defaultEffect: "stars",
+  });
+});
+
+test("mergeParticlesCustomJsTemplate preserves disabled background and selected effects during installer update", () => {
+  const template = readFileSync(new URL("../custom-config/particles/custom.js", import.meta.url), "utf8");
+  const existing = updateParticlesInCustomJs("", ["fog", "meteor"], "meteor", false);
+  const { content, preserved } = mergeParticlesCustomJsTemplate(template, existing);
+
+  assert.ok(preserved.includes("backgroundEffectsEnabled"));
+  assert.ok(preserved.includes("DEFAULT_EFFECT"));
+  assert.ok(preserved.includes("getDefaultEffects"));
+  assert.equal(isParticlesEnabled(content), false);
+  assert.deepEqual(parseParticlesConfig(content), {
+    enabledEffects: ["fog", "meteor"],
+    defaultEffect: "meteor",
+  });
 });

@@ -1024,11 +1024,32 @@ merge_radio_custom_js_source() {
   return 1
 }
 
+merge_particles_custom_js_source() {
+  local source="$1"
+  local target="$2"
+  local output="$3"
+  local helper="$MOD_DIR/scripts/merge-particles-custom-js.mjs"
+  local preserved=""
+
+  [[ -f "$target" ]] || return 1
+  [[ -f "$helper" ]] || return 1
+
+  if preserved="$(node "$helper" "$source" "$target" "$output")"; then
+    if [[ -n "${preserved//,/}" ]]; then
+      log "Preserved background custom settings in custom.js: $preserved"
+    fi
+    return 0
+  fi
+
+  rm -f "$output"
+  return 1
+}
+
 install_custom_fragment_set() {
   local preset="$1"
   local source_dir="$MOD_DIR/custom-config/$preset"
   local custom_js_source=""
-  local merged_radio_js=""
+  local merged_custom_js=""
   local installed=0
 
   [[ -d "$source_dir" ]] || die "Custom preset is missing: $source_dir"
@@ -1040,12 +1061,20 @@ install_custom_fragment_set() {
   if [[ -f "$source_dir/custom.js" ]]; then
     custom_js_source="$source_dir/custom.js"
     if [[ "$preset" == "radio" && -f "$CONFIG_DIR/custom.js" ]]; then
-      merged_radio_js="$(mktemp)"
-      if merge_radio_custom_js_source "$custom_js_source" "$CONFIG_DIR/custom.js" "$merged_radio_js"; then
-        custom_js_source="$merged_radio_js"
+      merged_custom_js="$(mktemp)"
+      if merge_radio_custom_js_source "$custom_js_source" "$CONFIG_DIR/custom.js" "$merged_custom_js"; then
+        custom_js_source="$merged_custom_js"
       else
         log "Could not preserve existing radio settings; using bundled radio defaults"
-        merged_radio_js=""
+        merged_custom_js=""
+      fi
+    elif [[ "$preset" == "particles" && -f "$CONFIG_DIR/custom.js" ]]; then
+      merged_custom_js="$(mktemp)"
+      if merge_particles_custom_js_source "$custom_js_source" "$CONFIG_DIR/custom.js" "$merged_custom_js"; then
+        custom_js_source="$merged_custom_js"
+      else
+        log "Could not preserve existing background settings; using bundled background defaults"
+        merged_custom_js=""
       fi
     fi
 
@@ -1055,7 +1084,7 @@ install_custom_fragment_set() {
       remove_legacy_radio_js "$CONFIG_DIR/custom.js"
     fi
     upsert_fragment "$custom_js_source" "$CONFIG_DIR/custom.js"
-    [[ -n "$merged_radio_js" ]] && rm -f "$merged_radio_js"
+    [[ -n "$merged_custom_js" ]] && rm -f "$merged_custom_js"
     installed=1
   fi
 

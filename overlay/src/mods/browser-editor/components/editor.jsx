@@ -102,6 +102,9 @@ const EDITOR_UI_SCALE_MIN = 0.75;
 const EDITOR_UI_SCALE_MAX = 1.35;
 const EDITOR_UI_SCALE_STEP = 0.05;
 const EDITOR_UI_SCALE_DEFAULT = 1;
+const SERVICE_STATUS_OFFSET_MIN = -48;
+const SERVICE_STATUS_OFFSET_MAX = 48;
+const SERVICE_STATUS_OFFSET_DEFAULT = 0;
 
 let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
@@ -133,6 +136,30 @@ function writeStoredEditorUiScale(value) {
   }
 
   window.localStorage.setItem(EDITOR_UI_SCALE_STORAGE_KEY, String(normalizeEditorUiScale(value)));
+}
+
+function normalizeServiceStatusOffset(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return SERVICE_STATUS_OFFSET_DEFAULT;
+  }
+
+  return Math.min(SERVICE_STATUS_OFFSET_MAX, Math.max(SERVICE_STATUS_OFFSET_MIN, Math.round(parsed)));
+}
+
+function applyServiceStatusOffsets(pageStyles = {}) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.documentElement.style.setProperty(
+    "--homepage-service-status-offset-x",
+    `${normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetX)}px`,
+  );
+  document.documentElement.style.setProperty(
+    "--homepage-service-status-offset-y",
+    `${normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetY)}px`,
+  );
 }
 
 function getEntryName(entry) {
@@ -6536,20 +6563,26 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
   const pageStyles = config.pageStyles ?? {};
   const pageIcons = pageStyles.icons ?? {};
+  const serviceStatusOffsetX = normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetX);
+  const serviceStatusOffsetY = normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetY);
 
   const tabsList = useMemo(() => {
     return getOrderedTabsForLayout(config.layout ?? {}, config.__browserEditorTabOrder ?? []);
   }, [config]);
 
   const updateStyle = (key, value) => {
+    const nextPageStyles = {
+      ...pageStyles,
+      [key]: value,
+    };
     const nextConfig = { ...config };
     if (!nextConfig.pageStyles) {
       nextConfig.pageStyles = {};
     }
-    nextConfig.pageStyles = {
-      ...nextConfig.pageStyles,
-      [key]: value,
-    };
+    nextConfig.pageStyles = nextPageStyles;
+    if (key === "serviceStatusOffsetX" || key === "serviceStatusOffsetY") {
+      applyServiceStatusOffsets(nextPageStyles);
+    }
     onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
   };
 
@@ -6664,6 +6697,10 @@ function PageStylingEditor({ settingsContent, onChange }) {
     ["20px", "Очень крупный (20px)"],
     ["24px", "Огромный (24px)"],
   ];
+
+  useEffect(() => {
+    applyServiceStatusOffsets({ serviceStatusOffsetX, serviceStatusOffsetY });
+  }, [serviceStatusOffsetX, serviceStatusOffsetY]);
 
   return (
     <div data-editor-window-autofit-scroll className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2">
@@ -6813,6 +6850,60 @@ function PageStylingEditor({ settingsContent, onChange }) {
                 );
               })
             )}
+          </div>
+          <div className="rounded-md border border-theme-300/30 bg-theme-50/40 p-3 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-semibold text-theme-900 dark:text-theme-100">Позиция статуса карточек</h4>
+                <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Running / Exited</p>
+              </div>
+              <div
+                className="shrink-0 rounded-md border border-theme-300/40 bg-theme-100/70 px-2 py-1 text-[10px] font-bold uppercase text-emerald-600 dark:border-white/10 dark:bg-white/10 dark:text-emerald-300"
+                style={{
+                  transform: `translate(${serviceStatusOffsetX}px, ${serviceStatusOffsetY}px)`,
+                }}
+              >
+                Running
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-[11px] font-medium text-theme-600 dark:text-theme-300">
+                Влево / вправо
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={SERVICE_STATUS_OFFSET_MIN}
+                    max={SERVICE_STATUS_OFFSET_MAX}
+                    step="1"
+                    value={serviceStatusOffsetX}
+                    onChange={(event) => updateStyle("serviceStatusOffsetX", normalizeServiceStatusOffset(event.target.value))}
+                    className="h-2 min-w-0 flex-1 cursor-pointer accent-theme-700 dark:accent-theme-200"
+                  />
+                  <span className="w-12 rounded border border-theme-300/40 bg-theme-50/80 px-1.5 py-0.5 text-center text-[10px] text-theme-800 dark:border-white/10 dark:bg-theme-900/80 dark:text-theme-100">
+                    {serviceStatusOffsetX}px
+                  </span>
+                </div>
+              </label>
+
+              <label className="block text-[11px] font-medium text-theme-600 dark:text-theme-300">
+                Вверх / вниз
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={SERVICE_STATUS_OFFSET_MIN}
+                    max={SERVICE_STATUS_OFFSET_MAX}
+                    step="1"
+                    value={serviceStatusOffsetY}
+                    onChange={(event) => updateStyle("serviceStatusOffsetY", normalizeServiceStatusOffset(event.target.value))}
+                    className="h-2 min-w-0 flex-1 cursor-pointer accent-theme-700 dark:accent-theme-200"
+                  />
+                  <span className="w-12 rounded border border-theme-300/40 bg-theme-50/80 px-1.5 py-0.5 text-center text-[10px] text-theme-800 dark:border-white/10 dark:bg-theme-900/80 dark:text-theme-100">
+                    {serviceStatusOffsetY}px
+                  </span>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -9152,7 +9243,7 @@ function EditorUiScaleControl({ value, onChange }) {
 export function ConfigEditorProvider({ children }) {
   const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
   const { mutate } = useSWRConfig();
-  const { setSettings } = useContext(SettingsContext);
+  const { settings, setSettings } = useContext(SettingsContext);
   const { activeTab } = useContext(TabContext);
   const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -9181,6 +9272,10 @@ export function ConfigEditorProvider({ children }) {
     setEditorUiScale(nextScale);
     writeStoredEditorUiScale(nextScale);
   }, []);
+
+  useEffect(() => {
+    applyServiceStatusOffsets(settings?.pageStyles ?? {});
+  }, [settings?.pageStyles?.serviceStatusOffsetX, settings?.pageStyles?.serviceStatusOffsetY]);
 
   function handleSaved(message) {
     setNotice(message);

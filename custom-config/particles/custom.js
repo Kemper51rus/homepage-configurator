@@ -13,18 +13,13 @@
  * ========================================================================== */
 
 (function homepageInteractiveBackgroundAndFps() {
-  if (window.__homepageInteractiveBackgroundInitialized) {
-    return;
-  }
-
-  window.__homepageInteractiveBackgroundInitialized = true;
-
   const PARTICLE_ROOT_ID = "homepage-particles-root";
   const PARTICLE_CANVAS_ID = "homepage-particles-canvas";
   const EFFECTS_ROOT_ID = "homepage-effects-root";
   const FPS_ROOT_ID = "homepage-fps-root";
   const FPS_BUTTON_ID = "homepage-fps-button";
   const FPS_MENU_ID = "homepage-fps-menu";
+  const backgroundEffectsEnabled = true;
   const DEFAULT_EFFECT = "rocket";
   const EFFECT_SESSION_KEY = "homepage-background-effects-v2";
   const PAUSE_SESSION_KEY = "homepage-background-paused";
@@ -56,6 +51,19 @@
     maxCycleSeconds: 92,
     initialLeadSeconds: 12,
   };
+
+  if (!backgroundEffectsEnabled) {
+    document.getElementById(PARTICLE_ROOT_ID)?.remove();
+    document.getElementById(EFFECTS_ROOT_ID)?.remove();
+    document.getElementById(FPS_ROOT_ID)?.remove();
+    return;
+  }
+
+  if (window.__homepageInteractiveBackgroundInitialized) {
+    return;
+  }
+
+  window.__homepageInteractiveBackgroundInitialized = true;
 
   const state = {
     animationFrameId: 0,

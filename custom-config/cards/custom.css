@@ -94,6 +94,10 @@ div[class*="status-"] {
     top: 4px !important;
     right: 20px !important;
     position: absolute !important;
+    transform: translate(
+        var(--homepage-service-status-offset-x, 0px),
+        var(--homepage-service-status-offset-y, 0px)
+    ) !important;
     z-index: 20 !important;
 }
 

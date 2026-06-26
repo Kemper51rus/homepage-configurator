@@ -90,9 +90,10 @@ export default function TopBarSettingsEditor({
       setLinkIpFpsSizes(false);
     }
 
+    const hasParticlesConfig = customJs.includes('/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */');
     const isParticles = isParticlesEnabled(customJs);
     setParticlesEnabled(isParticles);
-    if (isParticles) {
+    if (hasParticlesConfig) {
       const conf = parseParticlesConfig(customJs);
       setEnabledEffects(conf.enabledEffects);
       setDefaultEffect(conf.defaultEffect);
