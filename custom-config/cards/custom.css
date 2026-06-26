@@ -91,10 +91,20 @@ div[class*="status-"] {
     flex-direction: column !important;
     align-items: flex-end !important;
     /* TEMP disabled dashboard spacing: gap: 4px !important; */
-    top: 10px !important;
-    right: 12px !important;
+    top: 4px !important;
+    right: 20px !important;
     position: absolute !important;
     z-index: 20 !important;
+}
+
+.service-tags .ping-status,
+.service-tags .site-monitor-status,
+.service-tags .docker-status,
+.service-tags .k8s-status,
+.service-tags .proxmoxstatus {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
 }
 
 .service-ping .ping-status {
