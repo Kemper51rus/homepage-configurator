@@ -54,6 +54,7 @@ const ConfigEditorContext = createContext({
   iconSelectorCallback: null,
   setIconSelectorCallback: () => {},
   selectIcon: () => {},
+  editorUiScale: 1,
 });
 
 const noopEditorContext = {
@@ -73,6 +74,7 @@ const noopEditorContext = {
   iconSelectorCallback: null,
   setIconSelectorCallback: () => {},
   selectIcon: () => {},
+  editorUiScale: 1,
 };
 
 const toolbarButtonClassName =
@@ -95,12 +97,43 @@ const GROUP_ORDER_SETTINGS_KEY = "__browserEditorGroupOrderByPage";
 const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
 const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-checked-at";
 const CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const EDITOR_UI_SCALE_STORAGE_KEY = "homepage-browser-editor-ui-scale";
+const EDITOR_UI_SCALE_MIN = 0.75;
+const EDITOR_UI_SCALE_MAX = 1.35;
+const EDITOR_UI_SCALE_STEP = 0.05;
+const EDITOR_UI_SCALE_DEFAULT = 1;
 
 let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
 let pageAutoOpenTabName = null;
 
 const BOOKMARK_YAML_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom-item-bookmarks";
+
+function normalizeEditorUiScale(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return EDITOR_UI_SCALE_DEFAULT;
+  }
+
+  const clamped = Math.min(EDITOR_UI_SCALE_MAX, Math.max(EDITOR_UI_SCALE_MIN, parsed));
+  return Math.round(clamped / EDITOR_UI_SCALE_STEP) * EDITOR_UI_SCALE_STEP;
+}
+
+function readStoredEditorUiScale() {
+  if (typeof window === "undefined") {
+    return EDITOR_UI_SCALE_DEFAULT;
+  }
+
+  return normalizeEditorUiScale(window.localStorage.getItem(EDITOR_UI_SCALE_STORAGE_KEY));
+}
+
+function writeStoredEditorUiScale(value) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(EDITOR_UI_SCALE_STORAGE_KEY, String(normalizeEditorUiScale(value)));
+}
 
 function getEntryName(entry) {
   return Object.keys(entry)[0];
@@ -4130,6 +4163,7 @@ function EditorWindow({
 }) {
   const bodyRef = useRef(null);
   const lastAutoFitKeyRef = useRef(null);
+  const { editorUiScale } = useConfigEditor();
   const { panelRef, resizeRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
     storageKey,
     defaultWidth,
@@ -4243,6 +4277,8 @@ function EditorWindow({
           height: `${windowRect.height}px`,
           minWidth: `${minWidth}px`,
           minHeight: `${minHeight}px`,
+          transform: `scale(${editorUiScale})`,
+          transformOrigin: "top left",
         }}
         className="fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
       >
@@ -8842,7 +8878,21 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
 }
 
 export function RootGroupDropZone({ children }) {
-  const { activePageName, draggedGroup, editMode, moveGroup, setDraggedGroup } = useConfigEditor();
+  const { activePageName, draggedGroup, editMode, editorUiScale, moveGroup, setDraggedGroup } = useConfigEditor();
+  const topDropZoneScaleStyle = useMemo(
+    () => ({
+      transform: `scale(${editorUiScale})`,
+      transformOrigin: "top center",
+    }),
+    [editorUiScale],
+  );
+  const bottomDropHintScaleStyle = useMemo(
+    () => ({
+      transform: `translateX(-50%) scale(${editorUiScale})`,
+      transformOrigin: "bottom center",
+    }),
+    [editorUiScale],
+  );
 
   const dropGroupToRoot = useCallback(
     (event) => {
@@ -8930,11 +8980,12 @@ export function RootGroupDropZone({ children }) {
               event.stopPropagation();
               dropGroupToRoot(event);
             }}
+            style={topDropZoneScaleStyle}
             className="fixed left-4 right-4 top-4 z-[80] flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-theme-400/70 bg-theme-50/90 px-3 py-3 text-sm font-medium text-theme-800 shadow-lg backdrop-blur-sm dark:border-white/25 dark:bg-theme-900/85 dark:text-theme-100"
           >
             Отпустите здесь, чтобы переместить группу в корень
           </div>
-          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] -translate-x-1/2 rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90">
+          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90" style={bottomDropHintScaleStyle}>
             Перетащите в пустое место, чтобы переместить группу в корень
           </div>
         </>
@@ -9071,6 +9122,24 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
   );
 }
 
+function EditorUiScaleControl({ value, onChange }) {
+  return (
+    <div className="rounded-md border border-theme-300/40 bg-theme-100/20 px-3 py-2 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-theme-900/20">
+      <input
+        type="range"
+        min={EDITOR_UI_SCALE_MIN}
+        max={EDITOR_UI_SCALE_MAX}
+        step={EDITOR_UI_SCALE_STEP}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label="Масштаб интерфейса редактора"
+        title={`Масштаб интерфейса редактора: ${Math.round(value * 100)}%`}
+        className="block h-2 w-48 cursor-pointer accent-theme-700 dark:accent-theme-200"
+      />
+    </div>
+  );
+}
+
 export function ConfigEditorProvider({ children }) {
   const enabled = process.env.HOMEPAGE_BROWSER_EDITOR === "true";
   const { mutate } = useSWRConfig();
@@ -9078,6 +9147,7 @@ export function ConfigEditorProvider({ children }) {
   const { activeTab } = useContext(TabContext);
   const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [editorUiScale, setEditorUiScale] = useState(readStoredEditorUiScale);
   const [editButtonVisible, setEditButtonVisible] = useState(false);
   const [modal, setModal] = useState(null);
   const [iconSelectorCallback, setIconSelectorCallback] = useState(null);
@@ -9088,6 +9158,20 @@ export function ConfigEditorProvider({ children }) {
   const backgroundButtonRef = useRef(null);
   const { data } = useSWR(enabled && (editMode || modal || iconsManagerOpen) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
+
+  const editorBottomLeftScaleStyle = useMemo(
+    () => ({
+      transform: `scale(${editorUiScale})`,
+      transformOrigin: "bottom left",
+    }),
+    [editorUiScale],
+  );
+
+  const handleEditorUiScaleChange = useCallback((value) => {
+    const nextScale = normalizeEditorUiScale(value);
+    setEditorUiScale(nextScale);
+    writeStoredEditorUiScale(nextScale);
+  }, []);
 
   function handleSaved(message) {
     setNotice(message);
@@ -9395,12 +9479,13 @@ export function ConfigEditorProvider({ children }) {
       openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
       iconSelectorCallback,
       setIconSelectorCallback,
+      editorUiScale,
       selectIcon: (callback) => {
         setIconSelectorCallback(() => callback);
         setIconsManagerOpen(true);
       },
     }),
-    [activePageName, data, draggedGroup, editMode, moveTab, mutate, setDraggedGroup, setSettings, iconSelectorCallback, iconsManagerOpen],
+    [activePageName, data, draggedGroup, editMode, editorUiScale, moveTab, mutate, setDraggedGroup, setSettings, iconSelectorCallback, iconsManagerOpen],
   );
 
   const showEditButton = useCallback(() => {
@@ -9472,41 +9557,44 @@ export function ConfigEditorProvider({ children }) {
     <ConfigEditorContext.Provider value={value}>
       {children}
       {editMode ? (
-        <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setDraggedGroup(null);
-              setModal(null);
-              setEditMode(false);
-            }}
-            className={toolbarPrimaryButtonClassName}
-          >
-            Готово
-          </button>
-          <button
-            ref={backgroundButtonRef}
-            type="button"
-            onClick={() => setModal({ type: "background" })}
-            className={toolbarButtonClassName}
-          >
-            Фон
-          </button>
-          <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
-            Новая группа
-          </button>
-          <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
-            Иконки
-          </button>
-          <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
-            Конфигуратор
-          </button>
-          <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
-            Обновления
-          </button>
+        <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start gap-2" style={editorBottomLeftScaleStyle}>
+          <EditorUiScaleControl value={editorUiScale} onChange={handleEditorUiScaleChange} />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDraggedGroup(null);
+                setModal(null);
+                setEditMode(false);
+              }}
+              className={toolbarPrimaryButtonClassName}
+            >
+              Готово
+            </button>
+            <button
+              ref={backgroundButtonRef}
+              type="button"
+              onClick={() => setModal({ type: "background" })}
+              className={toolbarButtonClassName}
+            >
+              Фон
+            </button>
+            <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
+              Новая группа
+            </button>
+            <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
+              Иконки
+            </button>
+            <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
+              Конфигуратор
+            </button>
+            <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
+              Обновления
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="fixed bottom-0 left-0 z-50 h-36 w-36">
+        <div className="fixed bottom-0 left-0 z-50 h-36 w-36" style={editorBottomLeftScaleStyle}>
           <div
             aria-hidden="true"
             className="absolute inset-0"
@@ -9534,7 +9622,7 @@ export function ConfigEditorProvider({ children }) {
         </div>
       )}
       {notice && (
-        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20">
+        <div className="fixed bottom-20 left-5 z-50 rounded-md border border-theme-400/50 bg-theme-100/90 px-3 py-2 text-sm text-theme-800 shadow-md shadow-theme-900/10 backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/90 dark:text-theme-100 dark:shadow-theme-900/20" style={editorBottomLeftScaleStyle}>
           {notice}
         </div>
       )}
