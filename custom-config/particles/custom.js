@@ -407,21 +407,22 @@
   }
 
   function loadSelectedEffects() {
+    const configuredEffects = getDefaultEffects();
+
     try {
       const stored = window.sessionStorage.getItem(EFFECT_SESSION_KEY);
       if (!stored) {
-        return getDefaultEffects();
+        return configuredEffects;
       }
 
       const parsed = JSON.parse(stored);
       if (!Array.isArray(parsed)) {
-        return getDefaultEffects();
+        return configuredEffects;
       }
 
-      const allowedEffects = new Set(BACKGROUND_EFFECTS.map(([effect]) => effect));
-      return new Set(parsed.filter((effect) => allowedEffects.has(effect)));
+      return new Set(parsed.filter((effect) => configuredEffects.has(effect)));
     } catch {
-      return getDefaultEffects();
+      return configuredEffects;
     }
   }
 

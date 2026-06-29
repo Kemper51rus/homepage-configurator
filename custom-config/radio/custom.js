@@ -66,7 +66,7 @@
     DFM, https://dfm.hostingradio.ru/dfm96.aacp, true, , , false, ,
     Power, https://radio.dline-media.com/powerhit128, true, , , false, ,
     Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99, true, , , false, ,
-    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text, true, https://hfm.hakuran.ru/custom-api/vote, t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ
+    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text, false, https://hfm.hakuran.ru/custom-api/vote,
   `;
 
   // Order of radio buttons: like, dislike, playlist, trackinfo, plapau, volumedown, volumeset, volumeup

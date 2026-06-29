@@ -410,14 +410,8 @@ export default function TopBarSettingsEditor({
       nextEffects = nextEffects.filter(id => id !== effectId);
     }
 
-    // Ensure we have at least one effect enabled if main toggle is active
-    if (nextEffects.length === 0) {
-      nextEffects = ['rocket'];
-    }
-
-    // If current default effect is disabled, update default
     let nextDefault = defaultEffect;
-    if (!nextEffects.includes(defaultEffect)) {
+    if (nextEffects.length > 0 && !nextEffects.includes(defaultEffect)) {
       nextDefault = nextEffects[0];
     }
 

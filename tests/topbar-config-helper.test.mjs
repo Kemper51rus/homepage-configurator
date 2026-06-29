@@ -42,6 +42,17 @@ test("parseRadioStations defaults track display on and migrates legacy Hakuran v
   assert.equal(stations[1].voteApiKey, "secret-key");
 });
 
+test("default radio template does not ship Hakuran vote key enabled", () => {
+  const template = readFileSync(new URL("../custom-config/radio/custom.js", import.meta.url), "utf8");
+  const stations = parseRadioStations(template);
+  const hakuran = stations.find((station) => station.label === "Hakuran");
+
+  assert.ok(hakuran);
+  assert.equal(hakuran.voteApiEnabled, false);
+  assert.equal(hakuran.voteApiUrl, "https://hfm.hakuran.ru/custom-api/vote");
+  assert.equal(hakuran.voteApiKey, "");
+});
+
 test("updateRadioInCustomJs serializes per-station vote API settings", () => {
   const updated = updateRadioInCustomJs(
     "",
@@ -192,6 +203,26 @@ test("updateParticlesInCustomJs keeps managed block and disabled state", () => {
   });
 });
 
+test("updateParticlesInCustomJs allows enabled backgrounds without selected effects", () => {
+  const updated = updateParticlesInCustomJs("", [], "rocket", true);
+
+  assert.ok(updated.includes("/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */"));
+  assert.equal(isParticlesEnabled(updated), true);
+  assert.deepEqual(parseParticlesConfig(updated), {
+    enabledEffects: [],
+    defaultEffect: "rocket",
+  });
+  assert.ok(updated.includes("return new Set([]);"));
+});
+
+test("particles runtime ignores session effects that are no longer configured", () => {
+  const template = readFileSync(new URL("../custom-config/particles/custom.js", import.meta.url), "utf8");
+
+  assert.match(template, /const\s+configuredEffects\s*=\s*getDefaultEffects\(\);/);
+  assert.match(template, /configuredEffects\.has\(effect\)/);
+  assert.doesNotMatch(template, /new\s+Set\(BACKGROUND_EFFECTS\.map/);
+});
+
 test("mergeParticlesCustomJsTemplate preserves disabled background and selected effects during installer update", () => {
   const template = readFileSync(new URL("../custom-config/particles/custom.js", import.meta.url), "utf8");
   const existing = updateParticlesInCustomJs("", ["fog", "meteor"], "meteor", false);
@@ -204,5 +235,18 @@ test("mergeParticlesCustomJsTemplate preserves disabled background and selected 
   assert.deepEqual(parseParticlesConfig(content), {
     enabledEffects: ["fog", "meteor"],
     defaultEffect: "meteor",
+  });
+});
+
+test("mergeParticlesCustomJsTemplate preserves empty selected effects during installer update", () => {
+  const template = readFileSync(new URL("../custom-config/particles/custom.js", import.meta.url), "utf8");
+  const existing = updateParticlesInCustomJs("", [], "rocket", true);
+  const { content, preserved } = mergeParticlesCustomJsTemplate(template, existing);
+
+  assert.ok(preserved.includes("getDefaultEffects"));
+  assert.equal(isParticlesEnabled(content), true);
+  assert.deepEqual(parseParticlesConfig(content), {
+    enabledEffects: [],
+    defaultEffect: "rocket",
   });
 });
