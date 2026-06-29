@@ -26,7 +26,7 @@
   const ipEnabled = true;
   // Legacy global key is kept only for migration from old configs.
   const hakuranVoteApiKey = "";
-  const defaultVoteApiUrl = "https://hakuran.ru/custom-api/vote";
+  const defaultVoteApiUrl = "https://hfm.hakuran.ru/custom-api/vote";
 
   function parseIpProviders(definition) {
     return definition
@@ -66,7 +66,7 @@
     DFM, https://dfm.hostingradio.ru/dfm96.aacp, true, , , false, ,
     Power, https://radio.dline-media.com/powerhit128, true, , , false, ,
     Energy, https://pub0302.101.ru:8443/stream/air/aac/64/99, true, , , false, ,
-    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text, false, https://hakuran.ru/custom-api/vote,
+    * Hakuran, https://hfm.hakuran.ru/listen/hfm/radio.mp3, true, https://hfm.hakuran.ru/api/nowplaying/1, now_playing.song.text, true, https://hfm.hakuran.ru/custom-api/vote, t3MohWJWoicuOFvYUr2HpfCHlwg5u1dqtHTQji9VOEbtXxy1K1eEmZ
   `;
 
   // Order of radio buttons: like, dislike, playlist, trackinfo, plapau, volumedown, volumeset, volumeup
@@ -524,6 +524,7 @@
 
     function getSongIdFromPayload(data) {
       return (
+        data?.song_id ??
         data?.now_playing?.song?.id ??
         data?.song?.id ??
         data?.current_song?.id ??
@@ -533,10 +534,46 @@
       );
     }
 
+    function updateVoteButtonsHighlight(data) {
+      if (!likeButton || !dislikeButton) return;
+
+      likeButton.style.color = "";
+      likeButton.style.backgroundColor = "";
+      dislikeButton.style.color = "";
+      dislikeButton.style.backgroundColor = "";
+
+      if (!currentSongId) {
+        return;
+      }
+
+      // If data is provided and has client_vote from server, update localStorage.
+      if (data && data.hasOwnProperty("client_vote")) {
+        const serverVote = data.client_vote;
+        if (serverVote) {
+          localStorage.setItem(`vote_${currentSongId}`, serverVote);
+        } else {
+          localStorage.removeItem(`vote_${currentSongId}`);
+        }
+      }
+
+      const savedVote = localStorage.getItem(`vote_${currentSongId}`);
+      if (savedVote === "up") {
+        likeButton.style.color = "#56fd3c";
+        likeButton.style.backgroundColor = "rgba(86, 253, 60, 0.15)";
+      } else if (savedVote === "down") {
+        dislikeButton.style.color = "#ff4a4a";
+        dislikeButton.style.backgroundColor = "rgba(255, 74, 74, 0.15)";
+      }
+    }
+
     function rememberSongId(data) {
       const songId = getSongIdFromPayload(data);
       if (songId) {
-        currentSongId = String(songId);
+        const newSongId = String(songId);
+        if (newSongId !== currentSongId) {
+          currentSongId = newSongId;
+        }
+        updateVoteButtonsHighlight(data);
       }
     }
 
@@ -707,6 +744,7 @@
       }
       nowPlayingStationKey = "";
       currentSongId = "";
+      updateVoteButtonsHighlight();
     }
 
     function startVoteInfoPolling(station) {
@@ -750,6 +788,14 @@
         return;
       }
 
+      const key = `vote_${currentSongId}`;
+      if (localStorage.getItem(key) === "up") {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, "up");
+      }
+      updateVoteButtonsHighlight();
+
       fetch(url)
         .then(r => {
           if (r.ok) {
@@ -785,6 +831,14 @@
         console.warn("Vote API URL is invalid");
         return;
       }
+
+      const key = `vote_${currentSongId}`;
+      if (localStorage.getItem(key) === "down") {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, "down");
+      }
+      updateVoteButtonsHighlight();
 
       fetch(url)
         .then(r => {
