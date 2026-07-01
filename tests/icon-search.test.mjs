@@ -6,6 +6,7 @@ import {
   iconBaseNameWithoutVariant,
   iconFileName,
   iconNameMatchesQuery,
+  iconRepositorySearchPrefixes,
   iconSearchScore,
   isSupportedIconFile,
   normalizeIconSearchText,
@@ -35,6 +36,22 @@ test("icon search scores exact icon before variants", () => {
   const sorted = [...files].sort((left, right) => iconSearchScore(left, "vaultwarden") - iconSearchScore(right, "vaultwarden"));
 
   assert.deepEqual(sorted, ["vaultwarden.png", "vaultwarden.svg", "vaultwarden-light.png"]);
+});
+
+test("icon repository search expands format directories to sibling icon formats", () => {
+  assert.deepEqual(iconRepositorySearchPrefixes("/png"), ["png/", "svg/", "webp/", "avif/", "ico/", "jpg/", "jpeg/", "gif/"]);
+  assert.deepEqual(iconRepositorySearchPrefixes("/assets/png"), [
+    "assets/png/",
+    "assets/svg/",
+    "assets/webp/",
+    "assets/avif/",
+    "assets/ico/",
+    "assets/jpg/",
+    "assets/jpeg/",
+    "assets/gif/",
+  ]);
+  assert.deepEqual(iconRepositorySearchPrefixes("/icons"), ["icons/"]);
+  assert.deepEqual(iconRepositorySearchPrefixes(""), [""]);
 });
 
 test("managed title CSS consumes card-level configurator variables", () => {

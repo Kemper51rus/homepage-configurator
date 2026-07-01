@@ -1,4 +1,6 @@
 const iconFileExtensions = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
+const iconFormatDirectories = ["png", "svg", "webp", "avif", "ico", "jpg", "jpeg", "gif"];
+const iconFormatDirectorySet = new Set(iconFormatDirectories);
 const iconVariantSuffixes = [
   "dark",
   "light",
@@ -27,6 +29,26 @@ function iconFileExtension(filePath) {
 
 export function isSupportedIconFile(filePath) {
   return iconFileExtensions.has(iconFileExtension(filePath));
+}
+
+export function iconRepositorySearchPrefixes(repoPath) {
+  const cleanPath = String(repoPath ?? "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!cleanPath) {
+    return [""];
+  }
+
+  const parts = cleanPath.split("/").filter(Boolean);
+  const lastPart = parts[parts.length - 1]?.toLowerCase() ?? "";
+  const currentPrefix = `${cleanPath}/`;
+
+  if (!iconFormatDirectorySet.has(lastPart)) {
+    return [currentPrefix];
+  }
+
+  const parentPrefix = parts.length > 1 ? `${parts.slice(0, -1).join("/")}/` : "";
+  const siblingPrefixes = iconFormatDirectories.map((formatDir) => `${parentPrefix}${formatDir}/`);
+
+  return [currentPrefix, ...siblingPrefixes.filter((prefix) => prefix !== currentPrefix)];
 }
 
 export function normalizeIconSearchText(value) {

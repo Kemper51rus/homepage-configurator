@@ -28,6 +28,7 @@ import {
 import {
   iconFileName,
   iconNameMatchesQuery,
+  iconRepositorySearchPrefixes,
   iconSearchScore,
   isSupportedIconFile,
 } from "mods/browser-editor/lib/icon-search";
@@ -5994,11 +5995,6 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       results.push(item);
     };
 
-    const repoPathPrefix = (parsed) => {
-      const cleanPath = (parsed.path || "").replace(/^\/+|\/+$/g, "");
-      return cleanPath ? `${cleanPath}/` : "";
-    };
-
     const rawGithubUrl = (parsed, filePath) =>
       `https://raw.githubusercontent.com/${parsed.user}/${parsed.repo}/${parsed.version}/${filePath}`;
 
@@ -6015,15 +6011,17 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       const parsed = parseGithubRepo(repo.url);
       if (parsed) {
         try {
-          const pathPrefix = repoPathPrefix(parsed);
+          const pathPrefixes = iconRepositorySearchPrefixes(parsed.path);
+          let needsContentsFallback = true;
           const treeUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/git/trees/${parsed.version}?recursive=1`;
           const treeRes = await fetch(treeUrl);
           if (treeRes.ok) {
             const treeData = await treeRes.json();
             if (Array.isArray(treeData.tree)) {
+              needsContentsFallback = Boolean(treeData.truncated);
               const matches = treeData.tree
                 .filter((entry) => entry.type === "blob")
-                .filter((entry) => !pathPrefix || entry.path.startsWith(pathPrefix))
+                .filter((entry) => pathPrefixes.some((pathPrefix) => !pathPrefix || entry.path.startsWith(pathPrefix)))
                 .filter((entry) => isSupportedIconFile(entry.path))
                 .filter((entry) => iconNameMatchesQuery(entry.path, term))
                 .sort((left, right) => iconSearchScore(left.path, term) - iconSearchScore(right.path, term));
@@ -6038,24 +6036,28 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
             }
           }
 
-          const pathPart = pathPrefix.replace(/\/$/, "");
-          const apiUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/contents/${pathPart}?ref=${parsed.version}`;
-          const res = await fetch(apiUrl);
-          if (res.ok) {
-            const files = await res.json();
-            if (Array.isArray(files)) {
-              const matches = files
-                .filter((file) => file.type === "file" && isSupportedIconFile(file.name) && iconNameMatchesQuery(file.name, term))
-                .sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term));
+          if (needsContentsFallback) {
+            for (const pathPrefix of pathPrefixes) {
+              const pathPart = pathPrefix.replace(/\/$/, "");
+              const apiUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/contents/${pathPart}?ref=${parsed.version}`;
+              const res = await fetch(apiUrl);
+              if (res.ok) {
+                const files = await res.json();
+                if (Array.isArray(files)) {
+                  const matches = files
+                    .filter((file) => file.type === "file" && isSupportedIconFile(file.name) && iconNameMatchesQuery(file.name, term))
+                    .sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term));
 
-              matches.forEach((file) => {
-                const rawUrl = file.download_url || rawGithubUrl(parsed, `${pathPrefix}${file.name}`);
-                addResult({
-                  name: file.name,
-                  url: rawUrl,
-                  repo: repo.name,
-                });
-              });
+                  matches.forEach((file) => {
+                    const rawUrl = file.download_url || rawGithubUrl(parsed, `${pathPrefix}${file.name}`);
+                    addResult({
+                      name: file.name,
+                      url: rawUrl,
+                      repo: repo.name,
+                    });
+                  });
+                }
+              }
             }
           }
         } catch (err) {
