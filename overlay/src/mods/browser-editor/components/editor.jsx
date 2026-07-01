@@ -26,6 +26,12 @@ import {
   validateItemConfig,
 } from "mods/browser-editor/lib/item-config";
 import {
+  iconFileName,
+  iconNameMatchesQuery,
+  iconSearchScore,
+  isSupportedIconFile,
+} from "mods/browser-editor/lib/icon-search";
+import {
   anchoredEditorWindow,
   centeredEditorWindow,
   clampEditorWindow,
@@ -5931,33 +5937,82 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     setError("");
     const results = [];
     const term = repoSearchQuery.toLowerCase().trim();
+    const resultKeys = new Set();
+    const searchRepos = displayedRepos;
 
-    for (const repo of iconRepos) {
+    const addResult = (item) => {
+      const key = `${item.repo}|${item.url}`;
+      if (resultKeys.has(key)) {
+        return;
+      }
+
+      resultKeys.add(key);
+      results.push(item);
+    };
+
+    const repoPathPrefix = (parsed) => {
+      const cleanPath = (parsed.path || "").replace(/^\/+|\/+$/g, "");
+      return cleanPath ? `${cleanPath}/` : "";
+    };
+
+    const rawGithubUrl = (parsed, filePath) =>
+      `https://raw.githubusercontent.com/${parsed.user}/${parsed.repo}/${parsed.version}/${filePath}`;
+
+    const fallbackExtensionForRepo = (repo) => {
+      const url = String(repo.url || "").toLowerCase();
+      if (url.includes("/svg") || repo.prefix === "si-" || repo.prefix === "mdi-" || repo.prefix === "sh-") {
+        return ".svg";
+      }
+
+      return ".png";
+    };
+
+    for (const repo of searchRepos) {
       const parsed = parseGithubRepo(repo.url);
       if (parsed) {
         try {
-          const pathPart = parsed.path ? parsed.path.replace(/^\//, "") : "";
+          const pathPrefix = repoPathPrefix(parsed);
+          const treeUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/git/trees/${parsed.version}?recursive=1`;
+          const treeRes = await fetch(treeUrl);
+          if (treeRes.ok) {
+            const treeData = await treeRes.json();
+            if (Array.isArray(treeData.tree)) {
+              const matches = treeData.tree
+                .filter((entry) => entry.type === "blob")
+                .filter((entry) => !pathPrefix || entry.path.startsWith(pathPrefix))
+                .filter((entry) => isSupportedIconFile(entry.path))
+                .filter((entry) => iconNameMatchesQuery(entry.path, term))
+                .sort((left, right) => iconSearchScore(left.path, term) - iconSearchScore(right.path, term));
+
+              matches.forEach((entry) => {
+                addResult({
+                  name: iconFileName(entry.path),
+                  url: rawGithubUrl(parsed, entry.path),
+                  repo: repo.name,
+                });
+              });
+            }
+          }
+
+          const pathPart = pathPrefix.replace(/\/$/, "");
           const apiUrl = `https://api.github.com/repos/${parsed.user}/${parsed.repo}/contents/${pathPart}?ref=${parsed.version}`;
           const res = await fetch(apiUrl);
           if (res.ok) {
             const files = await res.json();
             if (Array.isArray(files)) {
-              const matches = files.filter(f => f.type === "file" && f.name.toLowerCase().includes(term));
-              matches.forEach(m => {
-                let rawUrl = m.download_url;
-                if (!rawUrl) {
-                  const urlPath = pathPart ? pathPart + "/" : "";
-                  rawUrl = `https://raw.githubusercontent.com/${parsed.user}/${parsed.repo}/${parsed.version}/${urlPath}${m.name}`;
-                }
-                results.push({
-                  name: m.name,
+              const matches = files
+                .filter((file) => file.type === "file" && isSupportedIconFile(file.name) && iconNameMatchesQuery(file.name, term))
+                .sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term));
+
+              matches.forEach((file) => {
+                const rawUrl = file.download_url || rawGithubUrl(parsed, `${pathPrefix}${file.name}`);
+                addResult({
+                  name: file.name,
                   url: rawUrl,
-                  repo: repo.name
+                  repo: repo.name,
                 });
               });
             }
-          } else {
-            console.error(`Failed searching repo ${repo.name} via GitHub:`, res.status);
           }
         } catch (err) {
           console.error(`Failed searching repo ${repo.name}:`, err);
@@ -5966,10 +6021,10 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     }
 
     if (results.length === 0) {
-      iconRepos.forEach(repo => {
-        const ext = term.endsWith(".png") || term.endsWith(".svg") ? "" : ".png";
+      searchRepos.forEach(repo => {
+        const ext = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i.test(term) ? "" : fallbackExtensionForRepo(repo);
         const fileName = `${term}${ext}`;
-        results.push({
+        addResult({
           name: fileName,
           url: `${repo.url}${fileName}`,
           repo: repo.name,
@@ -5978,7 +6033,9 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       });
     }
 
-    setRepoSearchResults(results);
+    setRepoSearchResults(
+      results.sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term) || left.name.localeCompare(right.name)),
+    );
     setSearchingRepo(false);
   }
 

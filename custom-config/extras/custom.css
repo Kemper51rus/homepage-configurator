@@ -132,9 +132,11 @@ li.bookmark .bookmark-text {
 }
 
 .bookmark-name {
-    color: #f5f5f583 !important;
+    color: var(--homepage-configurator-title-color, #f5f5f583) !important;
     font-weight: 600 !important;
-    font-size: 0.85rem !important;
+    font-size: var(--homepage-configurator-title-size, 0.85rem) !important;
+    font-family: var(--homepage-configurator-title-font, inherit) !important;
+    text-align: var(--homepage-configurator-title-align, inherit) !important;
 }
 
 .bookmark-description {
@@ -171,7 +173,13 @@ li.bookmark a:hover .bookmark-name {
     font-weight: 700 !important;
 }
 
-.service-name,
+.service-name {
+    color: var(--homepage-configurator-title-color, #f5f5f583) !important;
+    font-size: var(--homepage-configurator-title-size, inherit) !important;
+    font-family: var(--homepage-configurator-title-font, inherit) !important;
+    text-align: var(--homepage-configurator-title-align, inherit) !important;
+}
+
 .service-description {
     color: #f5f5f583 !important;
 }

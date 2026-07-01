@@ -94,10 +94,10 @@ index 88d4d7e..af3ee26 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..b3f191c 100644
+index 7ea16bb..552e78c 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,83 @@
+@@ -1,24 +1,93 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
  import ResolvedIcon from "components/resolvedicon";
@@ -110,6 +110,15 @@ index 7ea16bb..b3f191c 100644
 +    return bookmark.description || bookmark.href || "";
 +  }
 +  return bookmark.description ?? "";
++}
++
++function titleCustomProperties(item) {
++  const style = {};
++  if (item.titleColor) style["--homepage-configurator-title-color"] = item.titleColor;
++  if (item.titleSize) style["--homepage-configurator-title-size"] = item.titleSize;
++  if (item.titleAlign) style["--homepage-configurator-title-align"] = item.titleAlign;
++  if (item.titleFont) style["--homepage-configurator-title-font"] = `"${item.titleFont}", sans-serif`;
++  return style;
 +}
 +
  export default function Item({ bookmark, iconOnly = false }) {
@@ -174,6 +183,7 @@ index 7ea16bb..b3f191c 100644
 -      className={classNames("bookmark", iconOnly && "grid")}
 +      className={classNames("bookmark relative", iconOnly && "grid")}
        data-name={bookmark.name}
++      style={titleCustomProperties(bookmark)}
      >
        <a
 -        href={bookmark.href}
@@ -186,7 +196,7 @@ index 7ea16bb..b3f191c 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -53,6 +112,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -53,6 +122,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -474,7 +484,7 @@ index 403f606..fcdf4b3 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a..9c53cc0 100644
+index c23e16a..0ab5c4b 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -1,5 +1,6 @@
@@ -484,18 +494,42 @@ index c23e16a..9c53cc0 100644
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  import Docker from "widgets/docker/component";
-@@ -13,8 +14,9 @@ import SiteMonitor from "./site-monitor";
+@@ -13,8 +14,18 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
 
 -export default function Item({ service, groupName, useEqualHeights }) {
++function titleCustomProperties(item) {
++  const style = {};
++  if (item.titleColor) style["--homepage-configurator-title-color"] = item.titleColor;
++  if (item.titleSize) style["--homepage-configurator-title-size"] = item.titleSize;
++  if (item.titleAlign) style["--homepage-configurator-title-align"] = item.titleAlign;
++  if (item.titleFont) style["--homepage-configurator-title-font"] = `"${item.titleFont}", sans-serif`;
++  return style;
++}
++
 +export default function Item({ service, groupName, useEqualHeights, itemIndex }) {
    const hasLink = service.href && service.href !== "#";
 +  const { editMode, itemProps } = useEditableItem("services", groupName, service.name, service, itemIndex);
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -188,6 +190,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -33,7 +44,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
+   };
+
+   return (
+-    <li key={service.name} id={service.id} className="service" data-name={service.name || ""}>
++    <li
++      key={service.name}
++      id={service.id}
++      className="service"
++      data-name={service.name || ""}
++      style={titleCustomProperties(service)}
++    >
+       <div
+         className={classNames(
+           settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
+@@ -188,6 +205,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -711,7 +745,7 @@ index f0bae0b..a868fad 100644
          </div>
        </Raw>
 diff --git a/src/components/widgets/openweathermap/weather.jsx b/src/components/widgets/openweathermap/weather.jsx
-index 4670459..ac3732a 100644
+index 4670459..31b5d66 100644
 --- a/src/components/widgets/openweathermap/weather.jsx
 +++ b/src/components/widgets/openweathermap/weather.jsx
 @@ -9,6 +9,7 @@ import Container from "../widget/container";
@@ -869,7 +903,7 @@ index 4670459..ac3732a 100644
    );
  }
 diff --git a/src/components/widgets/weather/weather.jsx b/src/components/widgets/weather/weather.jsx
-index 779c718..f416b97 100644
+index 779c718..a4ad694 100644
 --- a/src/components/widgets/weather/weather.jsx
 +++ b/src/components/widgets/weather/weather.jsx
 @@ -9,6 +9,7 @@ import Container from "../widget/container";
@@ -1049,7 +1083,7 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index a51313e..2c46b2c 100644
+index a51313e..7ba4f8d 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -1528,10 +1562,10 @@ index a51313e..2c46b2c 100644
    );
  }
 diff --git a/src/widgets/components.js b/src/widgets/components.js
-index fbc34d3..ca2a1eb 100644
+index 322a80c..1123a2d 100644
 --- a/src/widgets/components.js
 +++ b/src/widgets/components.js
-@@ -142,6 +142,7 @@ const components = {
+@@ -143,6 +143,7 @@ const components = {
    technitium: dynamic(() => import("./technitium/component")),
    tdarr: dynamic(() => import("./tdarr/component")),
    tracearr: dynamic(() => import("./tracearr/component")),
@@ -1540,10 +1574,10 @@ index fbc34d3..ca2a1eb 100644
    transmission: dynamic(() => import("./transmission/component")),
    trilium: dynamic(() => import("./trilium/component")),
 diff --git a/src/widgets/widgets.js b/src/widgets/widgets.js
-index 7f18efa..c1aba81 100644
+index 5bc7f7f..82ff274 100644
 --- a/src/widgets/widgets.js
 +++ b/src/widgets/widgets.js
-@@ -132,6 +132,7 @@ import tautulli from "./tautulli/widget";
+@@ -133,6 +133,7 @@ import tautulli from "./tautulli/widget";
  import tdarr from "./tdarr/widget";
  import technitium from "./technitium/widget";
  import tracearr from "./tracearr/widget";
@@ -1551,7 +1585,7 @@ index 7f18efa..c1aba81 100644
  import traefik from "./traefik/widget";
  import transmission from "./transmission/widget";
  import trilium from "./trilium/widget";
-@@ -292,6 +293,7 @@ const widgets = {
+@@ -294,6 +295,7 @@ const widgets = {
    technitium,
    tdarr,
    tracearr,
