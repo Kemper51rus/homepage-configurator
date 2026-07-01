@@ -1475,9 +1475,36 @@ function dedupeTopLevelGroupEntries(groups = []) {
   });
 }
 
+function rawTopLevelGroupName(group) {
+  if (typeof group?.name === "string") {
+    return group.name.trim();
+  }
+
+  if (group && typeof group === "object" && !Array.isArray(group)) {
+    return String(getEntryName(group) ?? "").trim();
+  }
+
+  return "";
+}
+
+function normalizeRawTopLevelGroup(group, type) {
+  const name = rawTopLevelGroupName(group);
+  if (!name) {
+    return null;
+  }
+
+  if (type === "bookmarks") {
+    return group?.name ? group : { name, bookmarks: [] };
+  }
+
+  return group?.name ? group : { name, services: [], groups: [] };
+}
+
 function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, pageName) {
-  const serviceMap = new Map((rawServices ?? []).map((group) => [group.name, group]));
-  const bookmarkMap = new Map((rawBookmarks ?? []).map((group) => [group.name, group]));
+  const serviceGroups = (rawServices ?? []).map((group) => normalizeRawTopLevelGroup(group, "services")).filter(Boolean);
+  const bookmarkGroups = (rawBookmarks ?? []).map((group) => normalizeRawTopLevelGroup(group, "bookmarks")).filter(Boolean);
+  const serviceMap = new Map(serviceGroups.map((group) => [group.name, group]));
+  const bookmarkMap = new Map(bookmarkGroups.map((group) => [group.name, group]));
   const layoutEntries = Object.entries(settings?.layout ?? {});
 
   const layoutGroups = layoutEntries
@@ -1501,7 +1528,7 @@ function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, p
     })
     .filter((entry) => entry && groupMatchesPage(settings, entry.type, entry.group.name, pageName));
 
-  const serviceFallbackGroups = (rawServices ?? [])
+  const serviceFallbackGroups = serviceGroups
     .filter((group) => groupMatchesPage(settings, "services", group.name, pageName))
     .filter((group) => getGroupLayout(settings?.layout ?? {}, "services", group.name) === undefined)
     .map((group) => ({ type: "services", group }));
@@ -1513,7 +1540,7 @@ function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, p
     }))
     .filter((entry) => groupMatchesPage(settings, "bookmarks", entry.group.name, pageName));
 
-  const bookmarkFallbackGroups = (rawBookmarks ?? [])
+  const bookmarkFallbackGroups = bookmarkGroups
     .filter((group) => groupMatchesPage(settings, "bookmarks", group.name, pageName))
     .filter((group) => getGroupLayout(settings?.layout ?? {}, "bookmarks", group.name) === undefined)
     .map((group) => ({ type: "bookmarks", group }));
