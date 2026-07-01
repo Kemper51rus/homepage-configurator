@@ -2150,6 +2150,8 @@ function ColorInput({ value, onChange, placeholder = "#ffffff", compact = false 
 }
 
 function Field({ name, label, value, onChange, compact = false }) {
+  const editor = useConfigEditor();
+
   if (name === "showLink" || name === "showStats" || name === "ping") {
     return (
       <label className={classNames("flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer h-[28px] mt-4", compact && "text-[11px]")}>
@@ -2272,8 +2274,6 @@ function Field({ name, label, value, onChange, compact = false }) {
       </label>
     );
   }
-
-  const editor = useConfigEditor();
 
   if (name === "icon") {
     return (
@@ -8598,6 +8598,7 @@ function GroupModal({ modal, data, onClose, onSaved }) {
               </span>
             </label>
             <Field
+              name="icon"
               label="Иконка"
               value={form.icon}
               onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
