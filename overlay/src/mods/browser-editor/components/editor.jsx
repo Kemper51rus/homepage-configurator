@@ -1500,6 +1500,37 @@ function normalizeRawTopLevelGroup(group, type) {
   return group?.name ? group : { name, services: [], groups: [] };
 }
 
+function reorderBookmarkLayoutToMatchGroups(settings, rawGroups) {
+  const bookmarkOrder = (rawGroups ?? []).map(rawTopLevelGroupName).filter(Boolean);
+  if (bookmarkOrder.length === 0) {
+    return settings;
+  }
+
+  const nextSettings = { ...(settings ?? {}) };
+  const nextLayout = cloneLayoutValue(settings?.layout ?? {});
+  const currentBookmarkLayout = cloneLayoutValue(nextLayout.Bookmarks ?? {});
+  const reorderedBookmarkLayout = {};
+
+  bookmarkOrder.forEach((groupName) => {
+    const matchedKey = Object.keys(currentBookmarkLayout).find((key) => namesEqual(key, groupName));
+    const layoutKey = matchedKey ?? groupName;
+
+    if (!(layoutKey in reorderedBookmarkLayout)) {
+      reorderedBookmarkLayout[layoutKey] = matchedKey ? currentBookmarkLayout[matchedKey] : {};
+    }
+  });
+
+  Object.keys(currentBookmarkLayout).forEach((key) => {
+    if (!(key in reorderedBookmarkLayout)) {
+      reorderedBookmarkLayout[key] = currentBookmarkLayout[key];
+    }
+  });
+
+  nextLayout.Bookmarks = reorderedBookmarkLayout;
+  nextSettings.layout = nextLayout;
+  return nextSettings;
+}
+
 function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, pageName) {
   const serviceGroups = (rawServices ?? []).map((group) => normalizeRawTopLevelGroup(group, "services")).filter(Boolean);
   const bookmarkGroups = (rawBookmarks ?? []).map((group) => normalizeRawTopLevelGroup(group, "bookmarks")).filter(Boolean);
@@ -1922,7 +1953,14 @@ function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "be
   const nextGroups = [...rawGroups];
   const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
   const nextTargetIndex = nextGroups.findIndex((group) => namesEqual(getEntryName(group), targetName));
-  nextGroups.splice(placement === "after" ? nextTargetIndex + 1 : nextTargetIndex, 0, sourceGroup);
+  const effectivePlacement =
+    (placement === "before" && targetIndex === sourceIndex + 1) ||
+    (placement === "after" && sourceIndex === targetIndex + 1)
+      ? placement === "before"
+        ? "after"
+        : "before"
+      : placement;
+  nextGroups.splice(effectivePlacement === "after" ? nextTargetIndex + 1 : nextTargetIndex, 0, sourceGroup);
 
   return { moved: true, nextGroups };
 }
@@ -9756,7 +9794,7 @@ export function ConfigEditorProvider({ children }) {
         let layoutResult =
           type === "services"
             ? moveSettingsLayoutGroup(data.settings, rawResult.nextGroups, sourceName, targetName, placement)
-            : { moved: true, settings: data.settings };
+            : { moved: true, settings: reorderBookmarkLayoutToMatchGroups(data.settings, rawResult.nextGroups) };
 
         if (layoutResult.moved && placement === "root" && typeof targetTab === "string" && targetTab.trim()) {
           layoutResult = {
