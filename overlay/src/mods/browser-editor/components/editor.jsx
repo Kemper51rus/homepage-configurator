@@ -5837,6 +5837,17 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     }
   }
 
+  function selectSavedLocalIcon(fileName) {
+    if (!fileName || !iconSelectorCallback) {
+      return false;
+    }
+
+    iconSelectorCallback(`/api/config/icon/${fileName}`);
+    setIconSelectorCallback(null);
+    onClose();
+    return true;
+  }
+
   async function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -5857,7 +5868,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        const savedName = data.fileName || file.name;
         onSaved("Иконка загружена");
+        if (selectSavedLocalIcon(savedName)) {
+          return;
+        }
         loadIcons();
         setActiveTab("list");
       } else {
@@ -5909,7 +5925,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
         body: JSON.stringify({ url: downloadUrl, name: downloadName })
       });
       if (res.ok) {
+        const data = await res.json();
+        const savedName = data.fileName || downloadName;
         onSaved("Иконка успешно скачана");
+        if (selectSavedLocalIcon(savedName)) {
+          return;
+        }
         loadIcons();
         setDownloadUrl("");
         setDownloadName("");
@@ -6151,7 +6172,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
         body: JSON.stringify({ url: item.url, name: item.name })
       });
       if (res.ok) {
+        const data = await res.json();
+        const savedName = data.fileName || item.name;
         onSaved(`Иконка ${item.name} успешно сохранена`);
+        if (selectSavedLocalIcon(savedName)) {
+          return;
+        }
         loadIcons();
       } else {
         const text = await res.text();
