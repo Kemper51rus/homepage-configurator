@@ -6321,6 +6321,20 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                           iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
                         )}
                       >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteIcon(name);
+                          }}
+                          className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-rose-300/60 bg-rose-50/95 text-rose-600 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-700 dark:border-rose-400/30 dark:bg-rose-950/90 dark:text-rose-200 dark:hover:bg-rose-900"
+                          title="Удалить"
+                          aria-label={`Удалить иконку ${name}`}
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 6l12 12M18 6L6 18" />
+                          </svg>
+                        </button>
                         <img src={iconPath} alt={name} className="h-10 w-10 object-contain" onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} />
                         <span className="text-[10px] break-all text-center select-all font-mono" title={name}>
                           {name}
@@ -6338,23 +6352,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                           >
                             Выбрать
                           </button>
-                        ) : (
-                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteIcon(name);
-                              }}
-                              className="bg-rose-500 hover:bg-rose-600 text-white rounded p-1"
-                              title="Удалить"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     );
                   })}
