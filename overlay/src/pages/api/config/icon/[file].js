@@ -1,12 +1,10 @@
 import { existsSync, promises as fs } from "fs";
-import net from "net";
 import path from "path";
 
+import { fetchRemoteIcon, getSafeRemoteUrl, maxIconBytes } from "mods/browser-editor/lib/favicon-resolver";
 import createLogger from "utils/logger";
 
 const logger = createLogger("iconConfigService");
-const maxIconBytes = 2 * 1024 * 1024;
-const remoteFetchTimeoutMs = 5000;
 
 const contentTypes = {
   ".gif": "image/gif",
@@ -63,56 +61,6 @@ function getSafeIconName(name) {
   return fileName;
 }
 
-function isPrivateIpv4(hostname) {
-  const octets = hostname.split(".").map((part) => Number(part));
-
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return true;
-  }
-
-  const [first, second] = octets;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-function isPrivateHostname(hostname) {
-  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-
-  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost") || normalized.endsWith(".local")) {
-    return true;
-  }
-
-  if (net.isIP(normalized) === 4) {
-    return isPrivateIpv4(normalized);
-  }
-
-  if (net.isIP(normalized) === 6) {
-    return normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe80:");
-  }
-
-  return false;
-}
-
-function getSafeRemoteUrl(value) {
-  try {
-    const url = new URL(String(value));
-
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || isPrivateHostname(url.hostname)) {
-      return null;
-    }
-
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function decodeImageDataUrl(dataUrl) {
   const match = typeof dataUrl === "string" ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i) : null;
   if (!match) {
@@ -125,33 +73,6 @@ function decodeImageDataUrl(dataUrl) {
   }
 
   return buffer;
-}
-
-async function fetchRemoteIcon(url) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), remoteFetchTimeoutMs);
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) {
-      return { error: `Failed to fetch URL: ${response.statusText}` };
-    }
-
-    const contentLength = Number(response.headers.get("content-length") || "0");
-    if (contentLength > maxIconBytes) {
-      return { error: "Remote icon is too large" };
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length === 0 || buffer.length > maxIconBytes) {
-      return { error: "Remote icon is too large" };
-    }
-
-    return { buffer };
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 async function downloadAndCacheIcon(fileName) {

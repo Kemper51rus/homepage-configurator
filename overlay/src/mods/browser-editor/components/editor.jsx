@@ -5872,6 +5872,29 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     }
   }
 
+  function suggestIconDownloadName(value) {
+    try {
+      const rawValue = String(value ?? "").trim();
+      const normalizedValue = /^[a-z][a-z0-9+.-]*:/i.test(rawValue) ? rawValue : `https://${rawValue}`;
+      const url = new URL(normalizedValue);
+      const baseName = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+
+      if (/\.(?:gif|ico|jpe?g|png|svg|webp)$/i.test(baseName)) {
+        return baseName;
+      }
+
+      const hostName = url.hostname
+        .replace(/^www\./i, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9.-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      return hostName ? `${hostName}.ico` : "";
+    } catch {
+      return "";
+    }
+  }
+
   async function handleDownloadFromUrl() {
     if (!downloadUrl || !downloadName) {
       setError("Заполните ссылку и название файла");
@@ -6354,14 +6377,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                 value={downloadUrl}
                 onChange={e => {
                   setDownloadUrl(e.target.value);
-                  if (e.target.value && !downloadName) {
-                    const base = e.target.value.split("/").pop() || "";
-                    if (base.includes(".")) {
-                      setDownloadName(base);
-                    }
+                  const suggestedName = suggestIconDownloadName(e.target.value);
+                  if (suggestedName && !downloadName) {
+                    setDownloadName(suggestedName);
                   }
                 }}
-                placeholder="https://example.com/logo.png"
+                placeholder="https://example.com/logo.png или https://example.com"
                 className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
             </div>

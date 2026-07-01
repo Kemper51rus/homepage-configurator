@@ -1,6 +1,6 @@
 {
   "name": "homepage-configurator",
-  "version": "0.6.34",
+  "version": "0.6.35",
   "private": true,
   "description": "Homepage configurator for gethomepage/homepage.",
   "author": "Kemper51rus <Kemper51rus@users.noreply.github.com>",
@@ -8,7 +8,7 @@
   "scripts": {
     "check": "npm run check:shell && npm run check:node && npm run check:version && npm run check:managed-blocks && npm run check:tests && npm run check:patch && npm run smoke:install",
     "check:shell": "bash -n install.sh legacy/install-update-homepage.sh scripts/deploy-runtime.sh && shellcheck install.sh legacy/install-update-homepage.sh scripts/deploy-runtime.sh",
-    "check:node": "node --check install.mjs && node --check scripts/browser-smoke.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/generate-templates.js && node --check scripts/merge-particles-custom-js.mjs && node --check scripts/merge-radio-custom-js.mjs && node --check scripts/smoke-install.mjs && node --check tests/editor-window.test.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/api/icon.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/editor-window.js && node --check overlay/src/mods/browser-editor/lib/icon-search.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/mods/browser-editor/lib/templates.js && node --check overlay/src/mods/browser-editor/lib/topbar-config-helper.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js && node --check overlay/src/pages/api/config/icon/[file].js",
+    "check:node": "node --check install.mjs && node --check scripts/browser-smoke.mjs && node --check scripts/check-managed-blocks.mjs && node --check scripts/check-patch.mjs && node --check scripts/generate-templates.js && node --check scripts/merge-particles-custom-js.mjs && node --check scripts/merge-radio-custom-js.mjs && node --check scripts/smoke-install.mjs && node --check tests/editor-window.test.mjs && node --check overlay/src/mods/browser-editor/api/background.js && node --check overlay/src/mods/browser-editor/api/editor.js && node --check overlay/src/mods/browser-editor/api/icon.js && node --check overlay/src/mods/browser-editor/client/editor-fetch.js && node --check overlay/src/mods/browser-editor/lib/editor-window.js && node --check overlay/src/mods/browser-editor/lib/favicon-resolver.js && node --check overlay/src/mods/browser-editor/lib/icon-search.js && node --check overlay/src/mods/browser-editor/lib/item-config.js && node --check overlay/src/mods/browser-editor/lib/templates.js && node --check overlay/src/mods/browser-editor/lib/topbar-config-helper.js && node --check overlay/src/pages/api/config/background.js && node --check overlay/src/pages/api/config/editor.js && node --check overlay/src/pages/api/config/icon/[file].js",
     "check:version": "node scripts/check-version-metadata.mjs",
     "check:managed-blocks": "node scripts/check-managed-blocks.mjs",
     "check:tests": "node --test tests/*.test.mjs",
