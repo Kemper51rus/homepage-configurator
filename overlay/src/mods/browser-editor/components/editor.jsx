@@ -9309,6 +9309,7 @@ export function RootGroupDropZone({ children }) {
       }
 
       event.preventDefault();
+      event.stopPropagation();
       moveGroup(dragged.type, dragged.groupName, targetGroupName, groupDropPlacementForElement(event, targetElement));
       clearDragPayload();
       setDraggedGroup(null);
@@ -9344,12 +9345,12 @@ export function RootGroupDropZone({ children }) {
       dropGroupToRoot(event);
     };
 
-    document.addEventListener("dragover", handleDragOver);
-    document.addEventListener("drop", handleDrop);
+    document.addEventListener("dragover", handleDragOver, true);
+    document.addEventListener("drop", handleDrop, true);
 
     return () => {
-      document.removeEventListener("dragover", handleDragOver);
-      document.removeEventListener("drop", handleDrop);
+      document.removeEventListener("dragover", handleDragOver, true);
+      document.removeEventListener("drop", handleDrop, true);
     };
   }, [draggedGroup, dropGroupNearTarget, dropGroupToRoot, editMode]);
 
