@@ -8810,6 +8810,19 @@ function isExplicitGroupDropTarget(event) {
   return event.target instanceof Element && event.target.closest("[data-editor-group-drop-target='true']");
 }
 
+function getGroupDropTargetElement(event) {
+  if (!(event.target instanceof Element)) {
+    return null;
+  }
+
+  return event.target.closest("[data-editor-group-name][data-editor-group-type]");
+}
+
+function groupDropPlacementForElement(event, element) {
+  const rect = element.getBoundingClientRect();
+  return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+}
+
 export function EditorPageTab({ tab }) {
   const { activeTab, setActiveTab } = useContext(TabContext);
   const { editMode, moveGroup, moveTab, setDraggedGroup } = useConfigEditor();
@@ -9152,7 +9165,7 @@ function useServiceRowHeightBalancer() {
 }
 
 export function useEditableGroupHeader(type, groupName, layout) {
-  const { editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
+  const { draggedGroup, editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
 
   if (!editMode) {
     return {};
@@ -9202,7 +9215,7 @@ export function useEditableGroupHeader(type, groupName, layout) {
       event.preventDefault();
       event.stopPropagation();
       clearDropIndicator(event);
-      const dragged = readGroupDragPayload(event);
+      const dragged = readGroupDragPayload(event, draggedGroup);
       if (dragged?.scope === "group" && dragged.type === type) {
         const placement = getDropPlacement(event);
         moveGroup(type, dragged.groupName, groupName, placement);
@@ -9214,6 +9227,8 @@ export function useEditableGroupHeader(type, groupName, layout) {
       openGroup(type, groupName, layout);
     },
     "data-editor-group-drop-target": "true",
+    "data-editor-group-name": groupName,
+    "data-editor-group-type": type,
   };
 }
 
@@ -9278,6 +9293,29 @@ export function RootGroupDropZone({ children }) {
     },
     [activePageName, draggedGroup, moveGroup, setDraggedGroup],
   );
+  const dropGroupNearTarget = useCallback(
+    (event, targetElement) => {
+      const dragged = readGroupDragPayload(event, draggedGroup);
+      const targetGroupName = targetElement?.getAttribute("data-editor-group-name") ?? "";
+      const targetType = targetElement?.getAttribute("data-editor-group-type") ?? "";
+
+      if (
+        !dragged ||
+        dragged.type !== targetType ||
+        !targetGroupName ||
+        namesEqual(dragged.groupName, targetGroupName)
+      ) {
+        return false;
+      }
+
+      event.preventDefault();
+      moveGroup(dragged.type, dragged.groupName, targetGroupName, groupDropPlacementForElement(event, targetElement));
+      clearDragPayload();
+      setDraggedGroup(null);
+      return true;
+    },
+    [draggedGroup, moveGroup, setDraggedGroup],
+  );
 
   useEffect(() => {
     if (!editMode) {
@@ -9294,6 +9332,11 @@ export function RootGroupDropZone({ children }) {
     };
 
     const handleDrop = (event) => {
+      const targetElement = getGroupDropTargetElement(event);
+      if (targetElement && dropGroupNearTarget(event, targetElement)) {
+        return;
+      }
+
       if (isExplicitGroupDropTarget(event)) {
         return;
       }
@@ -9308,7 +9351,7 @@ export function RootGroupDropZone({ children }) {
       document.removeEventListener("dragover", handleDragOver);
       document.removeEventListener("drop", handleDrop);
     };
-  }, [draggedGroup, dropGroupToRoot, editMode]);
+  }, [draggedGroup, dropGroupNearTarget, dropGroupToRoot, editMode]);
 
   return (
     <div

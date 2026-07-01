@@ -34,7 +34,7 @@ index 88d4d7e..af3ee26 100644
 
  export default function BookmarksGroup({
    bookmarks,
-@@ -14,15 +15,23 @@ export default function BookmarksGroup({
+@@ -14,15 +15,24 @@ export default function BookmarksGroup({
    bookmarksStyle,
    maxGroupColumns,
  }) {
@@ -56,10 +56,11 @@ index 88d4d7e..af3ee26 100644
      <div
        key={bookmarks.name}
 +      data-editor-group-name={bookmarks.name}
++      data-editor-group-type="bookmarks"
        className={classNames(
          "bookmark-group flex-1 overflow-hidden",
          layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/4 lg:basis-1/5 xl:basis-1/6",
-@@ -35,8 +44,17 @@ export default function BookmarksGroup({
+@@ -35,8 +45,17 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -79,7 +80,7 @@ index 88d4d7e..af3ee26 100644
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 bookmark-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -73,7 +91,12 @@ export default function BookmarksGroup({
+@@ -73,7 +92,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -393,7 +394,7 @@ index 403f606..fcdf4b3 100644
 
  import { columnMap } from "../../utils/layout/columns";
 
-@@ -16,18 +17,52 @@ export default function ServicesGroup({
+@@ -16,18 +17,53 @@ export default function ServicesGroup({
    groupsInitiallyCollapsed,
    isSubgroup,
  }) {
@@ -442,12 +443,13 @@ index 403f606..fcdf4b3 100644
        key={group.name}
 +      data-editor-service-group="true"
 +      data-editor-group-name={group.name}
++      data-editor-group-type="services"
 +      data-editor-align-row-heights={layout?.alignRowHeights === false ? "false" : "true"}
 +      {...groupInsideDropProps}
        className={classNames(
          "services-group flex-1",
          layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/2 lg:basis-1/3 xl:basis-1/4",
-@@ -39,8 +74,17 @@ export default function ServicesGroup({
+@@ -39,8 +75,17 @@ export default function ServicesGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -467,7 +469,7 @@ index 403f606..fcdf4b3 100644
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 service-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -86,13 +130,13 @@ export default function ServicesGroup({
+@@ -86,13 +131,13 @@ export default function ServicesGroup({
                    useEqualHeights={useEqualHeights}
                    header={layout?.header !== false}
                  />
