@@ -1618,7 +1618,9 @@ function updateGroupOrderSettings(
   const afterRawGroups = type === "services" ? rawServicesAfter : rawBookmarksAfter;
   const sourceWasTopLevel = isTopLevelRawGroup(beforeRawGroups, sourceName);
   const sourceIsTopLevel = isTopLevelRawGroup(afterRawGroups, sourceName);
-  const targetIsTopLevel = placement === "before" && targetName ? isTopLevelRawGroup(afterRawGroups, targetName) : false;
+  const targetIsTopLevel = ["before", "after"].includes(placement) && targetName
+    ? isTopLevelRawGroup(afterRawGroups, targetName)
+    : false;
 
   if (!sourceWasTopLevel && !sourceIsTopLevel && !targetIsTopLevel) {
     return settingsAfter;
@@ -1667,12 +1669,12 @@ function updateGroupOrderSettings(
     const destinationPageKey = normalizeGroupOrderPageName(sourcePageAfter);
     const destinationEntries = [...(baseOrders.get(destinationPageKey) ?? [])];
 
-    if (placement === "before" && targetIsTopLevel && namesEqual(sourcePageAfter, targetPageAfter)) {
+    if (["before", "after"].includes(placement) && targetIsTopLevel && namesEqual(sourcePageAfter, targetPageAfter)) {
       const targetEntry = createGroupOrderEntry(type, targetName);
       const targetIndex = destinationEntries.findIndex((entry) => groupOrderEntryKey(entry) === groupOrderEntryKey(targetEntry));
 
       if (targetIndex >= 0) {
-        destinationEntries.splice(targetIndex, 0, sourceEntry);
+        destinationEntries.splice(placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceEntry);
       } else {
         destinationEntries.push(sourceEntry);
       }
@@ -1822,15 +1824,23 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
         inserted = true;
       }
 
+      let nextNode;
       if (Array.isArray(value)) {
         if (placement === "inside" && namesEqual(name, targetName)) {
-          nextNodes.push({ [name]: [...value, sourceNode] });
+          nextNode = { [name]: [...value, sourceNode] };
           inserted = true;
         } else {
-          nextNodes.push({ [name]: insertIntoNodes(value) });
+          nextNode = { [name]: insertIntoNodes(value) };
         }
       } else {
-        nextNodes.push(node);
+        nextNode = node;
+      }
+
+      nextNodes.push(nextNode);
+
+      if (placement === "after" && namesEqual(name, targetName)) {
+        nextNodes.push(sourceNode);
+        inserted = true;
       }
     });
 
@@ -1872,7 +1882,7 @@ function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "be
     return { moved: true, nextGroups };
   }
 
-  if (!targetName || namesEqual(sourceName, targetName)) {
+  if (!targetName || namesEqual(sourceName, targetName) || !["before", "after"].includes(placement)) {
     return { moved: false, nextGroups: rawGroups };
   }
 
@@ -1885,7 +1895,7 @@ function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "be
   const nextGroups = [...rawGroups];
   const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
   const nextTargetIndex = nextGroups.findIndex((group) => namesEqual(getEntryName(group), targetName));
-  nextGroups.splice(nextTargetIndex, 0, sourceGroup);
+  nextGroups.splice(placement === "after" ? nextTargetIndex + 1 : nextTargetIndex, 0, sourceGroup);
 
   return { moved: true, nextGroups };
 }
