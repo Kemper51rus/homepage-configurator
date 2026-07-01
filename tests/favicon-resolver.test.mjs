@@ -69,6 +69,35 @@ test("fetchRemoteIcon follows a website page to its favicon", async () => {
   assert.deepEqual(calls, ["https://example.com/", "https://example.com/favicon.svg"]);
 });
 
+test("fetchRemoteIcon reads only an HTML probe before downloading the favicon", async () => {
+  const calls = [];
+  const largeHtml = `<link rel="shortcut icon" href="//example.com/cdn/favicon.png">${"x".repeat(3 * 1024 * 1024)}`;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (url === "https://example.com/") {
+      return new Response(largeHtml, {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (url === "https://example.com/cdn/favicon.png") {
+      return new Response("png", {
+        headers: { "content-type": "image/png" },
+      });
+    }
+
+    return new Response("not found", { status: 404 });
+  };
+
+  const icon = await fetchRemoteIcon("https://example.com/");
+
+  assert.equal(icon.error, undefined);
+  assert.equal(icon.resolvedFromPage, true);
+  assert.equal(icon.sourceUrl, "https://example.com/cdn/favicon.png");
+  assert.equal(icon.buffer.toString("utf8"), "png");
+  assert.deepEqual(calls, ["https://example.com/", "https://example.com/cdn/favicon.png"]);
+});
+
 test("fetchRemoteIcon rejects redirects to local targets", async () => {
   const calls = [];
   globalThis.fetch = async (url) => {

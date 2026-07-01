@@ -3,7 +3,7 @@ import path from "path";
 
 export const remoteFetchTimeoutMs = 5000;
 export const maxIconBytes = 2 * 1024 * 1024;
-const maxHtmlBytes = maxIconBytes;
+export const maxHtmlProbeBytes = 1024 * 1024;
 const maxRedirects = 5;
 
 const imageContentTypeExtensions = new Map([
@@ -143,6 +143,68 @@ async function fetchSafeResponse(url, signal) {
   return { error: "Remote URL redirects too many times" };
 }
 
+async function readResponseBuffer(response, maxBytes, errorPrefix, allowPartial = false) {
+  if (!response.body?.getReader) {
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length === 0 || buffer.length > maxBytes) {
+      if (allowPartial && buffer.length > 0) {
+        return { buffer: buffer.subarray(0, maxBytes), truncated: true };
+      }
+
+      return { error: `${errorPrefix} is too large` };
+    }
+
+    return { buffer, truncated: false };
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  let truncated = false;
+  let shouldCancel = false;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = Buffer.from(value);
+      if (totalBytes + chunk.length > maxBytes) {
+        if (!allowPartial) {
+          shouldCancel = true;
+          return { error: `${errorPrefix} is too large` };
+        }
+
+        const remainingBytes = maxBytes - totalBytes;
+        if (remainingBytes > 0) {
+          chunks.push(chunk.subarray(0, remainingBytes));
+          totalBytes += remainingBytes;
+        }
+        truncated = true;
+        break;
+      }
+
+      chunks.push(chunk);
+      totalBytes += chunk.length;
+    }
+  } finally {
+    if (truncated || shouldCancel) {
+      await reader.cancel().catch(() => {});
+    } else {
+      reader.releaseLock();
+    }
+  }
+
+  if (totalBytes === 0) {
+    return { error: `${errorPrefix} is too large` };
+  }
+
+  return { buffer: Buffer.concat(chunks, totalBytes), truncated };
+}
+
 async function fetchBuffer(url, maxBytes, errorPrefix = "Remote file") {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), remoteFetchTimeoutMs);
@@ -163,13 +225,56 @@ async function fetchBuffer(url, maxBytes, errorPrefix = "Remote file") {
       return { error: `${errorPrefix} is too large` };
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length === 0 || buffer.length > maxBytes) {
-      return { error: `${errorPrefix} is too large` };
+    const readResult = await readResponseBuffer(response, maxBytes, errorPrefix);
+    if (!readResult.buffer) {
+      return readResult;
     }
 
-    return { buffer, finalUrl, response };
+    return { buffer: readResult.buffer, finalUrl, response };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchInitialUrl(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), remoteFetchTimeoutMs);
+
+  try {
+    const fetched = await fetchSafeResponse(url, controller.signal);
+    if (!fetched.response) {
+      return { error: fetched.error || "Failed to fetch URL" };
+    }
+
+    const { finalUrl, response } = fetched;
+    if (!response.ok) {
+      return { error: `Failed to fetch URL: ${response.statusText}` };
+    }
+
+    if (isSupportedImageResponse(response, finalUrl || response.url || url)) {
+      const contentLength = Number(response.headers.get("content-length") || "0");
+      if (contentLength > maxIconBytes) {
+        return { error: "Remote icon is too large" };
+      }
+
+      const readResult = await readResponseBuffer(response, maxIconBytes, "Remote icon");
+      if (!readResult.buffer) {
+        return readResult;
+      }
+
+      return { buffer: readResult.buffer, finalUrl, response, resolvedFromPage: false };
+    }
+
+    if (!isHtmlContentType(response.headers.get("content-type"))) {
+      return { error: "URL is not an image and no favicon was found" };
+    }
+
+    const readResult = await readResponseBuffer(response, maxHtmlProbeBytes, "HTML page", true);
+    if (!readResult.buffer) {
+      return readResult;
+    }
+
+    return { buffer: readResult.buffer, finalUrl, response, htmlProbe: true, truncated: readResult.truncated };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -231,26 +336,18 @@ export function extractFaviconCandidates(html, pageUrl) {
 }
 
 export async function fetchRemoteIcon(url) {
-  const initial = await fetchBuffer(url, maxIconBytes, "Remote icon");
+  const initial = await fetchInitialUrl(url);
   if (!initial.buffer) {
     return initial;
   }
 
-  if (isSupportedImageResponse(initial.response, initial.finalUrl || initial.response.url || url)) {
+  if (!initial.htmlProbe && isSupportedImageResponse(initial.response, initial.finalUrl || initial.response.url || url)) {
     return {
       buffer: initial.buffer,
       contentType: initial.response.headers.get("content-type") || "",
       sourceUrl: initial.finalUrl || initial.response.url || url,
       resolvedFromPage: false,
     };
-  }
-
-  if (!isHtmlContentType(initial.response.headers.get("content-type"))) {
-    return { error: "URL is not an image and no favicon was found" };
-  }
-
-  if (initial.buffer.length > maxHtmlBytes) {
-    return { error: "HTML page is too large to search favicon" };
   }
 
   const pageUrl = initial.finalUrl || initial.response.url || url;
