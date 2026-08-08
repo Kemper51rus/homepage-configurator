@@ -257,6 +257,7 @@ package_manager="$(
 )"
 [[ "$package_manager" != "unsupported" ]] || fail "Пакетный менеджер LXC ${vmid} не поддерживается"
 
+# shellcheck disable=SC2016
 os_name="$(
   pct exec "$vmid" -- sh -c \
     '. /etc/os-release 2>/dev/null || true; printf "%s" "${PRETTY_NAME:-Linux}"'
