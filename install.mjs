@@ -312,6 +312,140 @@ function syncManagedDependencies(target) {
   console.log(`Updated managed dependencies in ${packageJsonPath}`);
 }
 
+function replaceOnce(content, search, replacement) {
+  if (!content.includes(search)) {
+    return content;
+  }
+
+  return content.replace(search, replacement);
+}
+
+function writeRelativeFileIfChanged(target, file, nextContent, changedFiles) {
+  const filePath = join(target, file);
+  const currentContent = readFileSync(filePath, "utf8");
+
+  if (currentContent === nextContent) {
+    return;
+  }
+
+  writeFileSync(filePath, nextContent);
+  changedFiles.push(file);
+}
+
+function normalizePatchCompatibilityTarget(target, { log = false } = {}) {
+  const changedFiles = [];
+
+  const nextConfigFile = "next.config.js";
+  let nextConfig = readFileSync(join(target, nextConfigFile), "utf8");
+  if (!nextConfig.includes("outputFileTracingIncludes")) {
+    nextConfig = replaceOnce(
+      nextConfig,
+      '  output: "standalone",\n',
+      [
+        '  output: "standalone",',
+        "  // for serverSideTranslations",
+        "  outputFileTracingIncludes: {",
+        '    "/**": ["./next-i18next.config.js"],',
+        "  },",
+      ].join("\n") + "\n",
+    );
+    writeRelativeFileIfChanged(target, nextConfigFile, nextConfig, changedFiles);
+  }
+
+  const indexFile = "src/pages/index.jsx";
+  let index = readFileSync(join(target, indexFile), "utf8");
+  if (!index.includes('components/toggles/signout')) {
+    index = replaceOnce(
+      index,
+      'const Version = dynamic(() => import("components/version"), {\n',
+      [
+        'const SignOut = dynamic(() => import("components/toggles/signout"), {',
+        "  ssr: false,",
+        "});",
+        "",
+        'const Version = dynamic(() => import("components/version"), {',
+      ].join("\n") + "\n",
+    );
+  }
+  if (!index.includes("<SignOut />")) {
+    index = replaceOnce(
+      index,
+      "            <Revalidate />\n            {!settings.theme && <ThemeToggle />}",
+      "            <Revalidate />\n            <SignOut />\n            {!settings.theme && <ThemeToggle />}",
+    );
+  }
+  writeRelativeFileIfChanged(target, indexFile, index, changedFiles);
+
+  const widgetComponentsFile = "src/widgets/components.js";
+  let widgetComponents = readFileSync(join(target, widgetComponentsFile), "utf8");
+  if (!widgetComponents.includes("maintainerr: dynamic")) {
+    widgetComponents = replaceOnce(
+      widgetComponents,
+      '  mailcow: dynamic(() => import("./mailcow/component")),\n',
+      '  mailcow: dynamic(() => import("./mailcow/component")),\n  maintainerr: dynamic(() => import("./maintainerr/component")),\n',
+    );
+  }
+  if (!widgetComponents.includes("sportarr: dynamic")) {
+    widgetComponents = replaceOnce(
+      widgetComponents,
+      '  spoolman: dynamic(() => import("./spoolman/component")),\n',
+      '  spoolman: dynamic(() => import("./spoolman/component")),\n  sportarr: dynamic(() => import("./sportarr/component")),\n',
+    );
+  }
+  writeRelativeFileIfChanged(target, widgetComponentsFile, widgetComponents, changedFiles);
+
+  const widgetsFile = "src/widgets/widgets.js";
+  let widgets = readFileSync(join(target, widgetsFile), "utf8");
+  if (!widgets.includes('import maintainerr from "./maintainerr/widget";')) {
+    widgets = replaceOnce(
+      widgets,
+      'import mailcow from "./mailcow/widget";\n',
+      'import mailcow from "./mailcow/widget";\nimport maintainerr from "./maintainerr/widget";\n',
+    );
+  }
+  if (!widgets.includes('import sportarr from "./sportarr/widget";')) {
+    widgets = replaceOnce(
+      widgets,
+      'import spoolman from "./spoolman/widget";\n',
+      'import spoolman from "./spoolman/widget";\nimport sportarr from "./sportarr/widget";\n',
+    );
+  }
+  if (!widgets.includes("  maintainerr,\n")) {
+    widgets = replaceOnce(widgets, "  mailcow,\n", "  mailcow,\n  maintainerr,\n");
+  }
+  if (!widgets.includes("  sportarr,\n")) {
+    widgets = replaceOnce(widgets, "  spoolman,\n", "  spoolman,\n  sportarr,\n");
+  }
+  writeRelativeFileIfChanged(target, widgetsFile, widgets, changedFiles);
+
+  if (log && changedFiles.length) {
+    console.log(`Normalized Homepage compatibility before patch: ${changedFiles.join(", ")}`);
+  }
+
+  return changedFiles;
+}
+
+function canApplyPatchWithCompatibilityNormalization(target) {
+  const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-compat-"));
+
+  try {
+    for (const file of patchFiles()) {
+      if (!isSafeRelativePath(file)) {
+        return false;
+      }
+
+      copyRelativeFileIfExists(target, tempRoot, file);
+    }
+
+    const changedFiles = normalizePatchCompatibilityTarget(tempRoot);
+    return changedFiles.length > 0 && canApplyPatch(tempRoot);
+  } catch {
+    return false;
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 function envPath(target) {
   const localEnvPath = join(target, ".env.local");
   if (existsSync(localEnvPath)) {
@@ -381,12 +515,15 @@ function install(target, options = {}) {
     return;
   }
 
-  preflightInstallPatchState(target, existingManifest);
+  const compatibilityNormalizationNeeded = preflightInstallPatchState(target, existingManifest);
   prepareExistingInstall(target, existingManifest);
 
   const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
 
   installOverlay(target);
+  if (compatibilityNormalizationNeeded) {
+    normalizePatchCompatibilityTarget(target, { log: true });
+  }
   applyPatch(target);
   syncManagedDependencies(target);
   writeManifest(target, {
@@ -418,11 +555,18 @@ function preflightInstallPatchState(target, manifest) {
   const state = patchState(target);
 
   if (state !== "conflict") {
-    return;
+    return false;
   }
 
-  if (manifest && existingInstallCanAcceptCurrentPatch(target, manifest)) {
-    return;
+  if (manifest) {
+    const existingInstallPatchState = existingInstallCanAcceptCurrentPatch(target, manifest);
+    if (existingInstallPatchState.accepted) {
+      return existingInstallPatchState.normalizationNeeded;
+    }
+  }
+
+  if (canApplyPatchWithCompatibilityNormalization(target)) {
+    return true;
   }
 
   throw new Error(
@@ -439,12 +583,12 @@ function existingInstallCanAcceptCurrentPatch(target, manifest) {
   const backupFiles = manifest?.backup?.files ?? [];
 
   if (!isSafeRelativePath(backupRoot)) {
-    return false;
+    return { accepted: false, normalizationNeeded: false };
   }
 
   const backupRootPath = join(target, backupRoot);
   if (!existsSync(backupRootPath)) {
-    return false;
+    return { accepted: false, normalizationNeeded: false };
   }
 
   const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-preflight-"));
@@ -452,7 +596,7 @@ function existingInstallCanAcceptCurrentPatch(target, manifest) {
   try {
     for (const file of patchFiles()) {
       if (!isSafeRelativePath(file)) {
-        return false;
+        return { accepted: false, normalizationNeeded: false };
       }
 
       copyRelativeFileIfExists(target, tempRoot, file);
@@ -460,13 +604,22 @@ function existingInstallCanAcceptCurrentPatch(target, manifest) {
 
     for (const file of backupFiles) {
       if (!isSafeRelativePath(file)) {
-        return false;
+        return { accepted: false, normalizationNeeded: false };
       }
 
       copyRelativeFileIfExists(backupRootPath, tempRoot, file);
     }
 
-    return canApplyPatch(tempRoot);
+    if (canApplyPatch(tempRoot)) {
+      return { accepted: true, normalizationNeeded: false };
+    }
+
+    const changedFiles = normalizePatchCompatibilityTarget(tempRoot);
+    if (changedFiles.length > 0 && canApplyPatch(tempRoot)) {
+      return { accepted: true, normalizationNeeded: true };
+    }
+
+    return { accepted: false, normalizationNeeded: false };
   } finally {
     rmSync(tempRoot, { force: true, recursive: true });
   }
@@ -504,7 +657,11 @@ function uninstall(target, options = {}) {
   }
 
   try {
-    reversePatch(target);
+    if (restoreBackupFiles(target, manifest)) {
+      console.log("Core patch restored from previous install backup");
+    } else {
+      reversePatch(target);
+    }
   } catch (error) {
     if (!restoreBackupFiles(target, manifest)) {
       throw error;
@@ -525,7 +682,11 @@ function prepareExistingInstall(target, manifest) {
   console.log(`Existing browser editor install detected in ${manifestName}; preparing reinstall`);
 
   try {
-    reversePatch(target);
+    if (restoreBackupFiles(target, manifest)) {
+      console.log("Previous install files restored from backup before reinstall");
+    } else {
+      reversePatch(target);
+    }
   } catch (error) {
     if (!restoreBackupFiles(target, manifest)) {
       throw new Error(`Existing install could not be reverted before reinstall:\n${error.message}`);
