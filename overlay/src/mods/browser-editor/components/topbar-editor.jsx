@@ -1111,7 +1111,7 @@ export default function TopBarSettingsEditor({
       )}
 
       {/* 3. PARTICLES SECTION */}
-      {(mode === 'all' || mode === 'topbar') && (
+      {(mode === 'all' || mode === 'topbar' || mode === 'background') && (
         <div className="rounded-xl border border-theme-300/40 bg-theme-50/20 p-5 dark:border-white/10 dark:bg-white/5">
         <div className="flex justify-between items-center mb-4">
           <div>

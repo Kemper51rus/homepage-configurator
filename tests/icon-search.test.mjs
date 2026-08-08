@@ -64,3 +64,19 @@ test("managed title CSS consumes card-level configurator variables", () => {
   assert.match(patch, /style=\{titleCustomProperties\(service\)\}/);
   assert.match(patch, /style=\{titleCustomProperties\(bookmark\)\}/);
 });
+
+test("managed service and bookmark colors create visible card backgrounds", () => {
+  const cardsCss = readFileSync(new URL("../custom-config/cards/custom.css", import.meta.url), "utf8");
+
+  assert.match(cardsCss, /\[id\$="-card"\]::before\s*\{[\s\S]*?top:\s*2px;/);
+  assert.match(cardsCss, /\[id\$="-card"\]::before\s*\{[\s\S]*?bottom:\s*6px;/);
+  assert.match(cardsCss, /\[id\^="color-sky-"\]::before\s*\{\s*background-color:/);
+  assert.match(
+    cardsCss,
+    /li\.bookmark\[id\^="color-"\]\s*>\s*a\s*\{[\s\S]*?--homepage-bookmark-card-color/,
+  );
+  assert.match(
+    cardsCss,
+    /li\.bookmark\[id\^="color-blue-"\]\s*\{\s*--homepage-bookmark-card-color:\s*#3eadff;/i,
+  );
+});

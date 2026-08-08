@@ -20,18 +20,45 @@ const editableFiles = {
 };
 
 const settingsTabFiles = [
-  { id: "settings", fileName: "settings.yaml", format: "yaml", label: "Настройки" },
+  {
+    id: "settings",
+    fileName: "settings.yaml",
+    format: "yaml",
+    label: "Настройки",
+  },
   { id: "widgets", fileName: "widgets.yaml", format: "yaml", label: "Виджеты" },
   { id: "docker", fileName: "docker.yaml", format: "yaml", label: "Докеры" },
-  { id: "kubernetes", fileName: "kubernetes.yaml", format: "yaml", label: "Kubernetes" },
+  {
+    id: "kubernetes",
+    fileName: "kubernetes.yaml",
+    format: "yaml",
+    label: "Kubernetes",
+  },
   { id: "proxmox", fileName: "proxmox.yaml", format: "yaml", label: "Proxmox" },
   { id: "custom-css", fileName: "custom.css", format: "text", label: "CSS" },
-  { id: "custom-js", fileName: "custom.js", format: "text", label: "JavaScript" },
-  { id: "services", fileName: "services.yaml", format: "yaml", label: "Сервисы" },
-  { id: "bookmarks", fileName: "bookmarks.yaml", format: "yaml", label: "Закладки" },
+  {
+    id: "custom-js",
+    fileName: "custom.js",
+    format: "text",
+    label: "JavaScript",
+  },
+  {
+    id: "services",
+    fileName: "services.yaml",
+    format: "yaml",
+    label: "Сервисы",
+  },
+  {
+    id: "bookmarks",
+    fileName: "bookmarks.yaml",
+    format: "yaml",
+    label: "Закладки",
+  },
 ];
 
-const settingsTabFilesByName = new Map(settingsTabFiles.map((file) => [file.fileName, file]));
+const settingsTabFilesByName = new Map(
+  settingsTabFiles.map((file) => [file.fileName, file]),
+);
 const updateStatusFileName = ".homepage-configurator-update-status.json";
 const updateCheckCacheFileName = ".homepage-configurator-update-check.json";
 const configuratorUpdateDataFiles = [
@@ -46,9 +73,25 @@ const configuratorUpdateDataFiles = [
     description: "Состояние и лог последнего запуска обновления с GitHub.",
   },
 ];
-const configuratorUpdateDataFileNames = new Set(configuratorUpdateDataFiles.map((file) => file.fileName));
-const excludedSettingsTabFiles = new Set(["bookmarks.yaml", "services.yaml", ...configuratorUpdateDataFileNames]);
-const supportedSettingsTabExtensions = new Set([".yaml", ".yml", ".css", ".js", ".json", ".txt"]);
+const configuratorUpdateDataFileNames = new Set(
+  configuratorUpdateDataFiles.map((file) => file.fileName),
+);
+const excludedSettingsTabFiles = new Set([
+  "bookmarks.yaml",
+  "service-update-sources.yaml",
+  "service-updates.yaml",
+  "services.yaml",
+  "three-x-ui.yaml",
+  ...configuratorUpdateDataFileNames,
+]);
+const supportedSettingsTabExtensions = new Set([
+  ".yaml",
+  ".yml",
+  ".css",
+  ".js",
+  ".json",
+  ".txt",
+]);
 
 const backgroundTypes = {
   "image/gif": ".gif",
@@ -67,12 +110,20 @@ const iconTypes = {
   "image/vnd.microsoft.icon": ".ico",
 };
 
-const iconExtensions = new Set([".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
+const iconExtensions = new Set([
+  ".gif",
+  ".ico",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".webp",
+]);
 const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.6.45";
+const configuratorVersion = "0.6.71";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
@@ -84,6 +135,7 @@ const updateFetchTimeoutMs = 10000;
 const maxUpdateMetadataBytes = 64 * 1024;
 const maxInstallScriptBytes = 1024 * 1024;
 let activeConfiguratorUpdate = null;
+let serviceWidgetCatalogPromise = null;
 
 function isEditorEnabled() {
   return process.env.HOMEPAGE_BROWSER_EDITOR === "true";
@@ -101,7 +153,10 @@ function verifyEditorAccess(_req, res) {
 function isPrivateIpv4(address) {
   const octets = address.split(".").map((part) => Number(part));
 
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
     return true;
   }
 
@@ -117,9 +172,16 @@ function isPrivateIpv4(address) {
 }
 
 function isPrivateAddress(address) {
-  const normalized = String(address ?? "").replace(/^\[|\]$/g, "").toLowerCase();
+  const normalized = String(address ?? "")
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase();
 
-  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost") || normalized.endsWith(".local")) {
+  if (
+    !normalized ||
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local")
+  ) {
     return true;
   }
 
@@ -128,7 +190,12 @@ function isPrivateAddress(address) {
   }
 
   if (net.isIP(normalized) === 6) {
-    return normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe80:");
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:")
+    );
   }
 
   return false;
@@ -142,13 +209,21 @@ async function getSafeRemoteProbeUrl(value) {
     return null;
   }
 
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || isPrivateAddress(url.hostname)) {
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    isPrivateAddress(url.hostname)
+  ) {
     return null;
   }
 
   try {
     const addresses = await lookup(url.hostname, { all: true, verbatim: true });
-    if (!addresses.length || addresses.some((entry) => isPrivateAddress(entry.address))) {
+    if (
+      !addresses.length ||
+      addresses.some((entry) => isPrivateAddress(entry.address))
+    ) {
       return null;
     }
   } catch {
@@ -191,7 +266,9 @@ function getIcecastSourceProbe(data, streamUrl) {
   const sources = Array.isArray(rawSource) ? rawSource : [rawSource];
   const streamPath = getStreamMountPath(streamUrl);
   const matchedIndex = sources.findIndex((source) => {
-    const mount = String(source?.listenurl ?? source?.mount ?? "").toLowerCase();
+    const mount = String(
+      source?.listenurl ?? source?.mount ?? "",
+    ).toLowerCase();
     return streamPath && mount.includes(streamPath);
   });
   const index = matchedIndex >= 0 ? matchedIndex : 0;
@@ -201,7 +278,9 @@ function getIcecastSourceProbe(data, streamUrl) {
   }
 
   return {
-    key: Array.isArray(rawSource) ? `icestats.source.${index}.title` : "icestats.source.title",
+    key: Array.isArray(rawSource)
+      ? `icestats.source.${index}.title`
+      : "icestats.source.title",
     value,
   };
 }
@@ -243,19 +322,32 @@ function getTrackInfoProbeCandidates(streamUrl) {
 
   const origin = url.origin;
   const pathParts = url.pathname.split("/").filter(Boolean);
-  const listenIndex = pathParts.findIndex((part) => part.toLowerCase() === "listen");
+  const listenIndex = pathParts.findIndex(
+    (part) => part.toLowerCase() === "listen",
+  );
   const stationSlug = listenIndex >= 0 ? pathParts[listenIndex + 1] : "";
-  const nowPlayingKeys = ["now_playing.song.text", "now_playing.song.title", "song.text", "song.title"];
+  const nowPlayingKeys = [
+    "now_playing.song.text",
+    "now_playing.song.title",
+    "song.text",
+    "song.title",
+  ];
   const candidates = [];
 
   if (stationSlug) {
-    candidates.push({ url: `${origin}/api/nowplaying/${encodeURIComponent(stationSlug)}`, keys: nowPlayingKeys });
+    candidates.push({
+      url: `${origin}/api/nowplaying/${encodeURIComponent(stationSlug)}`,
+      keys: nowPlayingKeys,
+    });
   }
 
   candidates.push(
     { url: `${origin}/api/nowplaying/1`, keys: nowPlayingKeys },
     { url: `${origin}/api/nowplaying`, keys: nowPlayingKeys },
-    { url: `${origin}/status-json.xsl`, keys: ["icestats.source.title", "icestats.source.0.title"] },
+    {
+      url: `${origin}/status-json.xsl`,
+      keys: ["icestats.source.title", "icestats.source.0.title"],
+    },
   );
 
   const seen = new Set();
@@ -275,7 +367,10 @@ async function fetchTrackInfoCandidate(candidate, streamUrl) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), trackInfoProbeTimeoutMs);
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    trackInfoProbeTimeoutMs,
+  );
 
   try {
     const response = await fetch(url, {
@@ -297,9 +392,17 @@ async function fetchTrackInfoCandidate(candidate, streamUrl) {
     }
 
     const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json") || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+    if (
+      contentType.includes("application/json") ||
+      text.trim().startsWith("{") ||
+      text.trim().startsWith("[")
+    ) {
       const data = JSON.parse(text);
-      const probe = getJsonTrackInfoProbe(data, candidate.keys ?? [], streamUrl);
+      const probe = getJsonTrackInfoProbe(
+        data,
+        candidate.keys ?? [],
+        streamUrl,
+      );
       if (!probe) {
         return null;
       }
@@ -335,7 +438,10 @@ async function probeRadioTrackInfo(stationUrl) {
   }
 
   for (const candidate of getTrackInfoProbeCandidates(streamUrl.toString())) {
-    const probe = await fetchTrackInfoCandidate(candidate, streamUrl.toString());
+    const probe = await fetchTrackInfoCandidate(
+      candidate,
+      streamUrl.toString(),
+    );
     if (probe) {
       return probe;
     }
@@ -345,7 +451,10 @@ async function probeRadioTrackInfo(stationUrl) {
 }
 
 function getConfiguratorMetadataUrl() {
-  return process.env.HOMEPAGE_CONFIGURATOR_VERSION_URL || defaultConfiguratorMetadataUrl;
+  return (
+    process.env.HOMEPAGE_CONFIGURATOR_VERSION_URL ||
+    defaultConfiguratorMetadataUrl
+  );
 }
 
 function getConfiguratorRepoUrl(metadata = {}) {
@@ -358,16 +467,26 @@ function getConfiguratorRepoUrl(metadata = {}) {
 }
 
 function getConfiguratorBranch(metadata = {}) {
-  return process.env.HOMEPAGE_CONFIGURATOR_BRANCH || metadata.branch || defaultConfiguratorBranch;
+  return (
+    process.env.HOMEPAGE_CONFIGURATOR_BRANCH ||
+    metadata.branch ||
+    defaultConfiguratorBranch
+  );
 }
 
 function getConfiguratorInstallUrl(metadata = {}) {
-  return process.env.HOMEPAGE_CONFIGURATOR_INSTALL_URL || metadata.installUrl || defaultConfiguratorInstallUrl;
+  return (
+    process.env.HOMEPAGE_CONFIGURATOR_INSTALL_URL ||
+    metadata.installUrl ||
+    defaultConfiguratorInstallUrl
+  );
 }
 
 function getConfiguratorUpdateEnv(updateCheck, imagesDir) {
   const env = {
-    PATH: process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    PATH:
+      process.env.PATH ||
+      "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || process.env.LOGNAME || "root",
     LOGNAME: process.env.LOGNAME || process.env.USER || "root",
@@ -397,7 +516,10 @@ function getConfiguratorUpdateEnv(updateCheck, imagesDir) {
   });
 
   Object.entries(process.env).forEach(([key, value]) => {
-    if (key.startsWith("npm_config_") || key.startsWith("HOMEPAGE_CONFIGURATOR_")) {
+    if (
+      key.startsWith("npm_config_") ||
+      key.startsWith("HOMEPAGE_CONFIGURATOR_")
+    ) {
       env[key] = value;
     }
   });
@@ -446,7 +568,9 @@ async function writeJsonFile(filePath, data) {
 async function getConfiguratorUpdateFiles() {
   return Promise.all(
     configuratorUpdateDataFiles.map(async (file) => {
-      const content = await readTextIfExists(path.join(CONF_DIR, file.fileName));
+      const content = await readTextIfExists(
+        path.join(CONF_DIR, file.fileName),
+      );
       return {
         ...file,
         exists: content.length > 0,
@@ -457,11 +581,16 @@ async function getConfiguratorUpdateFiles() {
 }
 
 function parseVersionParts(version) {
-  const normalized = String(version ?? "").trim().replace(/^v/i, "");
+  const normalized = String(version ?? "")
+    .trim()
+    .replace(/^v/i, "");
   const [main, preRelease = ""] = normalized.split("-", 2);
   const parts = main.split(".").map((part) => Number(part));
 
-  if (parts.length < 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
+  if (
+    parts.length < 3 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0)
+  ) {
     return null;
   }
 
@@ -502,9 +631,9 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
     const response = await fetch(url, {
       cache: "no-store",
       headers: {
-        "Accept": "application/vnd.github.raw, application/vnd.github+json",
+        Accept: "application/vnd.github.raw, application/vnd.github+json",
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
+        Pragma: "no-cache",
         "User-Agent": "homepage-browser-editor/1.0",
       },
       signal: controller.signal,
@@ -530,8 +659,14 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
     } catch {
       contentsResponse = null;
     }
-    if (contentsResponse?.encoding === "base64" && typeof contentsResponse.content === "string") {
-      const decoded = Buffer.from(contentsResponse.content.replace(/\s+/g, ""), "base64").toString("utf8");
+    if (
+      contentsResponse?.encoding === "base64" &&
+      typeof contentsResponse.content === "string"
+    ) {
+      const decoded = Buffer.from(
+        contentsResponse.content.replace(/\s+/g, ""),
+        "base64",
+      ).toString("utf8");
       if (Buffer.byteLength(decoded, "utf8") > maxBytes) {
         throw new Error("Ответ GitHub слишком большой");
       }
@@ -545,7 +680,8 @@ async function fetchBoundedText(rawUrl, { maxBytes, timeoutMs }) {
 }
 
 function normalizeConfiguratorMetadata(rawMetadata) {
-  const metadata = rawMetadata && typeof rawMetadata === "object" ? rawMetadata : {};
+  const metadata =
+    rawMetadata && typeof rawMetadata === "object" ? rawMetadata : {};
   const version = String(metadata.version || "").trim();
 
   if (!parseVersionParts(version)) {
@@ -554,9 +690,16 @@ function normalizeConfiguratorMetadata(rawMetadata) {
 
   const repo = String(metadata.repo || defaultConfiguratorRepo).trim();
   const branch = String(metadata.branch || defaultConfiguratorBranch).trim();
-  const target = metadata.target && typeof metadata.target === "object" ? metadata.target : {};
-  const minimumVersion = String(target.minimumVersion || defaultMinimumHomepageVersion).trim();
-  const updateCommand = String(target.updateCommand || defaultHomepageUpdateCommand).trim();
+  const target =
+    metadata.target && typeof metadata.target === "object"
+      ? metadata.target
+      : {};
+  const minimumVersion = String(
+    target.minimumVersion || defaultMinimumHomepageVersion,
+  ).trim();
+  const updateCommand = String(
+    target.updateCommand || defaultHomepageUpdateCommand,
+  ).trim();
 
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
     throw new Error("В version.json некорректный repo");
@@ -567,7 +710,9 @@ function normalizeConfiguratorMetadata(rawMetadata) {
   }
 
   if (!parseVersionParts(minimumVersion)) {
-    throw new Error("В version.json нет корректной минимальной версии Homepage");
+    throw new Error(
+      "В version.json нет корректной минимальной версии Homepage",
+    );
   }
 
   if (updateCommand !== "update") {
@@ -587,7 +732,9 @@ function normalizeConfiguratorMetadata(rawMetadata) {
     },
     metadataUrl: String(metadata.metadataUrl || defaultConfiguratorMetadataUrl),
     installUrl: String(metadata.installUrl || defaultConfiguratorInstallUrl),
-    commitUrl: String(metadata.commitUrl || `https://github.com/${repo}/commits/${branch}`),
+    commitUrl: String(
+      metadata.commitUrl || `https://github.com/${repo}/commits/${branch}`,
+    ),
     updatedAt: String(metadata.updatedAt || ""),
   };
 }
@@ -617,7 +764,9 @@ async function looksLikeHomepageTarget(candidate) {
   ];
 
   try {
-    const packageJson = JSON.parse(await fs.readFile(path.join(targetDir, "package.json"), "utf8"));
+    const packageJson = JSON.parse(
+      await fs.readFile(path.join(targetDir, "package.json"), "utf8"),
+    );
     if (packageJson.name !== "homepage") {
       return false;
     }
@@ -661,7 +810,11 @@ async function getHomepageTargetDir() {
 }
 
 async function getInstalledConfiguratorInfo(targetDir) {
-  const manifest = targetDir ? await readJsonIfExists(path.join(targetDir, ".homepage-configurator-manifest.json")) : null;
+  const manifest = targetDir
+    ? await readJsonIfExists(
+        path.join(targetDir, ".homepage-configurator-manifest.json"),
+      )
+    : null;
   return {
     name: manifest?.configurator?.name || configuratorName,
     version: manifest?.configurator?.version || configuratorVersion,
@@ -672,8 +825,10 @@ async function getInstalledConfiguratorInfo(targetDir) {
 }
 
 async function getHomepageTargetInfo(targetDir, metadata) {
-  const minimumVersion = metadata?.target?.minimumVersion || defaultMinimumHomepageVersion;
-  const updateCommand = metadata?.target?.updateCommand || defaultHomepageUpdateCommand;
+  const minimumVersion =
+    metadata?.target?.minimumVersion || defaultMinimumHomepageVersion;
+  const updateCommand =
+    metadata?.target?.updateCommand || defaultHomepageUpdateCommand;
   const result = {
     name: "homepage",
     version: "",
@@ -688,7 +843,9 @@ async function getHomepageTargetInfo(targetDir, metadata) {
   }
 
   try {
-    const packageJson = JSON.parse(await fs.readFile(path.join(targetDir, "package.json"), "utf8"));
+    const packageJson = JSON.parse(
+      await fs.readFile(path.join(targetDir, "package.json"), "utf8"),
+    );
     result.name = packageJson.name || "homepage";
     result.version = String(packageJson.version || "");
     result.supported = parseVersionParts(result.version)
@@ -715,10 +872,18 @@ async function checkConfiguratorUpdate({ force = false } = {}) {
   const checkedAtMs = cached?.checkedAt ? Date.parse(cached.checkedAt) : 0;
   let cachedTargetDir = null;
 
-  if (!force && cached?.target && checkedAtMs && Date.now() - checkedAtMs < updateCheckIntervalMs) {
+  if (
+    !force &&
+    cached?.target &&
+    checkedAtMs &&
+    Date.now() - checkedAtMs < updateCheckIntervalMs
+  ) {
     cachedTargetDir = await getHomepageTargetDir();
     const installed = await getInstalledConfiguratorInfo(cachedTargetDir);
-    if (cached.currentVersion === installed.version && cached.targetDir === cachedTargetDir) {
+    if (
+      cached.currentVersion === installed.version &&
+      cached.targetDir === cachedTargetDir
+    ) {
       return { ...cached, cached: true };
     }
   }
@@ -729,7 +894,8 @@ async function checkConfiguratorUpdate({ force = false } = {}) {
   ]);
   const installed = await getInstalledConfiguratorInfo(targetDir);
   const targetInfo = await getHomepageTargetInfo(targetDir, metadata);
-  const updateAvailable = compareVersions(installed.version, metadata.version) < 0;
+  const updateAvailable =
+    compareVersions(installed.version, metadata.version) < 0;
   const targetUpdateRequired = Boolean(targetDir && targetInfo.updateRequired);
   const result = {
     checkedAt: new Date().toISOString(),
@@ -749,8 +915,8 @@ async function checkConfiguratorUpdate({ force = false } = {}) {
     reason: !targetDir
       ? "Не найден полный checkout Homepage. Для standalone-only runtime используйте внешний deploy."
       : targetUpdateRequired
-      ? `Target Homepage ${targetInfo.version || "неизвестной версии"} слишком старый. Минимум для мода: ${targetInfo.minimumVersion}. Сначала обновите target проект из консоли командой \`${targetInfo.updateCommand}\`, затем повторите обновление configurator. ⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать. Если браузерный редактор не откроется, обновите configurator из консоли: bash <(curl -Ls ${metadata.installUrl}) --action update`
-      : "",
+        ? `Target Homepage ${targetInfo.version || "неизвестной версии"} слишком старый. Минимум для мода: ${targetInfo.minimumVersion}. Сначала обновите target проект из консоли командой \`${targetInfo.updateCommand}\`, затем повторите обновление configurator. ⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать. Если браузерный редактор не откроется, обновите configurator из консоли: bash <(curl -Ls ${metadata.installUrl}) --action update`
+        : "",
     nextCheckAfter: new Date(Date.now() + updateCheckIntervalMs).toISOString(),
   };
 
@@ -764,7 +930,10 @@ async function readConfiguratorUpdateStatus() {
     return { state: "idle", log: [] };
   }
 
-  if (activeConfiguratorUpdate?.id === status.id && status.state !== "running") {
+  if (
+    activeConfiguratorUpdate?.id === status.id &&
+    status.state !== "running"
+  ) {
     return { ...status, state: "running" };
   }
 
@@ -799,7 +968,10 @@ async function readConfiguratorUpdateStatus() {
         finishedAt: status.finishedAt || new Date().toISOString(),
         currentVersion: status.latestVersion,
       };
-      appendUpdateLog(nextStatus, "Homepage перезапущен. Обновление завершено.");
+      appendUpdateLog(
+        nextStatus,
+        "Homepage перезапущен. Обновление завершено.",
+      );
       await writeConfiguratorUpdateStatus(nextStatus);
       return nextStatus;
     }
@@ -836,16 +1008,41 @@ function updateProgressFromInstallerOutput(status, chunk) {
     ["Downloading mod", "download", 20, "Скачиваю configurator с GitHub"],
     ["Using mod source", "download", 25, "Configurator скачан"],
     ["Install plan:", "install", 30, "Проверяю план установки"],
-    ["Existing browser editor install detected", "cleanup", 36, "Снимаю предыдущую установку"],
+    [
+      "Existing browser editor install detected",
+      "cleanup",
+      36,
+      "Снимаю предыдущую установку",
+    ],
     ["Core patch reverted", "cleanup", 44, "Предыдущий core patch снят"],
     ["Restored ", "cleanup", 48, "Восстанавливаю файлы из backup"],
     ["Core patch applied", "install", 58, "Core patch применён"],
-    ["Browser editor installed", "install", 66, "Файлы configurator установлены"],
-    ["Installing missing target dependencies", "dependencies", 72, "Устанавливаю зависимости"],
+    [
+      "Browser editor installed",
+      "install",
+      66,
+      "Файлы configurator установлены",
+    ],
+    [
+      "Installing missing target dependencies",
+      "dependencies",
+      72,
+      "Устанавливаю зависимости",
+    ],
     ["Building homepage", "build", 80, "Собираю Homepage"],
     ["Compiled successfully", "build", 88, "Production build скомпилирован"],
-    ["Finalizing page optimization", "build", 92, "Завершаю оптимизацию страниц"],
-    ["Syncing standalone runtime assets", "runtime", 96, "Синхронизирую standalone runtime"],
+    [
+      "Finalizing page optimization",
+      "build",
+      92,
+      "Завершаю оптимизацию страниц",
+    ],
+    [
+      "Syncing standalone runtime assets",
+      "runtime",
+      96,
+      "Синхронизирую standalone runtime",
+    ],
     ["Done", "done", 98, "Установщик завершает работу"],
   ];
   const match = stages.find(([needle]) => text.includes(needle));
@@ -862,17 +1059,31 @@ function updateProgressFromInstallerOutput(status, chunk) {
 
 function getServiceName() {
   const serviceName = process.env.HOMEPAGE_SERVICE_NAME || "homepage.service";
-  return /^[A-Za-z0-9_.@-]+$/.test(serviceName) ? serviceName : "homepage.service";
+  return /^[A-Za-z0-9_.@-]+$/.test(serviceName)
+    ? serviceName
+    : "homepage.service";
 }
 
 function scheduleHomepageRestart(status) {
   const restartCommand = process.env.HOMEPAGE_CONFIGURATOR_RESTART_COMMAND;
   const child = restartCommand
-    ? spawn("sh", ["-lc", `sleep 1; ${restartCommand}`], { detached: true, stdio: "ignore" })
-    : spawn("sh", ["-c", "sleep 1; exec systemctl restart \"$1\"", "homepage-configurator-restart", getServiceName()], {
+    ? spawn("sh", ["-lc", `sleep 1; ${restartCommand}`], {
         detached: true,
         stdio: "ignore",
-      });
+      })
+    : spawn(
+        "sh",
+        [
+          "-c",
+          'sleep 1; exec systemctl restart "$1"',
+          "homepage-configurator-restart",
+          getServiceName(),
+        ],
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      );
 
   child.on("error", async (error) => {
     const nextStatus = {
@@ -885,7 +1096,10 @@ function scheduleHomepageRestart(status) {
       restartError: error.message,
       finishedAt: new Date().toISOString(),
     };
-    appendUpdateLog(nextStatus, `Не удалось запланировать перезапуск: ${error.message}`);
+    appendUpdateLog(
+      nextStatus,
+      `Не удалось запланировать перезапуск: ${error.message}`,
+    );
     await writeConfiguratorUpdateStatus(nextStatus);
   });
   child.unref();
@@ -898,8 +1112,13 @@ async function fetchInstallScript(metadata) {
     timeoutMs: updateFetchTimeoutMs,
   });
 
-  if (!text.includes("homepage-configurator") || !text.includes("run_mod_installer")) {
-    throw new Error("Скачанный install.sh не похож на установщик homepage-configurator");
+  if (
+    !text.includes("homepage-configurator") ||
+    !text.includes("run_mod_installer")
+  ) {
+    throw new Error(
+      "Скачанный install.sh не похож на установщик homepage-configurator",
+    );
   }
 
   return text;
@@ -913,13 +1132,20 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
 
   const updateCheck = await checkConfiguratorUpdate({ force: true });
   if (!updateCheck.canUpdate || !updateCheck.targetDir) {
-    throw new Error(updateCheck.reason || "Не найден target Homepage для обновления");
+    throw new Error(
+      updateCheck.reason || "Не найден target Homepage для обновления",
+    );
   }
 
   const installScript = await fetchInstallScript(updateCheck.latest);
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "homepage-configurator-update-"));
+  const tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "homepage-configurator-update-"),
+  );
   const scriptPath = path.join(tmpDir, "install.sh");
-  await fs.writeFile(scriptPath, installScript, { encoding: "utf8", mode: 0o700 });
+  await fs.writeFile(scriptPath, installScript, {
+    encoding: "utf8",
+    mode: 0o700,
+  });
 
   const imagesDir = getImagesDir();
   const status = {
@@ -939,7 +1165,9 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
     phase: "start",
     progress: 10,
     message: "Подготовка обновления",
-    log: [`Старт обновления ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`],
+    log: [
+      `Старт обновления ${updateCheck.currentVersion} -> ${updateCheck.latestVersion}`,
+    ],
   };
   await writeConfiguratorUpdateStatus(status);
 
@@ -981,7 +1209,12 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
   child.on("error", async (error) => {
     activeConfiguratorUpdate = null;
     status.state = "failed";
-    setUpdateProgress(status, "failed", 100, `Не удалось запустить установщик: ${error.message}`);
+    setUpdateProgress(
+      status,
+      "failed",
+      100,
+      `Не удалось запустить установщик: ${error.message}`,
+    );
     status.finishedAt = new Date().toISOString();
     appendUpdateLog(status, error.message);
     await writeConfiguratorUpdateStatus(status);
@@ -1002,27 +1235,50 @@ async function startConfiguratorUpdate({ autoRestart = true } = {}) {
       });
       if (autoRestart) {
         status.state = "restarting";
-        setUpdateProgress(status, "restarting", 98, `Обновление установлено. Перезапускаю ${getServiceName()}...`);
+        setUpdateProgress(
+          status,
+          "restarting",
+          98,
+          `Обновление установлено. Перезапускаю ${getServiceName()}...`,
+        );
         status.restartRequired = false;
-        appendUpdateLog(status, `Обновление установлено. Перезапускаю ${getServiceName()}...`);
+        appendUpdateLog(
+          status,
+          `Обновление установлено. Перезапускаю ${getServiceName()}...`,
+        );
         await writeConfiguratorUpdateStatus(status);
         scheduleHomepageRestart(status);
       } else {
         status.state = "completed";
-        setUpdateProgress(status, "completed", 100, "Обновление установлено. Нужен перезапуск Homepage.");
+        setUpdateProgress(
+          status,
+          "completed",
+          100,
+          "Обновление установлено. Нужен перезапуск Homepage.",
+        );
         status.restartRequired = true;
-        appendUpdateLog(status, "Обновление установлено. Нужен перезапуск Homepage.");
+        appendUpdateLog(
+          status,
+          "Обновление установлено. Нужен перезапуск Homepage.",
+        );
         await writeConfiguratorUpdateStatus(status);
       }
     } else {
       status.state = "failed";
-      setUpdateProgress(status, "failed", 100, `Обновление не установлено. Установщик завершился с кодом ${code}.`);
+      setUpdateProgress(
+        status,
+        "failed",
+        100,
+        `Обновление не установлено. Установщик завершился с кодом ${code}.`,
+      );
       status.restartRequired = false;
       appendUpdateLog(status, `Установщик завершился с кодом ${code}`);
       await writeConfiguratorUpdateStatus(status);
     }
 
-    fs.rm(tmpDir, { recursive: true, force: true }).catch((error) => logger.error(error));
+    fs.rm(tmpDir, { recursive: true, force: true }).catch((error) =>
+      logger.error(error),
+    );
   });
 
   return status;
@@ -1103,7 +1359,9 @@ async function ensureTextFile(fileName) {
 
 async function readRawConfigFile(fileName, format) {
   const filePath =
-    format === "yaml" ? (checkAndCopyConfig(fileName), path.join(CONF_DIR, fileName)) : await ensureTextFile(fileName);
+    format === "yaml"
+      ? (checkAndCopyConfig(fileName), path.join(CONF_DIR, fileName))
+      : await ensureTextFile(fileName);
 
   return fs.readFile(filePath, "utf8");
 }
@@ -1111,7 +1369,9 @@ async function readRawConfigFile(fileName, format) {
 async function writeRawConfigFile(fileName, format, content) {
   const nextContent = typeof content === "string" ? content : "";
   const filePath =
-    format === "yaml" ? (checkAndCopyConfig(fileName), path.join(CONF_DIR, fileName)) : await ensureTextFile(fileName);
+    format === "yaml"
+      ? (checkAndCopyConfig(fileName), path.join(CONF_DIR, fileName))
+      : await ensureTextFile(fileName);
 
   if (format === "yaml") {
     yaml.load(nextContent || "");
@@ -1122,7 +1382,10 @@ async function writeRawConfigFile(fileName, format, content) {
 
 function isSupportedSettingsTabFile(fileName) {
   const extension = path.extname(fileName).toLowerCase();
-  return supportedSettingsTabExtensions.has(extension) && !/\.bak$|\.back$/i.test(fileName);
+  return (
+    supportedSettingsTabExtensions.has(extension) &&
+    !/\.bak$|\.back$/i.test(fileName)
+  );
 }
 
 function prettifySettingsTabLabel(fileName) {
@@ -1153,9 +1416,17 @@ async function getSettingsTabs() {
 
     const extension = path.extname(fileName).toLowerCase();
     tabMap.set(fileName, {
-      id: `extra-${fileName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "config"}`,
+      id: `extra-${
+        fileName
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase() || "config"
+      }`,
       fileName,
-      format: extension === ".css" || extension === ".js" || extension === ".txt" ? "text" : "yaml",
+      format:
+        extension === ".css" || extension === ".js" || extension === ".txt"
+          ? "text"
+          : "yaml",
       label: prettifySettingsTabLabel(fileName),
     });
   });
@@ -1221,7 +1492,8 @@ async function saveBackgroundUpload(background) {
 }
 
 async function saveBackgroundValue(backgroundPath) {
-  const nextBackground = typeof backgroundPath === "string" ? backgroundPath.trim() : "";
+  const nextBackground =
+    typeof backgroundPath === "string" ? backgroundPath.trim() : "";
   if (!nextBackground) {
     throw new Error("Путь или URL фона обязателен");
   }
@@ -1239,7 +1511,10 @@ function isRemoteIcon(value) {
 }
 
 function isLegacyLocalIcon(value) {
-  return typeof value === "string" && /^(?:\/images\/)?icons\/[^/].+/i.test(value.trim());
+  return (
+    typeof value === "string" &&
+    /^(?:\/images\/)?icons\/[^/].+/i.test(value.trim())
+  );
 }
 
 function getLegacyLocalIconFileName(value) {
@@ -1285,9 +1560,18 @@ function collectRemoteIcons(value, icons, itemName = "") {
   }
 
   if (isRemoteIcon(value.icon)) {
-    icons.push({ item: value, itemName, type: "remote", url: value.icon.trim() });
+    icons.push({
+      item: value,
+      itemName,
+      type: "remote",
+      url: value.icon.trim(),
+    });
   } else if (isLegacyLocalIcon(value.icon)) {
-    icons.push({ item: value, type: "local", fileName: getLegacyLocalIconFileName(value.icon) });
+    icons.push({
+      item: value,
+      type: "local",
+      fileName: getLegacyLocalIconFileName(value.icon),
+    });
   }
 
   Object.entries(value).forEach(([key, child]) => {
@@ -1296,7 +1580,10 @@ function collectRemoteIcons(value, icons, itemName = "") {
     }
 
     const nextName =
-      child && typeof child === "object" && !Array.isArray(child) && Object.prototype.hasOwnProperty.call(child, "icon")
+      child &&
+      typeof child === "object" &&
+      !Array.isArray(child) &&
+      Object.prototype.hasOwnProperty.call(child, "icon")
         ? key
         : itemName || key;
     collectRemoteIcons(child, icons, nextName);
@@ -1322,7 +1609,9 @@ async function downloadIcon(url, itemName, iconsDir, downloadedByUrl) {
   }
 
   if (!response.ok) {
-    throw new Error(`Не удалось скачать иконку ${url}: HTTP ${response.status}`);
+    throw new Error(
+      `Не удалось скачать иконку ${url}: HTTP ${response.status}`,
+    );
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -1339,7 +1628,9 @@ async function downloadIcon(url, itemName, iconsDir, downloadedByUrl) {
     normalizedContentType !== "application/octet-stream" &&
     !iconExtensions.has(extension)
   ) {
-    throw new Error(`Неподдерживаемый тип иконки ${contentType || "<empty>"}: ${url}`);
+    throw new Error(
+      `Неподдерживаемый тип иконки ${contentType || "<empty>"}: ${url}`,
+    );
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
@@ -1384,7 +1675,12 @@ async function localizeRemoteIcons() {
     }
 
     try {
-      const icon = await downloadIcon(target.url, target.itemName, iconsDir, downloadedByUrl);
+      const icon = await downloadIcon(
+        target.url,
+        target.itemName,
+        iconsDir,
+        downloadedByUrl,
+      );
       target.item.icon = icon.localIcon;
       result.updated += 1;
       if (!icon.reused) {
@@ -1405,7 +1701,8 @@ async function localizeRemoteIcons() {
   return result;
 }
 
-const CSS_START_MARKER = "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */";
+const CSS_START_MARKER =
+  "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */";
 const CSS_END_MARKER = "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES END --- */";
 
 function extractGroupLayouts(settings) {
@@ -1416,7 +1713,12 @@ function extractGroupLayouts(settings) {
   }
 
   for (const [key, value] of Object.entries(layoutObj)) {
-    if (key === "Bookmarks" && value && typeof value === "object" && !Array.isArray(value)) {
+    if (
+      key === "Bookmarks" &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
       for (const [bKey, bValue] of Object.entries(value)) {
         if (bValue && typeof bValue === "object" && !Array.isArray(bValue)) {
           layouts.push({ name: bKey, layout: bValue });
@@ -1488,9 +1790,13 @@ async function updateCustomCssWithStyles(generatedCss) {
 
   let nextContent = "";
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    nextContent = currentContent.substring(0, startIdx) + blockContent + currentContent.substring(endIdx + CSS_END_MARKER.length);
+    nextContent =
+      currentContent.substring(0, startIdx) +
+      blockContent +
+      currentContent.substring(endIdx + CSS_END_MARKER.length);
   } else {
-    const separator = currentContent && !currentContent.endsWith("\n") ? "\n\n" : "";
+    const separator =
+      currentContent && !currentContent.endsWith("\n") ? "\n\n" : "";
     nextContent = currentContent + separator + blockContent + "\n";
   }
 
@@ -1564,9 +1870,19 @@ async function regenerateAllStylesCss() {
             if (Array.isArray(itemsList)) {
               for (const itemObj of itemsList) {
                 if (itemObj && typeof itemObj === "object") {
-                  for (const [itemName, itemConfig] of Object.entries(itemObj)) {
-                    if (itemConfig && typeof itemConfig === "object" && !Array.isArray(itemConfig)) {
-                      items.push({ name: itemName, config: itemConfig, type: "services" });
+                  for (const [itemName, itemConfig] of Object.entries(
+                    itemObj,
+                  )) {
+                    if (
+                      itemConfig &&
+                      typeof itemConfig === "object" &&
+                      !Array.isArray(itemConfig)
+                    ) {
+                      items.push({
+                        name: itemName,
+                        config: itemConfig,
+                        type: "services",
+                      });
                     }
                   }
                 }
@@ -1589,11 +1905,19 @@ async function regenerateAllStylesCss() {
                     if (Array.isArray(configVal)) {
                       for (const subConf of configVal) {
                         if (subConf && typeof subConf === "object") {
-                          items.push({ name: itemName, config: subConf, type: "bookmarks" });
+                          items.push({
+                            name: itemName,
+                            config: subConf,
+                            type: "bookmarks",
+                          });
                         }
                       }
                     } else if (configVal && typeof configVal === "object") {
-                      items.push({ name: itemName, config: configVal, type: "bookmarks" });
+                      items.push({
+                        name: itemName,
+                        config: configVal,
+                        type: "bookmarks",
+                      });
                     }
                   }
                 }
@@ -1612,15 +1936,120 @@ async function regenerateAllStylesCss() {
   }
 }
 
-async function getEditorConfig() {
-  const [services, bookmarks, settings, settingsTabs] = await Promise.all([
-    readYamlFile("services", []),
-    readYamlFile("bookmarks", []),
-    readYamlFile("settings", {}),
-    getSettingsTabs(),
-  ]);
+function normalizeWidgetField(widgetType, rawField) {
+  const field = String(rawField ?? "").trim();
+  if (!/^[a-zA-Z0-9_.-]{1,80}$/.test(field)) {
+    return "";
+  }
 
-  return { services, bookmarks, settings, settingsTabs };
+  return field.startsWith(`${widgetType}.`)
+    ? field.slice(widgetType.length + 1)
+    : field;
+}
+
+async function readServiceWidgetCatalog() {
+  const widgetsDirectory = path.join(process.cwd(), "src", "widgets");
+  let directories;
+
+  try {
+    directories = await fs.readdir(widgetsDirectory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const entries = await Promise.all(
+    directories
+      .filter(
+        (entry) =>
+          entry.isDirectory() && /^[a-z0-9][a-z0-9._-]*$/i.test(entry.name),
+      )
+      .map(async (entry) => {
+        const componentPath = path.join(
+          widgetsDirectory,
+          entry.name,
+          "component.jsx",
+        );
+        let source;
+
+        try {
+          const stats = await fs.stat(componentPath);
+          if (!stats.isFile() || stats.size > 1024 * 1024) {
+            return null;
+          }
+          source = await fs.readFile(componentPath, "utf8");
+        } catch {
+          return null;
+        }
+
+        const fields = [];
+        const addField = (rawField) => {
+          const field = normalizeWidgetField(entry.name, rawField);
+          if (field && !fields.includes(field)) {
+            fields.push(field);
+          }
+        };
+
+        const blockPattern =
+          /<Block\b[^>]*\b(?:field|label)=["']([^"']+)["'][^>]*>/g;
+        for (const match of source.matchAll(blockPattern)) {
+          addField(match[1]);
+        }
+
+        const defaultFieldsPattern =
+          /(?:widget\.fields\s*=|(?:const|let)\s+[a-zA-Z0-9_]*fields[a-zA-Z0-9_]*\s*=)\s*\[([^\]]{0,2000})\]/gi;
+        for (const match of source.matchAll(defaultFieldsPattern)) {
+          for (const valueMatch of match[1].matchAll(
+            /["']([a-zA-Z0-9_.-]{1,80})["']/g,
+          )) {
+            addField(valueMatch[1]);
+          }
+        }
+
+        return {
+          type: entry.name,
+          fields: fields.slice(0, 24),
+        };
+      }),
+  );
+
+  return entries
+    .filter(Boolean)
+    .sort((left, right) => left.type.localeCompare(right.type));
+}
+
+function getServiceWidgetCatalog() {
+  if (!serviceWidgetCatalogPromise) {
+    serviceWidgetCatalogPromise = readServiceWidgetCatalog();
+  }
+
+  return serviceWidgetCatalogPromise;
+}
+
+function getInternalBaseUrl() {
+  const port = Number(process.env.PORT || 3000);
+  const safePort =
+    Number.isInteger(port) && port > 0 && port <= 65535 ? port : 3000;
+  return `http://127.0.0.1:${safePort}`;
+}
+
+async function getEditorConfig() {
+  const [services, bookmarks, settings, settingsTabs, serviceWidgetCatalog] =
+    await Promise.all([
+      readYamlFile("services", []),
+      readYamlFile("bookmarks", []),
+      readYamlFile("settings", {}),
+      getSettingsTabs(),
+      getServiceWidgetCatalog(),
+    ]);
+
+  return {
+    services,
+    bookmarks,
+    settings,
+    settingsTabs,
+    serviceWidgetCatalog,
+    internalBaseUrl: getInternalBaseUrl(),
+  };
 }
 
 export default async function handler(req, res) {
@@ -1639,14 +2068,24 @@ export default async function handler(req, res) {
       if (fileName) {
         const settingsTab =
           settingsTabFilesByName.get(fileName) ??
-          (await getSettingsTabs()).find((settingsFile) => settingsFile.fileName === fileName);
+          (await getSettingsTabs()).find(
+            (settingsFile) => settingsFile.fileName === fileName,
+          );
 
         if (!settingsTab) {
           return res.status(422).end("Unsupported file");
         }
 
-        await writeRawConfigFile(settingsTab.fileName, settingsTab.format, content);
-        if (["settings.yaml", "services.yaml", "bookmarks.yaml"].includes(fileName)) {
+        await writeRawConfigFile(
+          settingsTab.fileName,
+          settingsTab.format,
+          content,
+        );
+        if (
+          ["settings.yaml", "services.yaml", "bookmarks.yaml"].includes(
+            fileName,
+          )
+        ) {
           await regenerateAllStylesCss();
         }
         return res.status(200).json(await getEditorConfig());
@@ -1656,11 +2095,17 @@ export default async function handler(req, res) {
         return res.status(422).end("Unsupported file");
       }
 
-      if ((file === "services" || file === "bookmarks") && !Array.isArray(data)) {
+      if (
+        (file === "services" || file === "bookmarks") &&
+        !Array.isArray(data)
+      ) {
         return res.status(422).end("Config must be a list");
       }
 
-      if (file === "settings" && (typeof data !== "object" || Array.isArray(data) || data === null)) {
+      if (
+        file === "settings" &&
+        (typeof data !== "object" || Array.isArray(data) || data === null)
+      ) {
         return res.status(422).end("Settings must be an object");
       }
 
@@ -1672,15 +2117,29 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, background, backgroundPath, provider, q, apiKey, stationUrl, force, autoRestart } = req.body ?? {};
+      const {
+        action,
+        background,
+        backgroundPath,
+        provider,
+        q,
+        apiKey,
+        stationUrl,
+        force,
+        autoRestart,
+      } = req.body ?? {};
 
       if (action === "localize-icons") {
         const iconLocalization = await localizeRemoteIcons();
-        return res.status(200).json({ ...(await getEditorConfig()), iconLocalization });
+        return res
+          .status(200)
+          .json({ ...(await getEditorConfig()), iconLocalization });
       }
 
       if (action === "check-configurator-update") {
-        return res.status(200).json(await checkConfiguratorUpdate({ force: Boolean(force) }));
+        return res
+          .status(200)
+          .json(await checkConfiguratorUpdate({ force: Boolean(force) }));
       }
 
       if (action === "get-configurator-update-status") {
@@ -1688,11 +2147,17 @@ export default async function handler(req, res) {
       }
 
       if (action === "get-configurator-update-files") {
-        return res.status(200).json({ files: await getConfiguratorUpdateFiles() });
+        return res
+          .status(200)
+          .json({ files: await getConfiguratorUpdateFiles() });
       }
 
       if (action === "run-configurator-update") {
-        return res.status(202).json(await startConfiguratorUpdate({ autoRestart: autoRestart !== false }));
+        return res.status(202).json(
+          await startConfiguratorUpdate({
+            autoRestart: autoRestart !== false,
+          }),
+        );
       }
 
       if (action === "probe-radio-track-info") {
@@ -1712,42 +2177,48 @@ export default async function handler(req, res) {
         let url;
         if (provider === "openweathermap") {
           const key = apiKey || settings?.providers?.openweathermap;
-          if (!key) return res.status(400).end("Отсутствует API-ключ OpenWeatherMap");
+          if (!key)
+            return res.status(400).end("Отсутствует API-ключ OpenWeatherMap");
           url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=5&appid=${key}`;
         } else {
           const key = apiKey || settings?.providers?.weatherapi;
-          if (!key) return res.status(400).end("Отсутствует API-ключ WeatherAPI");
+          if (!key)
+            return res.status(400).end("Отсутствует API-ключ WeatherAPI");
           url = `https://api.weatherapi.com/v1/search.json?key=${key}&q=${encodeURIComponent(q)}`;
         }
 
         try {
           const fetchResponse = await fetch(url);
           if (!fetchResponse.ok) {
-            return res.status(fetchResponse.status).end(await fetchResponse.text());
+            return res
+              .status(fetchResponse.status)
+              .end(await fetchResponse.text());
           }
           const rawData = await fetchResponse.json();
           let results = [];
           if (provider === "openweathermap") {
-            results = (rawData ?? []).map(item => {
+            results = (rawData ?? []).map((item) => {
               const state = item.state ? `, ${item.state}` : "";
               return {
                 name: `${item.name}${state}, ${item.country}`,
                 lat: item.lat,
-                lon: item.lon
+                lon: item.lon,
               };
             });
           } else {
-            results = (rawData ?? []).map(item => {
+            results = (rawData ?? []).map((item) => {
               return {
                 name: `${item.name}, ${item.region}, ${item.country}`,
                 lat: item.lat,
-                lon: item.lon
+                lon: item.lon,
               };
             });
           }
           return res.status(200).json(results);
         } catch (fetchErr) {
-          return res.status(500).end(fetchErr.message || "Ошибка подключения к API погоды");
+          return res
+            .status(500)
+            .end(fetchErr.message || "Ошибка подключения к API погоды");
         }
       }
 

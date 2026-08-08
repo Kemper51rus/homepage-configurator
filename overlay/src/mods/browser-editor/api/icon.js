@@ -2,9 +2,21 @@ import { existsSync, promises as fs } from "fs";
 import path from "path";
 
 import createLogger from "utils/logger";
-import { fetchRemoteIcon, getSafeRemoteUrl, maxIconBytes } from "../lib/favicon-resolver";
+import {
+  fetchRemoteIcon,
+  getSafeRemoteUrl,
+  maxIconBytes,
+} from "../lib/favicon-resolver";
 
 const logger = createLogger("iconConfigService");
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "14mb",
+    },
+  },
+};
 
 const contentTypes = {
   ".gif": "image/gif",
@@ -40,7 +52,9 @@ function getImagesDirs() {
 }
 
 function getRequestedIcon(req) {
-  const requestedFile = Array.isArray(req.query.file) ? req.query.file[0] : req.query.file;
+  const requestedFile = Array.isArray(req.query.file)
+    ? req.query.file[0]
+    : req.query.file;
   const fileName = typeof requestedFile === "string" ? requestedFile : "";
 
   if (!fileName || fileName !== path.basename(fileName)) {
@@ -54,7 +68,11 @@ function getSafeIconName(name) {
   const fileName = typeof name === "string" ? name.trim() : "";
   const extension = path.extname(fileName).toLowerCase();
 
-  if (!fileName || fileName !== path.basename(fileName) || !contentTypes[extension]) {
+  if (
+    !fileName ||
+    fileName !== path.basename(fileName) ||
+    !contentTypes[extension]
+  ) {
     return null;
   }
 
@@ -62,7 +80,10 @@ function getSafeIconName(name) {
 }
 
 function decodeImageDataUrl(dataUrl) {
-  const match = typeof dataUrl === "string" ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i) : null;
+  const match =
+    typeof dataUrl === "string"
+      ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i)
+      : null;
   if (!match) {
     return null;
   }
@@ -121,7 +142,10 @@ export default async function handler(req, res) {
         return res.status(404).end("Icon not found");
       }
 
-      res.setHeader("Content-Type", contentTypes[extension] ?? "application/octet-stream");
+      res.setHeader(
+        "Content-Type",
+        contentTypes[extension] ?? "application/octet-stream",
+      );
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       return res.status(200).send(image);
     }
@@ -182,7 +206,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
-      if (fileName === "list" || fileName === "upload" || fileName === "download") {
+      if (
+        fileName === "list" ||
+        fileName === "upload" ||
+        fileName === "download"
+      ) {
         return res.status(400).end("Invalid operation");
       }
 

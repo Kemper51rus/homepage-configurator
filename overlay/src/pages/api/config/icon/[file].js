@@ -1,10 +1,22 @@
 import { existsSync, promises as fs } from "fs";
 import path from "path";
 
-import { fetchRemoteIcon, getSafeRemoteUrl, maxIconBytes } from "mods/browser-editor/lib/favicon-resolver";
+import {
+  fetchRemoteIcon,
+  getSafeRemoteUrl,
+  maxIconBytes,
+} from "mods/browser-editor/lib/favicon-resolver";
 import createLogger from "utils/logger";
 
 const logger = createLogger("iconConfigService");
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "14mb",
+    },
+  },
+};
 
 const contentTypes = {
   ".gif": "image/gif",
@@ -40,7 +52,9 @@ function getImagesDirs() {
 }
 
 function getRequestedIcon(req) {
-  const requestedFile = Array.isArray(req.query.file) ? req.query.file[0] : req.query.file;
+  const requestedFile = Array.isArray(req.query.file)
+    ? req.query.file[0]
+    : req.query.file;
   const fileName = typeof requestedFile === "string" ? requestedFile : "";
 
   if (!fileName || fileName !== path.basename(fileName)) {
@@ -54,7 +68,11 @@ function getSafeIconName(name) {
   const fileName = typeof name === "string" ? name.trim() : "";
   const extension = path.extname(fileName).toLowerCase();
 
-  if (!fileName || fileName !== path.basename(fileName) || !contentTypes[extension]) {
+  if (
+    !fileName ||
+    fileName !== path.basename(fileName) ||
+    !contentTypes[extension]
+  ) {
     return null;
   }
 
@@ -62,7 +80,10 @@ function getSafeIconName(name) {
 }
 
 function decodeImageDataUrl(dataUrl) {
-  const match = typeof dataUrl === "string" ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i) : null;
+  const match =
+    typeof dataUrl === "string"
+      ? dataUrl.match(/^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i)
+      : null;
   if (!match) {
     return null;
   }
@@ -84,21 +105,39 @@ async function downloadAndCacheIcon(fileName) {
 
   if (prefix === "sh") {
     const iconName = baseIconName.replace("sh-", "");
-    candidateUrls.push(`https://gcore.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`);
-    candidateUrls.push(`https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`);
+    candidateUrls.push(
+      `https://gcore.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`,
+    );
+    candidateUrls.push(
+      `https://cdn.jsdelivr.net/gh/selfhst/icons@main/${extension.replace(".", "")}/${iconName}${extension}`,
+    );
   } else if (prefix === "mdi") {
     const iconName = baseIconName.replace("mdi-", "");
-    candidateUrls.push(`https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`);
-    candidateUrls.push(`https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`);
+    candidateUrls.push(
+      `https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`,
+    );
+    candidateUrls.push(
+      `https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/${iconName}.svg`,
+    );
   } else if (prefix === "si") {
     const iconName = baseIconName.replace("si-", "");
-    candidateUrls.push(`https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`);
-    candidateUrls.push(`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`);
+    candidateUrls.push(
+      `https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`,
+    );
+    candidateUrls.push(
+      `https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${iconName}.svg`,
+    );
   } else {
     const ext = extension.replace(".", "");
-    candidateUrls.push(`https://gcore.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`);
-    candidateUrls.push(`https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`);
-    candidateUrls.push(`https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`);
+    candidateUrls.push(
+      `https://gcore.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`,
+    );
+    candidateUrls.push(
+      `https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/${ext}/${baseIconName}${extension}`,
+    );
+    candidateUrls.push(
+      `https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/${baseIconName}.png`,
+    );
   }
 
   for (const url of candidateUrls) {
@@ -141,7 +180,11 @@ async function writeNotFoundCache(fileName) {
       logger.info("Cached NOT FOUND state for icon %s", fileName);
     }
   } catch (e) {
-    logger.error("Failed to cache NOT FOUND state for icon %s: %s", fileName, e?.message || e);
+    logger.error(
+      "Failed to cache NOT FOUND state for icon %s: %s",
+      fileName,
+      e?.message || e,
+    );
   }
 }
 
@@ -211,7 +254,10 @@ export default async function handler(req, res) {
         return res.status(404).end("Icon not found");
       }
 
-      res.setHeader("Content-Type", contentTypes[extension] ?? "application/octet-stream");
+      res.setHeader(
+        "Content-Type",
+        contentTypes[extension] ?? "application/octet-stream",
+      );
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       return res.status(200).send(image);
     }
@@ -272,7 +318,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
-      if (fileName === "list" || fileName === "upload" || fileName === "download") {
+      if (
+        fileName === "list" ||
+        fileName === "upload" ||
+        fileName === "download"
+      ) {
         return res.status(400).end("Invalid operation");
       }
 

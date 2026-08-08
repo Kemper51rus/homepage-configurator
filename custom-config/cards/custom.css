@@ -16,89 +16,202 @@
 .bookmark-card > div,
 [id$="-card"],
 [id$="-card"] > div {
-    border-radius: 25px !important;
-    overflow: hidden !important;
+  border-radius: 25px !important;
+  overflow: hidden !important;
 }
 
 [id$="-card"] {
-    position: relative !important;
-    background-color: transparent !important;
+  position: relative !important;
+  background-color: transparent !important;
 }
 
 [id$="-card"]::before {
-    content: "";
-    position: absolute;
-    /* TEMP disabled vertical spacing audit: top: 2px; */
-    left: 2px;
-    right: 2px;
-    /* TEMP disabled vertical spacing audit: bottom: 6px; */
-    z-index: 0;
-    border-radius: 23px !important;
-    opacity: 0.35;
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 6px;
+  z-index: 0;
+  border-radius: 23px !important;
+  opacity: 0.35;
 }
 
 li.bookmark[id$="-card"] {
-    overflow: visible !important;
+  overflow: visible !important;
 }
 
 li.bookmark[id$="-card"]::before {
-    content: none !important;
+  content: none !important;
+}
+
+li.bookmark[id^="color-"] > a {
+  background-color: color-mix(
+    in srgb,
+    var(--homepage-bookmark-card-color) 35%,
+    transparent
+  ) !important;
+}
+
+li.bookmark[id^="color-"] > a:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--homepage-bookmark-card-color) 48%,
+    transparent
+  ) !important;
 }
 
 .service-card > button[aria-label^="Edit "] {
-    inset: 2px !important;
-    border-radius: inherit !important;
+  inset: 2px !important;
+  border-radius: inherit !important;
+}
+
+li.service[style*="--homepage-configurator-card-background"] > .service-card,
+li.bookmark[style*="--homepage-configurator-card-background"] > a {
+  background-image: var(--homepage-configurator-card-background) !important;
+  background-position: var(
+    --homepage-configurator-card-background-position,
+    50% 50%
+  ) !important;
+  background-repeat: no-repeat !important;
+  background-size: auto 100% !important;
 }
 
 /* --- SERVICE COLOR ASSIGNMENTS --- */
-[id^="color-sky-"]::before          { background-color: #25C1FF !important; }
-[id^="color-yellow-"]::before       { background-color: #FFC230 !important; }
-[id^="color-green-"]::before        { background-color: #00C655 !important; }
-[id^="color-purple-"]::before       { background-color: #AA5CC3 !important; }
-[id^="color-lime-"]::before         { background-color: #39BA5D !important; }
-[id^="color-emerald-"]::before      { background-color: #4ade80 !important; }
-[id^="color-cyan-"]::before         { background-color: #22d3ee !important; }
-[id^="color-blue-"]::before         { background-color: #3eadff !important; }
-[id^="color-mint-"]::before         { background-color: #61efad !important; }
-[id^="color-orange-"]::before       { background-color: #ff7b00 !important; }
-[id^="color-bright-green-"]::before { background-color: #33cc33 !important; }
-[id^="color-dark-red-"]::before     { background-color: #96060c !important; }
-[id^="color-red-"]::before          { background-color: #ea2222 !important; }
-[id^="color-red-orange-"]::before   { background-color: #ff3d00 !important; }
-[id^="color-teal-"]::before         { background-color: #3fb1db !important; }
-[id^="color-amber-"]::before        { background-color: #ff7700 !important; }
-[id^="color-indigo-"]::before       { background-color: #2a2978 !important; }
+[id^="color-sky-"]::before {
+  background-color: #25c1ff !important;
+}
+[id^="color-yellow-"]::before {
+  background-color: #ffc230 !important;
+}
+[id^="color-green-"]::before {
+  background-color: #00c655 !important;
+}
+[id^="color-purple-"]::before {
+  background-color: #aa5cc3 !important;
+}
+[id^="color-lime-"]::before {
+  background-color: #39ba5d !important;
+}
+[id^="color-emerald-"]::before {
+  background-color: #4ade80 !important;
+}
+[id^="color-cyan-"]::before {
+  background-color: #22d3ee !important;
+}
+[id^="color-blue-"]::before {
+  background-color: #3eadff !important;
+}
+[id^="color-mint-"]::before {
+  background-color: #61efad !important;
+}
+[id^="color-orange-"]::before {
+  background-color: #ff7b00 !important;
+}
+[id^="color-bright-green-"]::before {
+  background-color: #33cc33 !important;
+}
+[id^="color-dark-red-"]::before {
+  background-color: #96060c !important;
+}
+[id^="color-red-"]::before {
+  background-color: #ea2222 !important;
+}
+[id^="color-red-orange-"]::before {
+  background-color: #ff3d00 !important;
+}
+[id^="color-teal-"]::before {
+  background-color: #3fb1db !important;
+}
+[id^="color-amber-"]::before {
+  background-color: #ff7700 !important;
+}
+[id^="color-indigo-"]::before {
+  background-color: #2a2978 !important;
+}
+
+li.bookmark[id^="color-sky-"] {
+  --homepage-bookmark-card-color: #25c1ff;
+}
+li.bookmark[id^="color-yellow-"] {
+  --homepage-bookmark-card-color: #ffc230;
+}
+li.bookmark[id^="color-green-"] {
+  --homepage-bookmark-card-color: #00c655;
+}
+li.bookmark[id^="color-purple-"] {
+  --homepage-bookmark-card-color: #aa5cc3;
+}
+li.bookmark[id^="color-lime-"] {
+  --homepage-bookmark-card-color: #39ba5d;
+}
+li.bookmark[id^="color-emerald-"] {
+  --homepage-bookmark-card-color: #4ade80;
+}
+li.bookmark[id^="color-cyan-"] {
+  --homepage-bookmark-card-color: #22d3ee;
+}
+li.bookmark[id^="color-blue-"] {
+  --homepage-bookmark-card-color: #3eadff;
+}
+li.bookmark[id^="color-mint-"] {
+  --homepage-bookmark-card-color: #61efad;
+}
+li.bookmark[id^="color-orange-"] {
+  --homepage-bookmark-card-color: #ff7b00;
+}
+li.bookmark[id^="color-bright-green-"] {
+  --homepage-bookmark-card-color: #33cc33;
+}
+li.bookmark[id^="color-dark-red-"] {
+  --homepage-bookmark-card-color: #96060c;
+}
+li.bookmark[id^="color-red-"] {
+  --homepage-bookmark-card-color: #ea2222;
+}
+li.bookmark[id^="color-red-orange-"] {
+  --homepage-bookmark-card-color: #ff3d00;
+}
+li.bookmark[id^="color-teal-"] {
+  --homepage-bookmark-card-color: #3fb1db;
+}
+li.bookmark[id^="color-amber-"] {
+  --homepage-bookmark-card-color: #ff7700;
+}
+li.bookmark[id^="color-indigo-"] {
+  --homepage-bookmark-card-color: #2a2978;
+}
 
 .service-card > div {
-    position: relative;
-    z-index: 1;
+  position: relative;
+  z-index: 1;
 }
 
 /* --- STATUS & PING BADGE POSITIONING --- */
 span[class*="status-"],
 div[class*="status-"] {
-    position: absolute !important;
-    top: 10px !important;
-    right: 12px !important;
-    z-index: 10 !important;
-    border-radius: 8px !important;
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    /* TEMP disabled dashboard spacing: padding: 2px 6px !important; */
+  position: absolute !important;
+  top: 10px !important;
+  right: 12px !important;
+  z-index: 10 !important;
+  border-radius: 8px !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  /* TEMP disabled dashboard spacing: padding: 2px 6px !important; */
 }
 
 .service-tags {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    /* TEMP disabled dashboard spacing: gap: 4px !important; */
-    top: 4px !important;
-    right: 20px !important;
-    position: absolute !important;
-    transform: translate(
-        var(--homepage-service-status-offset-x, 0px),
-        var(--homepage-service-status-offset-y, 0px)
-    ) !important;
-    z-index: 20 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  /* TEMP disabled dashboard spacing: gap: 4px !important; */
+  top: 4px !important;
+  right: 20px !important;
+  position: absolute !important;
+  transform: translate(
+    var(--homepage-service-status-offset-x, 0px),
+    var(--homepage-service-status-offset-y, 0px)
+  ) !important;
+  z-index: 20 !important;
 }
 
 .service-tags .ping-status,
@@ -106,33 +219,33 @@ div[class*="status-"] {
 .service-tags .docker-status,
 .service-tags .k8s-status,
 .service-tags .proxmoxstatus {
-    position: static !important;
-    top: auto !important;
-    right: auto !important;
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
 }
 
 .service-ping .ping-status {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 8px !important;
-    /* TEMP disabled dashboard spacing: padding: 2px 6px !important; */
-    height: auto !important;
-    width: auto !important;
-    background-image: none !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  /* TEMP disabled dashboard spacing: padding: 2px 6px !important; */
+  height: auto !important;
+  width: auto !important;
+  background-image: none !important;
 }
 
 .service-ping .ping-status div {
-    font-size: 9px !important;
-    font-weight: 800 !important;
-    text-transform: uppercase !important;
-    opacity: 1 !important;
-    line-height: 1.2 !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  opacity: 1 !important;
+  line-height: 1.2 !important;
 }
 
 .service-ping .ping-status div[class*="text-emerald"],
 .service-ping .ping-status div[class*="text-rose"],
 .service-ping .ping-status div[class*="text-red"] {
-    filter: brightness(1.4) !important;
+  filter: brightness(1.4) !important;
 }
 
 /* ============================================================================

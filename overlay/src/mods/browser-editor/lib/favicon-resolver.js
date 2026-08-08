@@ -2,7 +2,7 @@ import net from "net";
 import path from "path";
 
 export const remoteFetchTimeoutMs = 5000;
-export const maxIconBytes = 2 * 1024 * 1024;
+export const maxIconBytes = 10 * 1024 * 1024;
 export const maxHtmlProbeBytes = 1024 * 1024;
 const maxRedirects = 5;
 
@@ -20,7 +20,10 @@ const imageContentTypeExtensions = new Map([
 function isPrivateIpv4(hostname) {
   const octets = hostname.split(".").map((part) => Number(part));
 
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
     return true;
   }
 
@@ -33,7 +36,8 @@ function isPrivateIpv4(hostname) {
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && (second === 0 || second === 168)) ||
-    (first === 198 && (second === 18 || second === 19 || (second === 51 && third === 100))) ||
+    (first === 198 &&
+      (second === 18 || second === 19 || (second === 51 && third === 100))) ||
     (first === 203 && second === 0 && third === 113) ||
     first >= 224
   );
@@ -56,13 +60,22 @@ function isPrivateIpv6(hostname) {
     return true;
   }
 
-  return (firstBlock & 0xfe00) === 0xfc00 || (firstBlock & 0xffc0) === 0xfe80 || (firstBlock & 0xff00) === 0xff00;
+  return (
+    (firstBlock & 0xfe00) === 0xfc00 ||
+    (firstBlock & 0xffc0) === 0xfe80 ||
+    (firstBlock & 0xff00) === 0xff00
+  );
 }
 
 function isPrivateHostname(hostname) {
   const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
 
-  if (!normalized || normalized === "localhost" || normalized.endsWith(".localhost") || normalized.endsWith(".local")) {
+  if (
+    !normalized ||
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local")
+  ) {
     return true;
   }
 
@@ -80,10 +93,17 @@ function isPrivateHostname(hostname) {
 export function getSafeRemoteUrl(value) {
   try {
     const rawValue = String(value ?? "").trim();
-    const normalizedValue = /^[a-z][a-z0-9+.-]*:/i.test(rawValue) ? rawValue : `https://${rawValue}`;
+    const normalizedValue = /^[a-z][a-z0-9+.-]*:/i.test(rawValue)
+      ? rawValue
+      : `https://${rawValue}`;
     const url = new URL(normalizedValue);
 
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || isPrivateHostname(url.hostname)) {
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      isPrivateHostname(url.hostname)
+    ) {
       return null;
     }
 
@@ -94,7 +114,10 @@ export function getSafeRemoteUrl(value) {
 }
 
 function contentTypeBase(contentType) {
-  return String(contentType ?? "").split(";")[0].trim().toLowerCase();
+  return String(contentType ?? "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
 }
 
 function imageExtensionFromContentType(contentType) {
@@ -115,13 +138,22 @@ function isSupportedImageResponse(response, url) {
     return true;
   }
 
-  return Boolean(path.extname(new URL(url).pathname).toLowerCase().match(/^\.(?:gif|ico|jpe?g|png|svg|webp)$/));
+  return Boolean(
+    path
+      .extname(new URL(url).pathname)
+      .toLowerCase()
+      .match(/^\.(?:gif|ico|jpe?g|png|svg|webp)$/),
+  );
 }
 
 async function fetchSafeResponse(url, signal) {
   let currentUrl = url;
 
-  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+  for (
+    let redirectCount = 0;
+    redirectCount <= maxRedirects;
+    redirectCount += 1
+  ) {
     const safeUrl = getSafeRemoteUrl(currentUrl);
     if (!safeUrl) {
       return { error: "Remote URL is not allowed" };
@@ -143,7 +175,12 @@ async function fetchSafeResponse(url, signal) {
   return { error: "Remote URL redirects too many times" };
 }
 
-async function readResponseBuffer(response, maxBytes, errorPrefix, allowPartial = false) {
+async function readResponseBuffer(
+  response,
+  maxBytes,
+  errorPrefix,
+  allowPartial = false,
+) {
   if (!response.body?.getReader) {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -225,7 +262,11 @@ async function fetchBuffer(url, maxBytes, errorPrefix = "Remote file") {
       return { error: `${errorPrefix} is too large` };
     }
 
-    const readResult = await readResponseBuffer(response, maxBytes, errorPrefix);
+    const readResult = await readResponseBuffer(
+      response,
+      maxBytes,
+      errorPrefix,
+    );
     if (!readResult.buffer) {
       return readResult;
     }
@@ -252,29 +293,51 @@ async function fetchInitialUrl(url) {
     }
 
     if (isSupportedImageResponse(response, finalUrl || response.url || url)) {
-      const contentLength = Number(response.headers.get("content-length") || "0");
+      const contentLength = Number(
+        response.headers.get("content-length") || "0",
+      );
       if (contentLength > maxIconBytes) {
         return { error: "Remote icon is too large" };
       }
 
-      const readResult = await readResponseBuffer(response, maxIconBytes, "Remote icon");
+      const readResult = await readResponseBuffer(
+        response,
+        maxIconBytes,
+        "Remote icon",
+      );
       if (!readResult.buffer) {
         return readResult;
       }
 
-      return { buffer: readResult.buffer, finalUrl, response, resolvedFromPage: false };
+      return {
+        buffer: readResult.buffer,
+        finalUrl,
+        response,
+        resolvedFromPage: false,
+      };
     }
 
     if (!isHtmlContentType(response.headers.get("content-type"))) {
       return { error: "URL is not an image and no favicon was found" };
     }
 
-    const readResult = await readResponseBuffer(response, maxHtmlProbeBytes, "HTML page", true);
+    const readResult = await readResponseBuffer(
+      response,
+      maxHtmlProbeBytes,
+      "HTML page",
+      true,
+    );
     if (!readResult.buffer) {
       return readResult;
     }
 
-    return { buffer: readResult.buffer, finalUrl, response, htmlProbe: true, truncated: readResult.truncated };
+    return {
+      buffer: readResult.buffer,
+      finalUrl,
+      response,
+      htmlProbe: true,
+      truncated: readResult.truncated,
+    };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -282,7 +345,8 @@ async function fetchInitialUrl(url) {
 
 function parseAttributes(tag) {
   const attributes = {};
-  const attrPattern = /([^\s=/"'>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+  const attrPattern =
+    /([^\s=/"'>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
   let match = attrPattern.exec(tag);
 
   while (match) {
@@ -321,7 +385,10 @@ export function extractFaviconCandidates(html, pageUrl) {
     const attributes = parseAttributes(match[0]);
     const rel = String(attributes.rel ?? "").toLowerCase();
     const href = attributes.href;
-    if (href && /\b(?:icon|apple-touch-icon|mask-icon|fluid-icon)\b/.test(rel)) {
+    if (
+      href &&
+      /\b(?:icon|apple-touch-icon|mask-icon|fluid-icon)\b/.test(rel)
+    ) {
       pushSafeCandidate(candidates, seen, href, pageUrl);
     }
 
@@ -341,7 +408,13 @@ export async function fetchRemoteIcon(url) {
     return initial;
   }
 
-  if (!initial.htmlProbe && isSupportedImageResponse(initial.response, initial.finalUrl || initial.response.url || url)) {
+  if (
+    !initial.htmlProbe &&
+    isSupportedImageResponse(
+      initial.response,
+      initial.finalUrl || initial.response.url || url,
+    )
+  ) {
     return {
       buffer: initial.buffer,
       contentType: initial.response.headers.get("content-type") || "",
@@ -356,7 +429,13 @@ export async function fetchRemoteIcon(url) {
 
   for (const candidate of candidates) {
     const icon = await fetchBuffer(candidate, maxIconBytes, "Remote icon");
-    if (!icon.buffer || !isSupportedImageResponse(icon.response, icon.finalUrl || icon.response.url || candidate)) {
+    if (
+      !icon.buffer ||
+      !isSupportedImageResponse(
+        icon.response,
+        icon.finalUrl || icon.response.url || candidate,
+      )
+    ) {
       continue;
     }
 

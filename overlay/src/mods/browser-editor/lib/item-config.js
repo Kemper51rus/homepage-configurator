@@ -1,9 +1,15 @@
 import yaml from "js-yaml";
+import {
+  normalizeCardBackgroundPosition,
+  resolveCardBackgroundSource,
+} from "./card-background.js";
 
 export const serviceFields = [
   ["id", "ID"],
   ["href", "URL"],
   ["icon", "Иконка"],
+  ["cardBackground", "Фоновая картинка карточки"],
+  ["cardBackgroundPosition", "Положение фона по горизонтали (X% 50%)"],
   ["description", "Описание"],
   ["abbr", "Сокращение"],
   ["target", "Цель"],
@@ -20,13 +26,41 @@ export const serviceFields = [
   ["titleFont", "Шрифт заголовка"],
 ];
 
-export const collapsedServiceFieldKeys = new Set(["id", "description", "abbr", "target", "weight", "ping", "siteMonitor", "showStats", "titleColor", "titleSize", "titleAlign", "titleFont"]);
-export const collapsedBookmarkFieldKeys = new Set(["id", "description", "abbr", "target", "titleColor", "titleSize", "titleAlign", "titleFont"]);
+export const collapsedServiceFieldKeys = new Set([
+  "id",
+  "description",
+  "abbr",
+  "target",
+  "weight",
+  "ping",
+  "siteMonitor",
+  "showStats",
+  "cardBackground",
+  "cardBackgroundPosition",
+  "titleColor",
+  "titleSize",
+  "titleAlign",
+  "titleFont",
+]);
+export const collapsedBookmarkFieldKeys = new Set([
+  "id",
+  "description",
+  "abbr",
+  "target",
+  "cardBackground",
+  "cardBackgroundPosition",
+  "titleColor",
+  "titleSize",
+  "titleAlign",
+  "titleFont",
+]);
 
 export const bookmarkFields = [
   ["id", "ID"],
   ["href", "URL"],
   ["icon", "Иконка"],
+  ["cardBackground", "Фоновая картинка карточки"],
+  ["cardBackgroundPosition", "Положение фона по горизонтали (X% 50%)"],
   ["description", "Описание"],
   ["abbr", "Сокращение"],
   ["target", "Цель"],
@@ -111,7 +145,9 @@ function slugifyCardName(value) {
 
 export function getServiceCardColor(id) {
   const normalizedId = String(id ?? "").trim();
-  const match = serviceCardColorOptions.find(([value]) => value && normalizedId.startsWith(`${value}-`));
+  const match = serviceCardColorOptions.find(
+    ([value]) => value && normalizedId.startsWith(`${value}-`),
+  );
   return match?.[0] ?? "";
 }
 
@@ -172,7 +208,9 @@ export function splitConfig(config, type) {
 
   return {
     fields,
-    extraYaml: Object.keys(extra).length ? yaml.dump(extra, { lineWidth: -1, noRefs: true, sortKeys: false }) : "",
+    extraYaml: Object.keys(extra).length
+      ? yaml.dump(extra, { lineWidth: -1, noRefs: true, sortKeys: false })
+      : "",
   };
 }
 
@@ -198,6 +236,25 @@ export function formToConfig(form) {
 }
 
 export function validateItemConfig(type, config) {
+  if (config.cardBackground !== undefined) {
+    if (
+      typeof config.cardBackground !== "string" ||
+      config.cardBackground.length > 2048 ||
+      !resolveCardBackgroundSource(config.cardBackground)
+    ) {
+      throw new Error("Укажите корректный URL или имя фоновой картинки");
+    }
+  }
+
+  if (
+    config.cardBackgroundPosition !== undefined &&
+    (typeof config.cardBackgroundPosition !== "string" ||
+      !config.cardBackgroundPosition.trim() ||
+      !normalizeCardBackgroundPosition(config.cardBackgroundPosition))
+  ) {
+    throw new Error("Положение фона должно быть в формате X% Y%, от 0 до 100");
+  }
+
   if (type !== "bookmarks") {
     return;
   }
@@ -210,6 +267,8 @@ export function validateItemConfig(type, config) {
     // Bookmark rendering expects an absolute URL when it derives the hostname.
     new URL(config.href);
   } catch {
-    throw new Error("URL закладки должен быть абсолютным, например https://example.com");
+    throw new Error(
+      "URL закладки должен быть абсолютным, например https://example.com",
+    );
   }
 }

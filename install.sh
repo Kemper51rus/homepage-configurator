@@ -1145,6 +1145,50 @@ install_requested_custom() {
   esac
 }
 
+install_service_update_runtime() {
+  ensure_config_dir
+
+  local registry="$CONFIG_DIR/service-updates.yaml"
+  local sources="$CONFIG_DIR/service-update-sources.yaml"
+  local runners="$CONFIG_DIR/service-update-runners"
+  local owner=""
+  local group=""
+
+  mkdir -p "$runners"
+  chmod 0750 "$runners"
+
+  if [[ ! -e "$registry" ]]; then
+    cat >"$registry" <<'EOF'
+# Server-side registry for service update badges.
+# The browser card stores only type + target ID. Each registered target maps to
+# an executable file in service-update-runners/. The runner receives one
+# argument: "check" or "update", and returns a JSON object on its last line.
+version: 1
+targets: {}
+EOF
+    chmod 0640 "$registry"
+    log "Created empty service update registry: $registry"
+  fi
+
+  if [[ ! -e "$sources" ]]; then
+    cat >"$sources" <<'EOF'
+# Server-side connections used for automatic service update discovery.
+# Keep credentials here; this file is excluded from the browser settings tabs.
+version: 1
+docker: {}
+EOF
+    chmod 0640 "$sources"
+    log "Created empty service update sources: $sources"
+  fi
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    owner="$(config_owner)"
+    group="$(config_group)"
+    [[ -n "$group" ]] || group="$owner"
+    chown "$owner:$group" "$registry" "$sources" "$runners"
+  fi
+}
+
 target_owner() {
   stat -c "%U" "$TARGET"
 }
@@ -1248,6 +1292,8 @@ fix_target_ownership() {
     "$TARGET/src/pages/api/config/background.js"
     "$TARGET/src/pages/api/config/editor.js"
     "$TARGET/src/pages/api/config/icon"
+    "$TARGET/src/pages/api/config/service-updates.js"
+    "$TARGET/src/pages/api/config/three-x-ui.js"
   )
 
   if [[ -f "$MOD_DIR/browser-editor.patch" ]] && command -v git >/dev/null 2>&1; then
@@ -1471,6 +1517,7 @@ main() {
   ensure_target_dependencies
 
   if [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]]; then
+    install_service_update_runtime
     install_requested_custom
   fi
 
