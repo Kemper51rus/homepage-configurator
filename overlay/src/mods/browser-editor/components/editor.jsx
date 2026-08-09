@@ -3182,19 +3182,6 @@ function CodeEditorTheme() {
         word-break: normal !important;
       }
 
-      /* Render the source directly in the editable layer. The previous
-       * transparent-text/highlight overlay made YAML disappear in themed
-       * configurator windows and left only selection rectangles visible. */
-      .homepage-editor-highlight {
-        display: none !important;
-      }
-
-      .homepage-editor-textarea {
-        color: #f4f4f5 !important;
-        -webkit-text-fill-color: #f4f4f5 !important;
-        background: transparent !important;
-      }
-
       .homepage-editor-textarea {
         position: absolute;
         inset: 0;
@@ -3360,12 +3347,12 @@ function ConfiguratorControlTheme() {
 
       .homepage-themed-configurator .homepage-editor-highlight,
       .homepage-themed-configurator .homepage-editor-highlight code {
-        display: none !important;
+        display: block !important;
       }
 
       .homepage-themed-configurator .homepage-editor-textarea {
-        color: var(--studio-text) !important;
-        -webkit-text-fill-color: var(--studio-text) !important;
+        color: transparent !important;
+        -webkit-text-fill-color: transparent !important;
         caret-color: var(--studio-accent) !important;
       }
 
@@ -3534,7 +3521,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
   };
 }
 
-function CodeEditor({
+export function CodeEditor({
   label,
   value,
   onChange,
@@ -3544,6 +3531,7 @@ function CodeEditor({
   fillAvailableHeight = false,
   zoomStorageKey = CODE_EDITOR_ZOOM_STORAGE_KEY,
   readOnly = false,
+  showToolbar = true,
 }) {
   const textareaRef = useRef(null);
   const highlightRef = useRef(null);
@@ -3706,7 +3694,7 @@ function CodeEditor({
           fillAvailableHeight && "flex min-h-0 flex-1 flex-col",
         )}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
+        {showToolbar && <div className="flex items-center justify-between gap-3 border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
           <span className="font-medium uppercase tracking-[0.18em] opacity-70">
             {language === "plain" ? "text" : language}
           </span>
@@ -3752,7 +3740,7 @@ function CodeEditor({
               A+
             </button>
           </div>
-        </div>
+        </div>}
         <div
           className={classNames(
             "homepage-editor-scroll relative overflow-hidden overscroll-contain",
@@ -10576,6 +10564,7 @@ function ConfigFilesModal({
   settings: initialSettings,
   onClose,
   onSaved,
+  onBackToStudio,
 }) {
   const { mutate } = useSWRConfig();
   const { settings, setSettings } = useContext(SettingsContext);
@@ -10881,6 +10870,15 @@ function ConfigFilesModal({
       autoFitKey={`configurator:${activeFileName}:${error ? "error" : "ready"}`}
       headerActions={
         <>
+          {onBackToStudio && (
+            <button
+              type="button"
+              onClick={onBackToStudio}
+              className="rounded-md border border-theme-300/50 bg-theme-100/40 px-3 py-2 text-sm font-medium text-theme-800 transition-colors hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:hover:bg-white/10"
+            >
+              ← Студия
+            </button>
+          )}
           <label className="flex h-10 items-center gap-2 rounded-md border border-theme-300/50 bg-theme-100/40 px-3 text-xs font-medium text-theme-800 shadow-sm transition-colors hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:hover:bg-white/10">
             <input
               type="checkbox"
@@ -12921,6 +12919,7 @@ export function ConfigEditorProvider({ children }) {
             editMode && type === "services"
               ? "studio-service-widget"
               : undefined,
+          studioChrome: editMode,
         }),
       openTopWidget: (widget, widgetIndex) =>
         setModal({
@@ -12940,7 +12939,14 @@ export function ConfigEditorProvider({ children }) {
           studioChrome: editMode,
         }),
       openNewItem: (type, groupName) =>
-        setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
+        setModal({
+          type,
+          groupName,
+          itemName: "",
+          item: {},
+          mode: "new",
+          studioChrome: editMode,
+        }),
       iconSelectorCallback,
       setIconSelectorCallback,
       editorUiScale,
@@ -13848,7 +13854,7 @@ export function ConfigEditorProvider({ children }) {
           onOpenAppearance={() => setModal({ type: "background" })}
           onOpenConfig={() => {
             setStudioOpen(false);
-            setModal({ type: "settings-tabs" });
+            setModal({ type: "settings-tabs", fromStudio: true });
           }}
           onOpenIcons={() => setIconsManagerOpen(true)}
           onOpenItem={(type, groupName, itemName, item, itemIndex) =>
@@ -13929,6 +13935,14 @@ export function ConfigEditorProvider({ children }) {
           settings={data?.settings}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
+          onBackToStudio={
+            modal.fromStudio
+              ? () => {
+                  setModal(null);
+                  setStudioOpen(true);
+                }
+              : undefined
+          }
         />
       )}
       {modal?.type === "configurator-updates" && (

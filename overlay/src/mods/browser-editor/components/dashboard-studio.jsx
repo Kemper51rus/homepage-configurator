@@ -1,8 +1,6 @@
 import classNames from "classnames";
 import ResolvedIcon from "components/resolvedicon";
 import yaml from "js-yaml";
-import Prism from "prismjs";
-import "prismjs/components/prism-yaml";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 import {
@@ -34,6 +32,7 @@ import {
   studioServiceStatusOffsetMax,
   studioServiceStatusOffsetMin,
 } from "mods/browser-editor/lib/studio-pages";
+import { CodeEditor } from "./editor";
 
 const cardColors = [
   ["color-sky", "#25c1ff"],
@@ -56,43 +55,17 @@ const cardColors = [
 ];
 
 function StudioYamlEditor({ value, onChange }) {
-  const highlighted = useMemo(() => {
-    try {
-      return Prism.highlight(value || "", Prism.languages.yaml, "yaml");
-    } catch {
-      return String(value || "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-    }
-  }, [value]);
-
   return (
-    <div className="homepage-editor-code relative min-h-[18rem] overflow-hidden rounded-xl border border-white/10 bg-zinc-950 font-mono text-[11px] leading-relaxed">
-      <style jsx global>{`
-        .homepage-editor-code .token.comment { color: #7f8ea3; }
-        .homepage-editor-code .token.punctuation { color: #94a3b8; }
-        .homepage-editor-code .token.property,
-        .homepage-editor-code .token.atrule,
-        .homepage-editor-code .token.keyword { color: #c4b5fd; }
-        .homepage-editor-code .token.boolean,
-        .homepage-editor-code .token.number { color: #fbbf24; }
-        .homepage-editor-code .token.string,
-        .homepage-editor-code .token.scalar { color: #5eead4; }
-      `}</style>
-      <pre
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 text-zinc-200"
-        dangerouslySetInnerHTML={{ __html: highlighted || " " }}
-      />
-      <textarea
-        aria-label="YAML виджета"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        spellCheck={false}
-        className="relative block min-h-[18rem] w-full resize-y bg-transparent px-3 py-2.5 text-transparent caret-white outline-hidden selection:bg-white/20"
-      />
-    </div>
+    <CodeEditor
+      label={null}
+      value={value}
+      onChange={onChange}
+      language="yaml"
+      showToolbar={false}
+      minHeightClassName="h-[18rem] min-h-[18rem]"
+      zoomStorageKey="homepage-studio-widget-yaml-zoom"
+      placeholder="widget:\n  type: customapi"
+    />
   );
 }
 
@@ -4537,7 +4510,6 @@ function StatCard({ label, value, note, accent }) {
 export default function DashboardStudio({
   data,
   onClose,
-  onCanvasEdit,
   onOpenAppearance,
   onOpenConfig,
   onOpenIcons,
@@ -4961,13 +4933,6 @@ export default function DashboardStudio({
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={onCanvasEdit}
-              className="hidden rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-xs font-medium text-zinc-800 shadow-sm transition-colors hover:bg-zinc-100 md:block dark:border-white/15 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/10"
-            >
-              Холст
-            </button>
             <button
               type="button"
               onClick={onClose}
