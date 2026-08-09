@@ -5894,10 +5894,11 @@ function EditorWindow({
   );
 }
 
-function ItemModal({ modal, data, onClose, onSaved }) {
+function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
   const { mutate } = useSWRConfig();
   const isServiceModal = modal.type === "services";
   const isBookmarkModal = modal.type === "bookmarks";
+  const WindowComponent = studioChrome ? StudioModalWindow : EditorWindow;
   const bookmarkWindowApiRef = useRef(null);
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawEntryConfig =
@@ -6449,7 +6450,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
   );
 
   return (
-    <EditorWindow
+    <WindowComponent
       storageKey={
         isBookmarkModal
           ? bookmarkWindowStorageKey
@@ -6462,6 +6463,15 @@ function ItemModal({ modal, data, onClose, onSaved }) {
       minWidth={isServiceModal ? 760 : 620}
       minHeight={itemModalMinHeight}
       windowApiRef={isBookmarkModal ? bookmarkWindowApiRef : null}
+      studioChrome={studioChrome}
+      description={
+        studioChrome
+          ? modal.mode === "edit"
+            ? `Измените ${title} в стиле студии кастомизации`
+            : `Добавьте ${title} в стиле студии кастомизации`
+          : null
+      }
+      wrapperClassName={studioChrome ? "homepage-themed-configurator" : ""}
     >
       {isBookmarkModal ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -6527,7 +6537,7 @@ function ItemModal({ modal, data, onClose, onSaved }) {
           </div>
         </div>
       )}
-    </EditorWindow>
+    </WindowComponent>
   );
 }
 
@@ -13850,6 +13860,7 @@ export function ConfigEditorProvider({ children }) {
               itemMatcher: createItemMatcher(type, itemName, item),
               itemIndex,
               mode: "edit",
+              studioChrome: true,
             })
           }
           onOpenNewGroup={(type) =>
@@ -13859,6 +13870,7 @@ export function ConfigEditorProvider({ children }) {
               layout: {},
               mode: "new",
               scope: "group",
+              studioChrome: true,
             })
           }
           onOpenNewItem={(type, groupName) =>
@@ -13868,6 +13880,7 @@ export function ConfigEditorProvider({ children }) {
               itemName: "",
               item: {},
               mode: "new",
+              studioChrome: true,
             })
           }
           onOpenTopWidget={(widget, widgetIndex) =>
@@ -13980,6 +13993,7 @@ export function ConfigEditorProvider({ children }) {
               itemIndex,
               mode: "edit",
               scope: "item-advanced",
+              studioChrome: true,
             })
           }
           onPickIcon={() => pickStudioItemIcon(canvasServiceWidgetItem)}
@@ -14006,6 +14020,7 @@ export function ConfigEditorProvider({ children }) {
             data={data}
             onClose={() => setModal(null)}
             onSaved={handleSaved}
+            studioChrome={Boolean(modal.studioChrome)}
           />
         )}
       {iconsManagerOpen && (

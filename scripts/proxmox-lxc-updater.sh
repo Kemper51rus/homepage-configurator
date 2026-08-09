@@ -96,6 +96,13 @@ create_safety_copy() {
   )"
   [[ -n "$backup_storage" ]] || fail "Нет доступного Proxmox storage для backup"
 
+  # vzdump использует глобальную блокировку узла. Не ждём бесконечно уже
+  # запущенный backup: информатор должен вернуть понятную ошибку и дать
+  # повторить обновление после освобождения слота.
+  if ! flock -n /var/run/vzdump.lock -c true 2>/dev/null; then
+    fail "В Proxmox уже выполняется резервное копирование; повторите обновление после его завершения"
+  fi
+
   if ! vzdump "$vmid" --storage "$backup_storage" --mode snapshot --compress zstd >&2; then
     printf '%s\n' "Online-backup недоступен; выполняется backup с кратким suspend LXC" >&2
     vzdump "$vmid" --storage "$backup_storage" --mode suspend --compress zstd >&2

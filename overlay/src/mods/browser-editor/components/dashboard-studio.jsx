@@ -1,6 +1,8 @@
 import classNames from "classnames";
 import ResolvedIcon from "components/resolvedicon";
 import yaml from "js-yaml";
+import Prism from "prismjs";
+import "prismjs/components/prism-yaml";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 import {
@@ -52,6 +54,47 @@ const cardColors = [
   ["color-amber", "#ff7700"],
   ["color-indigo", "#2a2978"],
 ];
+
+function StudioYamlEditor({ value, onChange }) {
+  const highlighted = useMemo(() => {
+    try {
+      return Prism.highlight(value || "", Prism.languages.yaml, "yaml");
+    } catch {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+  }, [value]);
+
+  return (
+    <div className="homepage-editor-code relative min-h-[18rem] overflow-hidden rounded-xl border border-white/10 bg-zinc-950 font-mono text-[11px] leading-relaxed">
+      <style jsx global>{`
+        .homepage-editor-code .token.comment { color: #7f8ea3; }
+        .homepage-editor-code .token.punctuation { color: #94a3b8; }
+        .homepage-editor-code .token.property,
+        .homepage-editor-code .token.atrule,
+        .homepage-editor-code .token.keyword { color: #c4b5fd; }
+        .homepage-editor-code .token.boolean,
+        .homepage-editor-code .token.number { color: #fbbf24; }
+        .homepage-editor-code .token.string,
+        .homepage-editor-code .token.scalar { color: #5eead4; }
+      `}</style>
+      <pre
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 text-zinc-200"
+        dangerouslySetInnerHTML={{ __html: highlighted || " " }}
+      />
+      <textarea
+        aria-label="YAML виджета"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        spellCheck={false}
+        className="relative block min-h-[18rem] w-full resize-y bg-transparent px-3 py-2.5 text-transparent caret-white outline-hidden selection:bg-white/20"
+      />
+    </div>
+  );
+}
 
 const monochromeThemeColors = {
   "--color-50": "250 250 250",
@@ -2989,17 +3032,13 @@ function ServiceWidgetInspector({
             Сначала примените YAML к предпросмотру, затем сохраните виджет.
             Значение widget: null удалит виджет с карточки.
           </p>
-          <textarea
-            aria-label="YAML виджета"
+          <StudioYamlEditor
             value={widgetYamlDraft}
-            onChange={(event) => {
-              setWidgetYamlDraft(event.target.value);
+            onChange={(value) => {
+              setWidgetYamlDraft(value);
               setWidgetYamlDirty(true);
               setWidgetYamlError("");
             }}
-            rows={12}
-            spellCheck={false}
-            className="w-full resize-y rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-zinc-200 outline-hidden transition focus:border-white/30 focus:ring-2 focus:ring-white/10"
           />
           {widgetYamlError && (
             <div
@@ -3953,7 +3992,6 @@ export function StudioModalWindow({
     <div
       className="homepage-configurator-ui homepage-studio-editor-window homepage-themed-configurator dark fixed inset-0 z-[500] bg-black/65 text-zinc-100 backdrop-blur-sm"
       style={{ ...themeStyle, zIndex }}
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
         ref={windowRef}
