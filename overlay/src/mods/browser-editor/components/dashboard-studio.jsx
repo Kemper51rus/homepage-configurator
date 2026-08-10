@@ -57,6 +57,7 @@ const cardColors = [
 function StudioYamlEditor({ value, onChange }) {
   return (
     <CodeEditor
+      aria-label="YAML виджета"
       label={null}
       value={value}
       onChange={onChange}

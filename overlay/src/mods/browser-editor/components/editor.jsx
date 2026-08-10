@@ -3522,6 +3522,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
 }
 
 export function CodeEditor({
+  "aria-label": ariaLabel,
   label,
   value,
   onChange,
@@ -3771,6 +3772,7 @@ export function CodeEditor({
             )}
           </pre>
           <textarea
+            aria-label={ariaLabel}
             ref={textareaRef}
             value={value}
             onChange={(event) => {
