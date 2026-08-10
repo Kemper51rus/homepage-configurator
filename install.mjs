@@ -446,6 +446,10 @@ function canApplyPatchWithCompatibilityNormalization(target) {
   }
 }
 
+function patchNeedsCompatibilityNormalization(target) {
+  return patchState(target) === "conflict" && canApplyPatchWithCompatibilityNormalization(target);
+}
+
 function envPath(target) {
   const localEnvPath = join(target, ".env.local");
   if (existsSync(localEnvPath)) {
@@ -515,8 +519,11 @@ function install(target, options = {}) {
     return;
   }
 
-  const compatibilityNormalizationNeeded = preflightInstallPatchState(target, existingManifest);
+  let compatibilityNormalizationNeeded = preflightInstallPatchState(target, existingManifest);
   prepareExistingInstall(target, existingManifest);
+  if (!compatibilityNormalizationNeeded && patchNeedsCompatibilityNormalization(target)) {
+    compatibilityNormalizationNeeded = true;
+  }
 
   const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
 
