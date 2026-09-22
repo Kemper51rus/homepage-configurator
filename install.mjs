@@ -1,8 +1,14 @@
 import { execFileSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
+import {
+  applyComponentInstall,
+  isSafeComponentId,
+  planComponentInstall,
+  removeComponent,
+} from "./lib/component-installer.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const corePatches = [
@@ -42,33 +48,85 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const parsed = {
     command: "install",
+    componentCommand: null,
+    componentId: null,
+    componentDir: null,
     dryRun: false,
     force: false,
     target: process.env.HOMEPAGE_TARGET_DIR || process.cwd(),
+  };
+  let coreCommandSet = false;
+
+  const valueAfter = (index, option) => {
+    const value = args[index + 1];
+    if (!value || value.startsWith("-")) throw new Error(`${option} requires a value`);
+    return value;
+  };
+  const setCoreCommand = (command, source) => {
+    if (parsed.componentCommand) throw new Error(`${source} cannot be combined with --component`);
+    if (coreCommandSet) throw new Error(`Multiple core commands are not allowed (unexpected ${source})`);
+    parsed.command = command;
+    coreCommandSet = true;
   };
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--target") {
-      parsed.target = args[index + 1];
+      parsed.target = valueAfter(index, arg);
       index += 1;
+    } else if (arg === "--component") {
+      if (parsed.componentCommand) throw new Error("--component may only be specified once");
+      if (coreCommandSet) throw new Error("--component cannot be combined with a core command");
+      const operation = valueAfter(index, arg);
+      if (!["install", "update", "remove", "status"].includes(operation)) {
+        throw new Error(`Unknown component operation: ${operation}`);
+      }
+      parsed.componentCommand = operation;
+      index += 1;
+    } else if (arg === "--component-id") {
+      if (parsed.componentId !== null) throw new Error("Component id may only be specified once");
+      parsed.componentId = valueAfter(index, arg);
+      index += 1;
+    } else if (arg === "--component-dir") {
+      if (parsed.componentDir !== null) throw new Error("--component-dir may only be specified once");
+      parsed.componentDir = valueAfter(index, arg);
+      index += 1;
+    } else if (!arg.startsWith("-") && parsed.componentCommand && parsed.componentId === null) {
+      parsed.componentId = arg;
     } else if (arg === "--enable") {
-      parsed.command = "enable";
+      setCoreCommand("enable", arg);
     } else if (arg === "--disable") {
-      parsed.command = "disable";
+      setCoreCommand("disable", arg);
     } else if (arg === "--status") {
-      parsed.command = "status";
+      setCoreCommand("status", arg);
     } else if (arg === "--dry-run" || arg === "-n") {
       parsed.dryRun = true;
     } else if (arg === "--force") {
       parsed.force = true;
     } else if (arg === "--install") {
-      parsed.command = "install";
+      setCoreCommand("install", arg);
     } else if (arg === "--uninstall" || arg === "--remove") {
-      parsed.command = "uninstall";
+      setCoreCommand("uninstall", arg);
     } else if (["install", "enable", "disable", "status", "uninstall", "remove"].includes(arg)) {
-      parsed.command = arg === "remove" ? "uninstall" : arg;
+      setCoreCommand(arg === "remove" ? "uninstall" : arg, arg);
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
     }
+  }
+
+  if (!parsed.target) throw new Error("--target requires a non-empty path");
+  if (parsed.componentCommand) {
+    if ((parsed.componentCommand === "install" || parsed.componentCommand === "update") && !parsed.componentDir) {
+      throw new Error(`Component ${parsed.componentCommand} requires --component-dir DIR`);
+    }
+    if ((parsed.componentCommand === "remove" || parsed.componentCommand === "status") && !parsed.componentId) {
+      throw new Error(`Component ${parsed.componentCommand} requires COMPONENT_ID or --component-id ID`);
+    }
+    if (parsed.componentId !== null && !isSafeComponentId(parsed.componentId)) {
+      throw new Error(`Unsafe component id: ${JSON.stringify(parsed.componentId)}`);
+    }
+  } else if (parsed.componentId !== null || parsed.componentDir !== null) {
+    throw new Error("--component-id and --component-dir require --component install|update|remove|status");
   }
 
   return parsed;
@@ -257,6 +315,27 @@ function readManifest(target) {
 
 function writeManifest(target, manifest) {
   writeFileSync(manifestPath(target), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function coreRecord(manifest) {
+  return manifest?.schema === 2 ? manifest.core : manifest;
+}
+
+function installedComponents(manifest) {
+  if (manifest?.schema !== 2) return [];
+  if (!manifest.components || typeof manifest.components !== "object" || Array.isArray(manifest.components)) {
+    throw new Error("Schema 2 components must be an object");
+  }
+  return Object.keys(manifest.components);
+}
+
+function assertCoreOperationAllowed(manifest, operation) {
+  const components = installedComponents(manifest);
+  if (components.length) {
+    throw new Error(
+      `Cannot ${operation} core while components are installed (${components.join(", ")}). Remove components first with --component remove COMPONENT_ID.`,
+    );
+  }
 }
 
 function timestamp() {
@@ -504,8 +583,96 @@ function setEnv(target, key, value) {
 }
 
 function status(target) {
+  const manifest = readManifest(target);
+  const core = coreRecord(manifest);
   const line = readEnv(target).find((candidate) => candidate.startsWith("HOMEPAGE_BROWSER_EDITOR="));
   console.log(line ?? `HOMEPAGE_BROWSER_EDITOR is not set in ${envPath(target)}`);
+  console.log(core ? `Core manifest: ${core.configurator?.version ?? core.version ?? "installed"}` : "Core manifest: not installed");
+}
+
+function readTrustedComponent(componentDir) {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(componentDir)) {
+    throw new Error("--component-dir must be a trusted local directory, not a URL");
+  }
+
+  let directory;
+  try {
+    directory = realpathSync(componentDir);
+  } catch (error) {
+    throw new Error(`Component directory does not exist: ${error.message}`);
+  }
+  if (!statSync(directory).isDirectory()) throw new Error("--component-dir must be a trusted local directory");
+
+  const file = join(directory, "homepage-component.json");
+  if (!existsSync(file) || !statSync(file).isFile()) {
+    throw new Error(`Component manifest is missing: ${file}`);
+  }
+  return { directory, manifest: JSON.parse(readFileSync(file, "utf8")) };
+}
+
+function componentOperation(target, command, options = {}) {
+  ensureTarget(target);
+  const currentManifest = readManifest(target);
+  if (
+    currentManifest?.schema !== 2
+    || !currentManifest.components
+    || typeof currentManifest.components !== "object"
+    || Array.isArray(currentManifest.components)
+  ) {
+    throw new Error("Component operations require a schema 2 configurator manifest.");
+  }
+  if ((command === "install" || command === "update") && !coreRecord(currentManifest)) {
+    throw new Error("Component install and update require an installed schema 2 core manifest. Install the core first.");
+  }
+
+  if (command === "status") {
+    const component = Object.hasOwn(currentManifest.components, options.componentId)
+      ? currentManifest.components[options.componentId]
+      : null;
+    if (!component) throw new Error(`Component is not installed: ${options.componentId}`);
+    console.log(JSON.stringify({ id: options.componentId, ...component }, null, 2));
+    return;
+  }
+
+  if (command === "remove") {
+    if (options.dryRun) {
+      const component = currentManifest.components?.[options.componentId];
+      if (!component) throw new Error(`Component is not installed: ${options.componentId}`);
+      printPlan("Component remove plan:", [
+        `component: ${options.componentId}`,
+        ...((component.ownedFiles ?? []).map((file) => `remove owned file: ${typeof file === "string" ? file : file.path}`)),
+      ]);
+      console.log("Dry-run only. No files changed.");
+      return;
+    }
+    removeComponent(target, options.componentId, currentManifest, { force: options.force });
+    console.log(`Component removed: ${options.componentId}`);
+    return;
+  }
+
+  const { directory, manifest } = readTrustedComponent(options.componentDir);
+  if (options.componentId && options.componentId !== manifest.id) {
+    throw new Error(`Component id mismatch: CLI requested ${options.componentId}, manifest declares ${manifest.id}`);
+  }
+  const componentId = options.componentId ?? manifest.id;
+  if (!isSafeComponentId(componentId)) throw new Error(`Unsafe component id: ${JSON.stringify(componentId)}`);
+  const installed = Object.hasOwn(currentManifest.components, componentId);
+  if (command === "install" && installed) throw new Error(`Component is already installed: ${componentId}; use update`);
+  if (command === "update" && !installed) throw new Error(`Component is not installed: ${componentId}; use install`);
+
+  const plan = planComponentInstall(target, directory, manifest, currentManifest);
+  printPlan(`Component ${command} plan:`, [
+    `component: ${componentId}@${plan.manifest.version}`,
+    ...plan.files.map((file) => `${file.kind}: ${file.relativePath}${file.existing ? " (replace/preserve as applicable)" : ""}`),
+    ...plan.dataDirs.map((path) => `data directory: ${path}`),
+  ]);
+  if (options.dryRun) {
+    console.log("Dry-run only. No files changed.");
+    return;
+  }
+
+  applyComponentInstall(plan, { force: options.force });
+  console.log(`Component ${command === "install" ? "installed" : "updated"}: ${componentId}@${plan.manifest.version}`);
 }
 
 function install(target, options = {}) {
@@ -514,6 +681,7 @@ function install(target, options = {}) {
 
   const files = overlayFiles().map((file) => file.relativePath);
   const existingManifest = readManifest(target);
+  assertCoreOperationAllowed(existingManifest, "install or update");
   const selection = preflightInstallPatchState(target, existingManifest);
   const { patch } = selection;
   const patchTouchedFiles = patchFiles(patch);
@@ -555,25 +723,29 @@ function install(target, options = {}) {
   applyPatch(target, patch);
   syncManagedDependencies(target);
   writeManifest(target, {
-    installedAt: new Date().toISOString(),
-    source: root,
-    configurator: {
-      name: packageJson.name,
-      version: packageJson.version,
-      repo: versionMetadata.repo,
-      branch: versionMetadata.branch,
-      target: targetMetadata,
-      metadataUrl: versionMetadata.metadataUrl,
-      installUrl: versionMetadata.installUrl,
+    schema: 2,
+    core: {
+      installedAt: new Date().toISOString(),
+      source: root,
+      configurator: {
+        name: packageJson.name,
+        version: packageJson.version,
+        repo: versionMetadata.repo,
+        branch: versionMetadata.branch,
+        target: targetMetadata,
+        metadataUrl: versionMetadata.metadataUrl,
+        installUrl: versionMetadata.installUrl,
+      },
+      patch: {
+        id: patch.id,
+        file: patch.file,
+      },
+      overlayFiles: files,
+      patchFiles: patchTouchedFiles,
+      managedDependencies,
+      backup,
     },
-    patch: {
-      id: patch.id,
-      file: patch.file,
-    },
-    overlayFiles: files,
-    patchFiles: patchTouchedFiles,
-    managedDependencies,
-    backup,
+    components: {},
   });
 
   if (backup) {
@@ -584,9 +756,10 @@ function install(target, options = {}) {
 }
 
 function preflightInstallPatchState(target, manifest) {
-  if (manifest) {
+  const core = coreRecord(manifest);
+  if (core) {
     for (const patch of corePatches) {
-      const result = existingInstallCanAcceptPatch(target, manifest, patch);
+      const result = existingInstallCanAcceptPatch(target, core, patch);
       if (result.accepted) {
         return { patch, normalizationNeeded: result.normalizationNeeded };
       }
@@ -619,8 +792,9 @@ function throwCorePatchCompatibilityError() {
 }
 
 function existingInstallCanAcceptPatch(target, manifest, patch) {
-  const backupRoot = manifest?.backup?.backupRoot;
-  const backupFiles = manifest?.backup?.files ?? [];
+  const core = coreRecord(manifest);
+  const backupRoot = core?.backup?.backupRoot;
+  const backupFiles = core?.backup?.files ?? [];
 
   if (!isSafeRelativePath(backupRoot)) {
     return { accepted: false, normalizationNeeded: false };
@@ -676,8 +850,9 @@ function copyRelativeFileIfExists(sourceRoot, targetRoot, file) {
 }
 
 function patchesForManifest(manifest) {
-  const patchId = manifest?.patch?.id ?? manifest?.patchId;
-  const patchFile = manifest?.patch?.file ?? manifest?.patchFile;
+  const core = coreRecord(manifest);
+  const patchId = core?.patch?.id ?? core?.patchId;
+  const patchFile = core?.patch?.file ?? core?.patchFile;
   const manifestPatch = corePatches.find((patch) => patch.id === patchId) ?? corePatches.find((patch) => patch.file === patchFile);
 
   if (!manifestPatch) {
@@ -690,8 +865,10 @@ function patchesForManifest(manifest) {
 function uninstall(target, options = {}) {
   ensureTarget(target);
   const manifest = readManifest(target);
-  const files = manifest?.overlayFiles ?? overlayFiles().map((file) => file.relativePath);
-  const fallbackPatches = patchesForManifest(manifest);
+  assertCoreOperationAllowed(manifest, "uninstall");
+  const core = coreRecord(manifest);
+  const files = core?.overlayFiles ?? overlayFiles().map((file) => file.relativePath);
+  const fallbackPatches = patchesForManifest(core);
   const plan = [
     `validate Homepage checkout: ${target}`,
     `restore backup first; reverse fallback: ${fallbackPatches.map((patch) => `${patch.id} (${patch.file})`).join(", ")}`,
@@ -729,31 +906,38 @@ function uninstall(target, options = {}) {
 
 function prepareExistingInstall(target, manifest) {
   if (!manifest) return;
+  assertCoreOperationAllowed(manifest, "reinstall or update");
+  const core = coreRecord(manifest);
+  if (!core) {
+    unlinkSync(manifestPath(target));
+    return;
+  }
 
   console.log(`Existing browser editor install detected in ${manifestName}; preparing reinstall`);
 
   try {
-    if (restoreBackupFiles(target, manifest)) {
+    if (restoreBackupFiles(target, core)) {
       console.log("Previous install files restored from backup before reinstall");
     } else {
-      reverseInstalledPatch(target, manifest);
+      reverseInstalledPatch(target, core);
     }
   } catch (error) {
-    if (!restoreBackupFiles(target, manifest)) {
+    if (!restoreBackupFiles(target, core)) {
       throw new Error(`Existing install could not be reverted before reinstall:\n${error.message}`);
     }
     console.log("Previous install files restored from backup before reinstall");
   }
 
-  removeOverlay(target, { files: manifest.overlayFiles ?? [], force: true });
+  removeOverlay(target, { files: core.overlayFiles ?? [], force: true });
   if (existsSync(manifestPath(target))) {
     unlinkSync(manifestPath(target));
   }
 }
 
 function restoreBackupFiles(target, manifest) {
-  const backupRoot = manifest?.backup?.backupRoot;
-  const files = manifest?.backup?.files ?? [];
+  const core = coreRecord(manifest);
+  const backupRoot = core?.backup?.backupRoot;
+  const files = core?.backup?.files ?? [];
 
   if (!isSafeRelativePath(backupRoot) || !files.length) {
     return false;
@@ -896,15 +1080,16 @@ function reversePatch(target, patch) {
   console.log(`Core patch reverted: ${patch.id} (${patch.file})`);
 }
 
-const { command, target, dryRun, force } = parseArgs();
-
 try {
+  const { command, componentCommand, componentId, componentDir, target, dryRun, force } = parseArgs();
   ensureConfiguratorMetadata();
-  if (command === "install") install(target, { dryRun, force });
-  if (command === "uninstall") uninstall(target, { dryRun, force });
-  if (command === "enable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "true");
-  if (command === "disable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");
-  if (command === "status") status(target);
+  if (componentCommand) {
+    componentOperation(target, componentCommand, { componentId, componentDir, dryRun, force });
+  } else if (command === "install") install(target, { dryRun, force });
+  else if (command === "uninstall") uninstall(target, { dryRun, force });
+  else if (command === "enable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "true");
+  else if (command === "disable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");
+  else if (command === "status") status(target);
 } catch (error) {
   console.error(error.message);
   process.exit(1);

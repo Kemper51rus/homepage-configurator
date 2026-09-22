@@ -30,10 +30,15 @@ function patchFiles(patch) {
     .filter(Boolean);
 }
 
+function coreRecord(manifest) {
+  return manifest?.schema === 2 ? manifest.core : manifest;
+}
+
 function assertPatchMetadata(manifest, expectedPatch) {
-  if (manifest.patch?.id !== expectedPatch.id || manifest.patch?.file !== expectedPatch.file) {
+  const core = coreRecord(manifest);
+  if (core?.patch?.id !== expectedPatch.id || core?.patch?.file !== expectedPatch.file) {
     throw new Error(
-      `Install manifest patch metadata mismatch: expected ${expectedPatch.id} (${expectedPatch.file}), got ${JSON.stringify(manifest.patch)}`,
+      `Install manifest patch metadata mismatch: expected ${expectedPatch.id} (${expectedPatch.file}), got ${JSON.stringify(core?.patch)}`,
     );
   }
 }
@@ -96,33 +101,37 @@ try {
   }
 
   const manifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  const core = coreRecord(manifest);
   assertPatchMetadata(manifest, currentPatch);
-  if (!manifest.overlayFiles?.includes("src/mods/browser-editor/components/editor.jsx")) {
+  if (manifest.schema !== 2 || !core || Object.keys(manifest.components ?? {}).length !== 0) {
+    throw new Error("Install manifest must use schema 2 with core and empty components");
+  }
+  if (!core.overlayFiles?.includes("src/mods/browser-editor/components/editor.jsx")) {
     throw new Error("Install manifest does not list overlay files");
   }
-  if (!manifest.overlayFiles?.includes("src/mods/browser-editor/lib/editor-window.js")) {
+  if (!core.overlayFiles?.includes("src/mods/browser-editor/lib/editor-window.js")) {
     throw new Error("Install manifest does not list editor window helper overlay file");
   }
-  if (!manifest.backup?.backupRoot) {
+  if (!core.backup?.backupRoot) {
     throw new Error("Install manifest does not list backup root");
   }
-  if (isAbsolute(manifest.backup.backupRoot)) {
-    throw new Error(`Install manifest backup root should be relative, got ${manifest.backup.backupRoot}`);
+  if (isAbsolute(core.backup.backupRoot)) {
+    throw new Error(`Install manifest backup root should be relative, got ${core.backup.backupRoot}`);
   }
-  if (!manifest.backup.backupRoot.startsWith(".homepage-configurator-backups/")) {
-    throw new Error(`Install manifest backup root should stay inside .homepage-configurator-backups, got ${manifest.backup.backupRoot}`);
+  if (!core.backup.backupRoot.startsWith(".homepage-configurator-backups/")) {
+    throw new Error(`Install manifest backup root should stay inside .homepage-configurator-backups, got ${core.backup.backupRoot}`);
   }
-  if (!existsSync(join(target, manifest.backup.backupRoot))) {
+  if (!existsSync(join(target, core.backup.backupRoot))) {
     throw new Error("Install manifest backup root does not exist under target checkout");
   }
 
-  const staleBackupFile = patchFiles(currentPatch).find((file) => existsSync(join(target, manifest.backup.backupRoot, file)));
+  const staleBackupFile = patchFiles(currentPatch).find((file) => existsSync(join(target, core.backup.backupRoot, file)));
   if (!staleBackupFile) {
     throw new Error("Could not find a backed-up patch file for stale manifest preflight smoke");
   }
-  cpSync(join(target, manifest.backup.backupRoot, staleBackupFile), join(target, staleBackupFile));
-  rmSync(join(target, manifest.backup.backupRoot, staleBackupFile), { force: true });
-  const { patch: ignoredPatchMetadata, ...legacyManifest } = manifest;
+  cpSync(join(target, core.backup.backupRoot, staleBackupFile), join(target, staleBackupFile));
+  rmSync(join(target, core.backup.backupRoot, staleBackupFile), { force: true });
+  const { patch: ignoredPatchMetadata, ...legacyManifest } = core;
   void ignoredPatchMetadata;
   writeFileSync(
     join(target, ".homepage-configurator-manifest.json"),
@@ -130,8 +139,8 @@ try {
       {
         ...legacyManifest,
         backup: {
-          ...manifest.backup,
-          files: manifest.backup.files.filter((file) => file !== staleBackupFile),
+          ...core.backup,
+          files: core.backup.files.filter((file) => file !== staleBackupFile),
         },
       },
       null,
@@ -161,7 +170,7 @@ try {
     cwd: target,
   });
   const fallbackManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
-  rmSync(join(target, fallbackManifest.backup.backupRoot), { force: true, recursive: true });
+  rmSync(join(target, coreRecord(fallbackManifest).backup.backupRoot), { force: true, recursive: true });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
 
   console.log("Smoke install/uninstall passed.");
