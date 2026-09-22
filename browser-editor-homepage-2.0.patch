@@ -26,18 +26,18 @@ index dcd133b2..7426606f 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 3030cfe1..a3ef8756 100644
+index 88d4d7e8..432bcd67 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
-@@ -6,6 +6,7 @@ import { MdKeyboardArrowDown } from "react-icons/md";
- import List from "components/bookmarks/list";
- import ErrorBoundary from "components/errorboundry";
+@@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
  import ResolvedIcon from "components/resolvedicon";
+ import { useEffect, useRef } from "react";
+ import { MdKeyboardArrowDown } from "react-icons/md";
 +import { useConfigEditor, useEditableGroupHeader } from "mods/browser-editor/components/editor";
  
  export default function BookmarksGroup({
    bookmarks,
-@@ -15,15 +16,24 @@ export default function BookmarksGroup({
+@@ -14,15 +15,24 @@ export default function BookmarksGroup({
    bookmarksStyle,
    maxGroupColumns,
  }) {
@@ -63,7 +63,7 @@ index 3030cfe1..a3ef8756 100644
        className={classNames(
          "bookmark-group flex-1 overflow-hidden",
          layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/4 lg:basis-1/5 xl:basis-1/6",
-@@ -36,8 +46,17 @@ export default function BookmarksGroup({
+@@ -35,8 +45,17 @@ export default function BookmarksGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -83,7 +83,7 @@ index 3030cfe1..a3ef8756 100644
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 bookmark-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -74,7 +93,12 @@ export default function BookmarksGroup({
+@@ -73,7 +92,12 @@ export default function BookmarksGroup({
              >
                <Disclosure.Panel className="transition-all overflow-hidden duration-300 ease-out" ref={panel} static>
                  <ErrorBoundary>
@@ -98,16 +98,15 @@ index 3030cfe1..a3ef8756 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 6d2c427b..c33fd4f5 100644
+index 7ea16bba..630c34ce 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,25 +1,94 @@
+@@ -1,24 +1,93 @@
  import classNames from "classnames";
++import { useEditableItem } from "mods/browser-editor/components/editor";
+ import ResolvedIcon from "components/resolvedicon";
 -import { useContext } from "react";
 +import { useContext, useEffect, useRef, useState } from "react";
- 
- import ResolvedIcon from "components/resolvedicon";
-+import { useEditableItem } from "mods/browser-editor/components/editor";
  import { SettingsContext } from "utils/contexts/settings";
  
 +function bookmarkDescription(bookmark) {
@@ -201,7 +200,7 @@ index 6d2c427b..c33fd4f5 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -54,6 +123,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -53,6 +122,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -218,21 +217,22 @@ index 6d2c427b..c33fd4f5 100644
    );
  }
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index 8f41afdf..71492486 100644
+index f24794db..23c8c3bd 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
-@@ -3,8 +3,9 @@ import classNames from "classnames";
- import { columnMap } from "../../utils/layout/columns";
- 
+@@ -1,9 +1,10 @@
+ import classNames from "classnames";
  import Item from "components/bookmarks/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
+ 
+ import { columnMap } from "../../utils/layout/columns";
  
 -export default function List({ bookmarks, layout, bookmarksStyle }) {
 +export default function List({ groupName, bookmarks, layout, bookmarksStyle }) {
    let classes = layout?.style === "row" ? `grid ${columnMap[layout?.columns]} gap-x-2` : "flex flex-col bookmark-list";
    const style = {};
    if (layout?.iconsOnly || bookmarksStyle === "icons") {
-@@ -13,13 +14,23 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
+@@ -12,13 +13,23 @@ export default function List({ bookmarks, layout, bookmarksStyle }) {
    }
    return (
      <ul className={classNames(classes, "mb-2", layout?.header === false ? "" : "mt-3")} style={style}>
@@ -259,10 +259,10 @@ index 8f41afdf..71492486 100644
    );
  }
 diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index cf5fde02..367b8b9d 100644
+index 77ba9119..79489a0a 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
-@@ -5,8 +5,8 @@ import { SettingsContext } from "utils/contexts/settings";
+@@ -4,8 +4,8 @@ import { SettingsContext } from "utils/contexts/settings";
  import { ThemeContext } from "utils/contexts/theme";
  
  const iconSetURLs = {
@@ -273,7 +273,7 @@ index cf5fde02..367b8b9d 100644
  };
  
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
-@@ -32,9 +32,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -31,9 +31,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -284,7 +284,7 @@ index cf5fde02..367b8b9d 100644
    if (prefix === "sh") {
      const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
  
-@@ -47,9 +47,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -46,9 +46,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
        extension = "png";
      }
  
@@ -297,7 +297,7 @@ index cf5fde02..367b8b9d 100644
          width={width}
          height={height}
          style={{
-@@ -60,19 +62,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -59,19 +61,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
            maxWidth: "100%",
          }}
          alt={alt}
@@ -320,7 +320,7 @@ index cf5fde02..367b8b9d 100644
      const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
      if (colorMatches?.length) {
        iconName = icon.replace(`${prefix}-`, "").replace(".svg", "").replace(`-${colorMatches[0]}`, "");
-@@ -96,49 +98,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -95,49 +97,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -377,7 +377,7 @@ index cf5fde02..367b8b9d 100644
        width={width}
        height={height}
        style={{
-@@ -149,6 +119,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -148,6 +118,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
          maxWidth: "100%",
        }}
        alt={alt}
@@ -386,18 +386,18 @@ index cf5fde02..367b8b9d 100644
    );
  }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 881da5b7..9ea9f7fd 100644
+index 403f6063..dc561db3 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
-@@ -2,6 +2,7 @@ import { Disclosure, Transition } from "@headlessui/react";
- import classNames from "classnames";
+@@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
+ import List from "components/services/list";
  import { useEffect, useRef } from "react";
  import { MdKeyboardArrowDown } from "react-icons/md";
 +import { useConfigEditor, useEditableGroupHeader, useGroupInsideDropTarget } from "mods/browser-editor/components/editor";
  
  import { columnMap } from "../../utils/layout/columns";
  
-@@ -17,18 +18,53 @@ export default function ServicesGroup({
+@@ -16,18 +17,53 @@ export default function ServicesGroup({
    groupsInitiallyCollapsed,
    isSubgroup,
  }) {
@@ -452,7 +452,7 @@ index 881da5b7..9ea9f7fd 100644
        className={classNames(
          "services-group flex-1",
          layout?.style === "row" ? "basis-full" : "basis-full md:basis-1/2 lg:basis-1/3 xl:basis-1/4",
-@@ -40,8 +76,17 @@ export default function ServicesGroup({
+@@ -39,8 +75,17 @@ export default function ServicesGroup({
        <Disclosure defaultOpen={!(layout?.initiallyCollapsed ?? groupsInitiallyCollapsed)}>
          {({ open }) => (
            <>
@@ -472,7 +472,7 @@ index 881da5b7..9ea9f7fd 100644
                  {layout?.icon && (
                    <div className="shrink-0 mr-2 w-7 h-7 service-group-icon">
                      <ResolvedIcon icon={layout.icon} />
-@@ -87,13 +132,13 @@ export default function ServicesGroup({
+@@ -86,13 +131,13 @@ export default function ServicesGroup({
                    useEqualHeights={useEqualHeights}
                    header={layout?.header !== false}
                  />
@@ -489,18 +489,19 @@ index 881da5b7..9ea9f7fd 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index 88c6383a..b8c5b71a 100644
+index c23e16a2..ddd84827 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
-@@ -9,13 +9,24 @@ import Status from "./status";
- import Widget from "./widget";
- 
+@@ -1,5 +1,6 @@
+ import classNames from "classnames";
  import ResolvedIcon from "components/resolvedicon";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
+ import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  import Docker from "widgets/docker/component";
- import Kubernetes from "widgets/kubernetes/component";
- import ProxmoxVM from "widgets/proxmoxvm/component";
+@@ -13,8 +14,18 @@ import SiteMonitor from "./site-monitor";
+ import Status from "./status";
+ import Widget from "./widget";
  
 -export default function Item({ service, groupName, useEqualHeights }) {
 +function titleCustomProperties(item) {
@@ -518,7 +519,7 @@ index 88c6383a..b8c5b71a 100644
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -34,7 +45,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -33,7 +44,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
    };
  
    return (
@@ -533,7 +534,7 @@ index 88c6383a..b8c5b71a 100644
        <div
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-@@ -189,6 +206,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -188,6 +205,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -551,14 +552,15 @@ index 88c6383a..b8c5b71a 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 63fcea38..3e8d4f7a 100644
+index 1acf94d6..531ba65d 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
-@@ -3,24 +3,36 @@ import classNames from "classnames";
- import { columnMap } from "../../utils/layout/columns";
- 
+@@ -1,25 +1,37 @@
+ import classNames from "classnames";
  import Item from "components/services/item";
 +import { EditorAddTile } from "mods/browser-editor/components/editor";
+ 
+ import { columnMap } from "../../utils/layout/columns";
  
  export default function List({ groupName, services, layout, useEqualHeights, header }) {
 +  const isRowLayout = layout?.style === "row";
@@ -594,24 +596,42 @@ index 63fcea38..3e8d4f7a 100644
    );
  }
 diff --git a/src/components/widgets/datetime/datetime.jsx b/src/components/widgets/datetime/datetime.jsx
-index abcd7409..220cb4ca 100644
+index f0bae0b9..a868fad8 100644
 --- a/src/components/widgets/datetime/datetime.jsx
 +++ b/src/components/widgets/datetime/datetime.jsx
-@@ -19,18 +19,130 @@ const textSizes = {
+@@ -1,5 +1,5 @@
+ import { useTranslation } from "next-i18next/pages";
+-import { useEffect, useState } from "react";
++import { useEffect, useState, useMemo } from "react";
+ 
+ import Container from "../widget/container";
+ import Raw from "../widget/raw";
+@@ -17,25 +17,133 @@ const textSizes = {
  
  export default function DateTime({ options }) {
    const { text_size: textSize, locale, format } = options;
 +  const clockStyle = options?.clockStyle ?? {};
    const { i18n } = useTranslation();
+-  const [date, setDate] = useState("");
    const dateLocale = locale ?? i18n.language;
-   const currentTime = useCurrentTime(1000);
--  const dateFormatter = useMemo(() => new Intl.DateTimeFormat(dateLocale, { ...format }), [dateLocale, format]);
--  const date = currentTime === null ? "" : dateFormatter.format(new Date(currentTime));
-+  const time = useMemo(() => (currentTime === null ? null : new Date(currentTime)), [currentTime]);
+ 
++  const [time, setTime] = useState(() => new Date());
++
+   useEffect(() => {
+-    const dateFormat = new Intl.DateTimeFormat(dateLocale, { ...format });
+-    setDate(dateFormat.format(new Date()));
+     const interval = setInterval(() => {
+-      setDate(dateFormat.format(new Date()));
++      setTime(new Date());
+     }, 1000);
+     return () => clearInterval(interval);
+-  }, [date, setDate, dateLocale, format]);
++  }, []);
++
 +  const clockType = clockStyle.type ?? "digital-one-line";
 +
++  // Formatted date and time strings
 +  const formattedTime = useMemo(() => {
-+    if (!time) return "";
 +    try {
 +      return new Intl.DateTimeFormat(dateLocale, {
 +        hour: "numeric",
@@ -625,7 +645,6 @@ index abcd7409..220cb4ca 100644
 +  }, [time, dateLocale]);
 +
 +  const formattedDate = useMemo(() => {
-+    if (!time) return "";
 +    try {
 +      return new Intl.DateTimeFormat(dateLocale, {
 +        dateStyle: "medium",
@@ -636,28 +655,30 @@ index abcd7409..220cb4ca 100644
 +  }, [time, dateLocale]);
 +
 +  const defaultFormatted = useMemo(() => {
-+    if (!time) return "";
 +    try {
-+      return new Intl.DateTimeFormat(dateLocale, { ...format }).format(time);
++      const dateFormat = new Intl.DateTimeFormat(dateLocale, { ...format });
++      return dateFormat.format(time);
 +    } catch {
 +      return time.toLocaleString(dateLocale);
 +    }
 +  }, [time, dateLocale, format]);
 +
++  // SVG Analog clock calculations
++  const hourDeg = (time.getHours() % 12) * 30 + time.getMinutes() * 0.5;
++  const minuteDeg = time.getMinutes() * 6 + time.getSeconds() * 0.1;
++  const secondDeg = time.getSeconds() * 6;
++
 +  const align = clockStyle.align ?? "right";
 +  const noBackground = clockStyle.noBackground ?? false;
-+  const rowAlignClass = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
-+  const colAlignClass =
-+    align === "left"
-+      ? "items-start text-left"
-+      : align === "center"
-+        ? "items-center text-center"
-+        : "items-end text-right";
 +
++  const rowAlignClass = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
++  const colAlignClass = align === "left" ? "items-start text-left" : align === "center" ? "items-center text-center" : "items-end text-right";
++
++  // Layout selection
 +  const renderClockContent = () => {
 +    const textColor = clockStyle.color || "";
 +    const textStyle = {
-+      color: textColor || undefined,
++      color: textColor ? textColor : undefined,
 +      fontFamily: clockStyle.fontFamily || undefined,
 +      fontSize: clockStyle.fontSize || undefined,
 +    };
@@ -670,17 +691,15 @@ index abcd7409..220cb4ca 100644
 +          </span>
 +        );
 +      case "only-date":
-+        return <span style={textStyle}>{formattedDate}</span>;
++        return (
++          <span style={textStyle}>
++            {formattedDate}
++          </span>
++        );
 +      case "digital-two-lines-date-time":
 +        return (
 +          <div className={`flex flex-col leading-tight ${colAlignClass}`}>
-+            <span
-+              style={{
-+                ...textStyle,
-+                fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined,
-+              }}
-+              className="opacity-80"
-+            >
++            <span style={{ ...textStyle, fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined }} className="opacity-80">
 +              {formattedDate}
 +            </span>
 +            <span style={textStyle} className="font-semibold tabular-nums">
@@ -694,32 +713,28 @@ index abcd7409..220cb4ca 100644
 +            <span style={textStyle} className="font-semibold tabular-nums">
 +              {formattedTime}
 +            </span>
-+            <span
-+              style={{
-+                ...textStyle,
-+                fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined,
-+              }}
-+              className="opacity-80"
-+            >
++            <span style={{ ...textStyle, fontSize: clockStyle.fontSize ? `calc(${clockStyle.fontSize} * 0.75)` : undefined }} className="opacity-80">
 +              {formattedDate}
 +            </span>
 +          </div>
 +        );
 +      case "digital-one-line":
 +      default:
++        // Use standard inline format or custom format
++        const defaultStyle = {
++          color: textColor ? textColor : undefined,
++          fontFamily: clockStyle.fontFamily || undefined,
++          fontSize: clockStyle.fontSize || undefined,
++        };
 +        return (
-+          <span className="tabular-nums" style={textStyle}>
-+            {clockStyle.type && clockStyle.type !== "analog"
-+              ? `${formattedDate}, ${formattedTime}`
-+              : defaultFormatted}
++          <span className="tabular-nums" style={defaultStyle}>
++            {clockStyle.type && clockStyle.type !== "analog" ? `${formattedDate}, ${formattedTime}` : defaultFormatted}
 +          </span>
 +        );
 +    }
 +  };
 +
-+  const additionalClassNames = `information-widget-datetime ${
-+    noBackground ? "!bg-transparent !shadow-none !border-none !p-0 !backdrop-blur-none" : ""
-+  }`;
++  const additionalClassNames = `information-widget-datetime ${noBackground ? "!bg-transparent !shadow-none !border-none !p-0 !backdrop-blur-none" : ""}`;
  
    return (
 -    <Container options={options} additionalClassNames="information-widget-datetime">
@@ -1073,19 +1088,10 @@ index b69ddff5..c74277d5 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 31b095bf..6049aae8 100644
+index 02adabe1..7ba4f8d6 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
-@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
- import Head from "next/head";
- import { useRouter } from "next/router";
- import Script from "next/script";
--import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
- import { BiError } from "react-icons/bi";
- import useSWR, { SWRConfig } from "swr";
- 
-@@ -13,9 +13,18 @@ import BookmarksGroup from "components/bookmarks/group";
+@@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
  import ErrorBoundary from "components/errorboundry";
  import QuickLaunch from "components/quicklaunch";
  import ServicesGroup from "components/services/group";
@@ -1102,10 +1108,18 @@ index 31b095bf..6049aae8 100644
 +  getOrderedTabsForLayout,
 +  useEditableTopWidget,
 +} from "mods/browser-editor/components/editor";
- import { bookmarksResponse, servicesResponse, widgetsResponse } from "utils/config/api-response";
- import { getSettings } from "utils/config/config";
+ import { useTranslation } from "next-i18next/pages";
+ import { serverSideTranslations } from "next-i18next/pages/serverSideTranslations";
+ import dynamic from "next/dynamic";
+ import Head from "next/head";
+ import { useRouter } from "next/router";
+ import Script from "next/script";
+-import { useContext, useEffect, useMemo, useState } from "react";
++import { useContext, useEffect, useMemo, useRef, useState } from "react";
+ import { BiError } from "react-icons/bi";
+ import useSWR, { SWRConfig } from "swr";
  import { ColorContext } from "utils/contexts/color";
-@@ -34,16 +43,72 @@ const ColorToggle = dynamic(() => import("components/toggles/color"), {
+@@ -35,16 +44,72 @@ const ColorToggle = dynamic(() => import("components/toggles/color"), {
    ssr: false,
  });
  
@@ -1182,7 +1196,7 @@ index 31b095bf..6049aae8 100644
  // Normalize language codes so older config values like zh-CN still point to Crowdin-provided ones
  const LANGUAGE_ALIASES = {
    "zh-cn": "zh-Hans",
-@@ -286,14 +351,8 @@ function Home({ initialSettings }) {
+@@ -281,14 +346,8 @@ function Home({ initialSettings }) {
    });
  
    const tabs = useMemo(
@@ -1199,7 +1213,7 @@ index 31b095bf..6049aae8 100644
    );
  
    useEffect(() => {
-@@ -303,50 +362,119 @@ function Home({ initialSettings }) {
+@@ -298,50 +357,119 @@ function Home({ initialSettings }) {
      }
    });
  
@@ -1335,7 +1349,7 @@ index 31b095bf..6049aae8 100644
                    maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
                    disableCollapse={settings.disableCollapse}
                    useEqualHeights={settings.useEqualHeights}
-@@ -354,50 +482,23 @@ function Home({ initialSettings }) {
+@@ -349,50 +477,23 @@ function Home({ initialSettings }) {
                  />
                ) : (
                  <BookmarksGroup
@@ -1391,7 +1405,7 @@ index 31b095bf..6049aae8 100644
      activeTab,
      services,
      bookmarks,
-@@ -408,6 +509,7 @@ function Home({ initialSettings }) {
+@@ -403,6 +504,7 @@ function Home({ initialSettings }) {
      settings.disableCollapse,
      settings.useEqualHeights,
      settings.cardBlur,
@@ -1399,7 +1413,7 @@ index 31b095bf..6049aae8 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -444,16 +546,101 @@ function Home({ initialSettings }) {
+@@ -438,16 +540,101 @@ function Home({ initialSettings }) {
          <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="color-scheme" content="dark light"></meta>
@@ -1507,7 +1521,7 @@ index 31b095bf..6049aae8 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -475,11 +662,13 @@ function Home({ initialSettings }) {
+@@ -469,11 +656,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -1525,7 +1539,7 @@ index 31b095bf..6049aae8 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -492,11 +681,13 @@ function Home({ initialSettings }) {
+@@ -486,11 +675,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -1543,7 +1557,7 @@ index 31b095bf..6049aae8 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -506,13 +697,12 @@ function Home({ initialSettings }) {
+@@ -500,13 +691,12 @@ function Home({ initialSettings }) {
            </div>
          </div>
  
@@ -1558,7 +1572,7 @@ index 31b095bf..6049aae8 100644
              {!settings.theme && <ThemeToggle />}
            </div>
  
-@@ -520,7 +710,8 @@ function Home({ initialSettings }) {
+@@ -514,7 +704,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>
@@ -1569,10 +1583,26 @@ index 31b095bf..6049aae8 100644
    );
  }
 diff --git a/src/widgets/components.js b/src/widgets/components.js
-index dc1c87c9..4aa67769 100644
+index dc1c87c9..a1c0df5b 100644
 --- a/src/widgets/components.js
 +++ b/src/widgets/components.js
-@@ -147,6 +147,7 @@ const components = {
+@@ -76,7 +76,6 @@ const components = {
+   linkwarden: dynamic(() => import("./linkwarden/component")),
+   lubelogger: dynamic(() => import("./lubelogger/component")),
+   mailcow: dynamic(() => import("./mailcow/component")),
+-  maintainerr: dynamic(() => import("./maintainerr/component")),
+   mastodon: dynamic(() => import("./mastodon/component")),
+   mealie: dynamic(() => import("./mealie/component")),
+   medusa: dynamic(() => import("./medusa/component")),
+@@ -134,7 +133,6 @@ const components = {
+   sparkyfitness: dynamic(() => import("./sparkyfitness/component")),
+   speedtest: dynamic(() => import("./speedtest/component")),
+   spoolman: dynamic(() => import("./spoolman/component")),
+-  sportarr: dynamic(() => import("./sportarr/component")),
+   stash: dynamic(() => import("./stash/component")),
+   stocks: dynamic(() => import("./stocks/component")),
+   strelaysrv: dynamic(() => import("./strelaysrv/component")),
+@@ -147,6 +145,7 @@ const components = {
    technitium: dynamic(() => import("./technitium/component")),
    tdarr: dynamic(() => import("./tdarr/component")),
    tracearr: dynamic(() => import("./tracearr/component")),
@@ -1581,10 +1611,26 @@ index dc1c87c9..4aa67769 100644
    transmission: dynamic(() => import("./transmission/component")),
    trilium: dynamic(() => import("./trilium/component")),
 diff --git a/src/widgets/widgets.js b/src/widgets/widgets.js
-index aaa024f8..646a42fa 100644
+index aaa024f8..f0bb5054 100644
 --- a/src/widgets/widgets.js
 +++ b/src/widgets/widgets.js
-@@ -137,6 +137,7 @@ import tautulli from "./tautulli/widget";
+@@ -67,7 +67,6 @@ import lidarr from "./lidarr/widget";
+ import linkwarden from "./linkwarden/widget";
+ import lubelogger from "./lubelogger/widget";
+ import mailcow from "./mailcow/widget";
+-import maintainerr from "./maintainerr/widget";
+ import mastodon from "./mastodon/widget";
+ import mealie from "./mealie/widget";
+ import medusa from "./medusa/widget";
+@@ -124,7 +123,6 @@ import sonarr from "./sonarr/widget";
+ import sparkyfitness from "./sparkyfitness/widget";
+ import speedtest from "./speedtest/widget";
+ import spoolman from "./spoolman/widget";
+-import sportarr from "./sportarr/widget";
+ import stash from "./stash/widget";
+ import stocks from "./stocks/widget";
+ import strelaysrv from "./strelaysrv/widget";
+@@ -137,6 +135,7 @@ import tautulli from "./tautulli/widget";
  import tdarr from "./tdarr/widget";
  import technitium from "./technitium/widget";
  import tracearr from "./tracearr/widget";
@@ -1592,7 +1638,23 @@ index aaa024f8..646a42fa 100644
  import traefik from "./traefik/widget";
  import transmission from "./transmission/widget";
  import trilium from "./trilium/widget";
-@@ -302,6 +303,7 @@ const widgets = {
+@@ -230,7 +229,6 @@ const widgets = {
+   linkwarden,
+   lubelogger,
+   mailcow,
+-  maintainerr,
+   mastodon,
+   mealie,
+   medusa,
+@@ -289,7 +287,6 @@ const widgets = {
+   sparkyfitness,
+   speedtest,
+   spoolman,
+-  sportarr,
+   stash,
+   stocks,
+   strelaysrv,
+@@ -302,6 +299,7 @@ const widgets = {
    technitium,
    tdarr,
    tracearr,

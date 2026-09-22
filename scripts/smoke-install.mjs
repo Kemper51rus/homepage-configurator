@@ -6,6 +6,14 @@ import { tmpdir } from "os";
 const root = process.cwd();
 const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-smoke-"));
 const target = join(tempRoot, "homepage");
+const currentPatch = {
+  id: "homepage-current",
+  file: "browser-editor.patch",
+};
+const legacyPatch = {
+  id: "homepage-2.0",
+  file: "browser-editor-homepage-2.0.patch",
+};
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -15,15 +23,29 @@ function run(command, args, options = {}) {
   });
 }
 
-function currentPatchFiles() {
-  return run("git", ["apply", "--numstat", join(root, "browser-editor.patch")])
+function patchFiles(patch) {
+  return run("git", ["apply", "--numstat", join(root, patch.file)])
     .split(/\r?\n/)
     .map((line) => line.trim().split("\t").at(-1))
     .filter(Boolean);
 }
 
+function assertPatchMetadata(manifest, expectedPatch) {
+  if (manifest.patch?.id !== expectedPatch.id || manifest.patch?.file !== expectedPatch.file) {
+    throw new Error(
+      `Install manifest patch metadata mismatch: expected ${expectedPatch.id} (${expectedPatch.file}), got ${JSON.stringify(manifest.patch)}`,
+    );
+  }
+}
+
 try {
   run("git", ["clone", "--depth", "1", "https://github.com/gethomepage/homepage.git", target], { stdio: "inherit" });
+
+  for (const patch of [currentPatch, legacyPatch]) {
+    if (!patchFiles(patch).length) {
+      throw new Error(`Core patch has no files: ${patch.id} (${patch.file})`);
+    }
+  }
 
   const originalPackageJson = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
   writeFileSync(join(target, "package.json"), `${JSON.stringify({ ...originalPackageJson, version: "0.0.1" }, null, 2)}\n`);
@@ -38,7 +60,17 @@ try {
     writeFileSync(join(target, "package.json"), `${JSON.stringify(originalPackageJson, null, 2)}\n`);
   }
 
-  run("node", ["install.mjs", "--dry-run", "--target", target], { stdio: "inherit" });
+  const beforeDryRunStatus = run("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: target });
+  const dryRunOutput = run("node", ["install.mjs", "--dry-run", "--target", target]);
+  const afterDryRunStatus = run("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: target });
+  if (afterDryRunStatus !== beforeDryRunStatus) {
+    throw new Error(`Dry-run changed the target checkout:\n${afterDryRunStatus}`);
+  }
+  if (!dryRunOutput.includes(`select core patch: ${currentPatch.id} (${currentPatch.file})`)) {
+    throw new Error(`Dry-run did not report the selected current patch:\n${dryRunOutput}`);
+  }
+  process.stdout.write(dryRunOutput);
+
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--enable", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
@@ -48,7 +80,7 @@ try {
     throw new Error("HOMEPAGE_BROWSER_EDITOR=true was not written");
   }
 
-  run("git", ["-c", `safe.directory=${target}`, "apply", "--reverse", "--check", join(root, "browser-editor.patch")], {
+  run("git", ["-c", `safe.directory=${target}`, "apply", "--reverse", "--check", join(root, currentPatch.file)], {
     cwd: target,
   });
 
@@ -64,6 +96,7 @@ try {
   }
 
   const manifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  assertPatchMetadata(manifest, currentPatch);
   if (!manifest.overlayFiles?.includes("src/mods/browser-editor/components/editor.jsx")) {
     throw new Error("Install manifest does not list overlay files");
   }
@@ -83,17 +116,19 @@ try {
     throw new Error("Install manifest backup root does not exist under target checkout");
   }
 
-  const staleBackupFile = currentPatchFiles().find((file) => existsSync(join(target, manifest.backup.backupRoot, file)));
+  const staleBackupFile = patchFiles(currentPatch).find((file) => existsSync(join(target, manifest.backup.backupRoot, file)));
   if (!staleBackupFile) {
     throw new Error("Could not find a backed-up patch file for stale manifest preflight smoke");
   }
   cpSync(join(target, manifest.backup.backupRoot, staleBackupFile), join(target, staleBackupFile));
   rmSync(join(target, manifest.backup.backupRoot, staleBackupFile), { force: true });
+  const { patch: ignoredPatchMetadata, ...legacyManifest } = manifest;
+  void ignoredPatchMetadata;
   writeFileSync(
     join(target, ".homepage-configurator-manifest.json"),
     `${JSON.stringify(
       {
-        ...manifest,
+        ...legacyManifest,
         backup: {
           ...manifest.backup,
           files: manifest.backup.files.filter((file) => file !== staleBackupFile),
@@ -104,6 +139,8 @@ try {
     )}\n`,
   );
   run("node", ["install.mjs", "--target", target], { stdio: "inherit" });
+  const migratedManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  assertPatchMetadata(migratedManifest, currentPatch);
 
   run("node", ["install.mjs", "--dry-run", "--uninstall", "--target", target], { stdio: "inherit" });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
@@ -120,9 +157,11 @@ try {
     throw new Error("HOMEPAGE_BROWSER_EDITOR=true was not written to existing .env");
   }
 
-  run("git", ["apply", "--reverse", "--check", join(root, "browser-editor.patch")], {
+  run("git", ["apply", "--reverse", "--check", join(root, currentPatch.file)], {
     cwd: target,
   });
+  const fallbackManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  rmSync(join(target, fallbackManifest.backup.backupRoot), { force: true, recursive: true });
   run("node", ["install.mjs", "--uninstall", "--target", target], { stdio: "inherit" });
 
   console.log("Smoke install/uninstall passed.");

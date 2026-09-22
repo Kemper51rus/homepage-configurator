@@ -5,7 +5,18 @@ import { dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const patchPath = join(root, "browser-editor.patch");
+const corePatches = [
+  {
+    id: "homepage-current",
+    file: "browser-editor.patch",
+    path: join(root, "browser-editor.patch"),
+  },
+  {
+    id: "homepage-2.0",
+    file: "browser-editor-homepage-2.0.patch",
+    path: join(root, "browser-editor-homepage-2.0.patch"),
+  },
+];
 const overlayPath = join(root, "overlay");
 const manifestName = ".homepage-configurator-manifest.json";
 const backupDirName = ".homepage-configurator-backups";
@@ -71,20 +82,20 @@ function runGit(target, args, stdio = "inherit") {
   });
 }
 
-function canApplyPatch(target, reverse = false) {
+function canApplyPatch(target, patch, reverse = false) {
   try {
-    runGit(target, ["apply", ...(reverse ? ["--reverse"] : []), "--check", patchPath], "pipe");
+    runGit(target, ["apply", ...(reverse ? ["--reverse"] : []), "--check", patch.path], "pipe");
     return true;
   } catch {
     return false;
   }
 }
 
-function patchState(target) {
-  if (canApplyPatch(target)) {
+function patchState(target, patch) {
+  if (canApplyPatch(target, patch)) {
     return "applies";
   }
-  if (canApplyPatch(target, true)) {
+  if (canApplyPatch(target, patch, true)) {
     return "already-applied";
   }
   return "conflict";
@@ -168,23 +179,30 @@ function ensureSupportedTargetVersion(target) {
   }
 }
 
-function patchFiles() {
-  const output = execFileSync("git", ["apply", "--numstat", patchPath], {
+function patchFiles(patch) {
+  const output = execFileSync("git", ["apply", "--numstat", patch.path], {
     cwd: root,
     stdio: "pipe",
     encoding: "utf8",
   });
 
-  return output
+  const files = output
     .split(/\r?\n/)
     .map((line) => line.trim().split("\t").at(-1))
     .filter(Boolean);
+
+  const unsafeFile = files.find((file) => !isSafeRelativePath(file));
+  if (unsafeFile) {
+    throw new Error(`Refusing unsafe path from ${patch.file}: ${unsafeFile}`);
+  }
+
+  return files;
 }
 
-function ensurePatchFilesNotStaged(target) {
+function ensurePatchFilesNotStaged(target, patch) {
   if (!isGitWorkTree(target)) return;
 
-  const files = patchFiles();
+  const files = patchFiles(patch);
   if (!files.length) return;
 
   const output = runGit(target, ["diff", "--cached", "--name-only", "--", ...files], "pipe").trim();
@@ -193,10 +211,10 @@ function ensurePatchFilesNotStaged(target) {
   }
 }
 
-function unstagePatchFiles(target) {
+function unstagePatchFiles(target, patch) {
   if (!isGitWorkTree(target)) return;
 
-  const files = patchFiles();
+  const files = patchFiles(patch);
   if (files.length) {
     runGit(target, ["reset", "--quiet", "--", ...files], "pipe");
   }
@@ -312,6 +330,140 @@ function syncManagedDependencies(target) {
   console.log(`Updated managed dependencies in ${packageJsonPath}`);
 }
 
+function replaceOnce(content, search, replacement) {
+  if (!content.includes(search)) {
+    return content;
+  }
+
+  return content.replace(search, replacement);
+}
+
+function writeRelativeFileIfChanged(target, file, nextContent, changedFiles) {
+  const filePath = join(target, file);
+  const currentContent = readFileSync(filePath, "utf8");
+
+  if (currentContent === nextContent) {
+    return;
+  }
+
+  writeFileSync(filePath, nextContent);
+  changedFiles.push(file);
+}
+
+function normalizePatchCompatibilityTarget(target, patch, { log = false } = {}) {
+  const changedFiles = [];
+
+  const nextConfigFile = "next.config.js";
+  let nextConfig = readFileSync(join(target, nextConfigFile), "utf8");
+  if (!nextConfig.includes("outputFileTracingIncludes")) {
+    nextConfig = replaceOnce(
+      nextConfig,
+      '  output: "standalone",\n',
+      [
+        '  output: "standalone",',
+        "  // for serverSideTranslations",
+        "  outputFileTracingIncludes: {",
+        '    "/**": ["./next-i18next.config.js"],',
+        "  },",
+      ].join("\n") + "\n",
+    );
+    writeRelativeFileIfChanged(target, nextConfigFile, nextConfig, changedFiles);
+  }
+
+  const indexFile = "src/pages/index.jsx";
+  let index = readFileSync(join(target, indexFile), "utf8");
+  if (!index.includes('components/toggles/signout')) {
+    index = replaceOnce(
+      index,
+      'const Version = dynamic(() => import("components/version"), {\n',
+      [
+        'const SignOut = dynamic(() => import("components/toggles/signout"), {',
+        "  ssr: false,",
+        "});",
+        "",
+        'const Version = dynamic(() => import("components/version"), {',
+      ].join("\n") + "\n",
+    );
+  }
+  if (!index.includes("<SignOut />")) {
+    index = replaceOnce(
+      index,
+      "            <Revalidate />\n            {!settings.theme && <ThemeToggle />}",
+      "            <Revalidate />\n            <SignOut />\n            {!settings.theme && <ThemeToggle />}",
+    );
+  }
+  writeRelativeFileIfChanged(target, indexFile, index, changedFiles);
+
+  const widgetComponentsFile = "src/widgets/components.js";
+  let widgetComponents = readFileSync(join(target, widgetComponentsFile), "utf8");
+  if (!widgetComponents.includes("maintainerr: dynamic")) {
+    widgetComponents = replaceOnce(
+      widgetComponents,
+      '  mailcow: dynamic(() => import("./mailcow/component")),\n',
+      '  mailcow: dynamic(() => import("./mailcow/component")),\n  maintainerr: dynamic(() => import("./maintainerr/component")),\n',
+    );
+  }
+  if (!widgetComponents.includes("sportarr: dynamic")) {
+    widgetComponents = replaceOnce(
+      widgetComponents,
+      '  spoolman: dynamic(() => import("./spoolman/component")),\n',
+      '  spoolman: dynamic(() => import("./spoolman/component")),\n  sportarr: dynamic(() => import("./sportarr/component")),\n',
+    );
+  }
+  writeRelativeFileIfChanged(target, widgetComponentsFile, widgetComponents, changedFiles);
+
+  const widgetsFile = "src/widgets/widgets.js";
+  let widgets = readFileSync(join(target, widgetsFile), "utf8");
+  if (!widgets.includes('import maintainerr from "./maintainerr/widget";')) {
+    widgets = replaceOnce(
+      widgets,
+      'import mailcow from "./mailcow/widget";\n',
+      'import mailcow from "./mailcow/widget";\nimport maintainerr from "./maintainerr/widget";\n',
+    );
+  }
+  if (!widgets.includes('import sportarr from "./sportarr/widget";')) {
+    widgets = replaceOnce(
+      widgets,
+      'import spoolman from "./spoolman/widget";\n',
+      'import spoolman from "./spoolman/widget";\nimport sportarr from "./sportarr/widget";\n',
+    );
+  }
+  if (!widgets.includes("  maintainerr,\n")) {
+    widgets = replaceOnce(widgets, "  mailcow,\n", "  mailcow,\n  maintainerr,\n");
+  }
+  if (!widgets.includes("  sportarr,\n")) {
+    widgets = replaceOnce(widgets, "  spoolman,\n", "  spoolman,\n  sportarr,\n");
+  }
+  writeRelativeFileIfChanged(target, widgetsFile, widgets, changedFiles);
+
+  if (log && changedFiles.length) {
+    console.log(`Normalized Homepage compatibility for ${patch.id}: ${changedFiles.join(", ")}`);
+  }
+
+  return changedFiles;
+}
+
+function canApplyPatchWithCompatibilityNormalization(target, patch) {
+  const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-compat-"));
+
+  try {
+    for (const file of patchFiles(patch)) {
+      copyRelativeFileIfExists(target, tempRoot, file);
+    }
+
+    const changedFiles = normalizePatchCompatibilityTarget(tempRoot, patch);
+    return changedFiles.length > 0 && canApplyPatch(tempRoot, patch);
+  } catch {
+    return false;
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
+function patchNeedsCompatibilityNormalization(target, patch) {
+  return patchState(target, patch) === "conflict" && canApplyPatchWithCompatibilityNormalization(target, patch);
+}
+
 function envPath(target) {
   const localEnvPath = join(target, ".env.local");
   if (existsSync(localEnvPath)) {
@@ -361,12 +513,15 @@ function install(target, options = {}) {
   ensureSupportedTargetVersion(target);
 
   const files = overlayFiles().map((file) => file.relativePath);
-  const patchTouchedFiles = patchFiles();
   const existingManifest = readManifest(target);
+  const selection = preflightInstallPatchState(target, existingManifest);
+  const { patch } = selection;
+  const patchTouchedFiles = patchFiles(patch);
   const plan = [
     `validate Homepage checkout: ${target}`,
     `validate Homepage version: ${targetVersion(target)} >= ${targetMetadata.minimumVersion}`,
     ...(existingManifest ? [`remove existing browser editor install from ${manifestName}`] : []),
+    `select core patch: ${patch.id} (${patch.file})`,
     `sync managed dependencies: ${Object.keys(managedDependencies).join(", ")}`,
     `copy overlay files: ${files.length}`,
     `apply core patch files: ${patchTouchedFiles.length}`,
@@ -376,18 +531,28 @@ function install(target, options = {}) {
 
   if (options.dryRun) {
     printPlan("Overlay files:", files);
-    printPlan("Patch files:", patchTouchedFiles);
+    printPlan(`Patch files for ${patch.id} (${patch.file}):`, patchTouchedFiles);
     console.log("Dry-run only. No files changed.");
     return;
   }
 
-  preflightInstallPatchState(target, existingManifest);
+  let { normalizationNeeded } = selection;
   prepareExistingInstall(target, existingManifest);
+  if (patchState(target, patch) === "conflict") {
+    if (patchNeedsCompatibilityNormalization(target, patch)) {
+      normalizationNeeded = true;
+    } else {
+      throwCorePatchCompatibilityError();
+    }
+  }
 
   const backup = backupTargetFiles(target, ["package.json", ...files, ...patchTouchedFiles]);
 
   installOverlay(target);
-  applyPatch(target);
+  if (normalizationNeeded) {
+    normalizePatchCompatibilityTarget(target, patch, { log: true });
+  }
+  applyPatch(target, patch);
   syncManagedDependencies(target);
   writeManifest(target, {
     installedAt: new Date().toISOString(),
@@ -401,6 +566,10 @@ function install(target, options = {}) {
       metadataUrl: versionMetadata.metadataUrl,
       installUrl: versionMetadata.installUrl,
     },
+    patch: {
+      id: patch.id,
+      file: patch.file,
+    },
     overlayFiles: files,
     patchFiles: patchTouchedFiles,
     managedDependencies,
@@ -410,63 +579,85 @@ function install(target, options = {}) {
   if (backup) {
     console.log(`Backup written to ${join(target, backup.backupRoot)}`);
   }
-  console.log(`Browser editor installed into ${target}`);
+  console.log(`Browser editor installed into ${target} with ${patch.id} (${patch.file})`);
   console.log("Run with --enable to set HOMEPAGE_BROWSER_EDITOR=true.");
 }
 
 function preflightInstallPatchState(target, manifest) {
-  const state = patchState(target);
-
-  if (state !== "conflict") {
-    return;
+  if (manifest) {
+    for (const patch of corePatches) {
+      const result = existingInstallCanAcceptPatch(target, manifest, patch);
+      if (result.accepted) {
+        return { patch, normalizationNeeded: result.normalizationNeeded };
+      }
+    }
   }
 
-  if (manifest && existingInstallCanAcceptCurrentPatch(target, manifest)) {
-    return;
+  for (const patch of corePatches) {
+    const state = patchState(target, patch);
+    if (state !== "conflict") {
+      return { patch, normalizationNeeded: false };
+    }
+
+    if (canApplyPatchWithCompatibilityNormalization(target, patch)) {
+      return { patch, normalizationNeeded: true };
+    }
   }
 
+  throwCorePatchCompatibilityError();
+}
+
+function throwCorePatchCompatibilityError() {
   throw new Error(
     [
-      "Core patch cannot be applied to this Homepage checkout.",
+      "No compatible core patch can be applied to this Homepage checkout.",
+      `Tried: ${corePatches.map((patch) => `${patch.id} (${patch.file})`).join(", ")}.`,
       "Update the Homepage source checkout first, then run the configurator again.",
       "For LXC install reinstall Homepage from the current community script or perform manual update.",
     ].join("\n"),
   );
 }
 
-function existingInstallCanAcceptCurrentPatch(target, manifest) {
+function existingInstallCanAcceptPatch(target, manifest, patch) {
   const backupRoot = manifest?.backup?.backupRoot;
   const backupFiles = manifest?.backup?.files ?? [];
 
   if (!isSafeRelativePath(backupRoot)) {
-    return false;
+    return { accepted: false, normalizationNeeded: false };
   }
 
   const backupRootPath = join(target, backupRoot);
   if (!existsSync(backupRootPath)) {
-    return false;
+    return { accepted: false, normalizationNeeded: false };
   }
 
   const tempRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-preflight-"));
 
   try {
-    for (const file of patchFiles()) {
-      if (!isSafeRelativePath(file)) {
-        return false;
-      }
-
+    for (const file of patchFiles(patch)) {
       copyRelativeFileIfExists(target, tempRoot, file);
     }
 
     for (const file of backupFiles) {
       if (!isSafeRelativePath(file)) {
-        return false;
+        return { accepted: false, normalizationNeeded: false };
       }
 
       copyRelativeFileIfExists(backupRootPath, tempRoot, file);
     }
 
-    return canApplyPatch(tempRoot);
+    if (canApplyPatch(tempRoot, patch)) {
+      return { accepted: true, normalizationNeeded: false };
+    }
+
+    const changedFiles = normalizePatchCompatibilityTarget(tempRoot, patch);
+    if (changedFiles.length > 0 && canApplyPatch(tempRoot, patch)) {
+      return { accepted: true, normalizationNeeded: true };
+    }
+
+    return { accepted: false, normalizationNeeded: false };
+  } catch {
+    return { accepted: false, normalizationNeeded: false };
   } finally {
     rmSync(tempRoot, { force: true, recursive: true });
   }
@@ -484,13 +675,26 @@ function copyRelativeFileIfExists(sourceRoot, targetRoot, file) {
   return true;
 }
 
+function patchesForManifest(manifest) {
+  const patchId = manifest?.patch?.id ?? manifest?.patchId;
+  const patchFile = manifest?.patch?.file ?? manifest?.patchFile;
+  const manifestPatch = corePatches.find((patch) => patch.id === patchId) ?? corePatches.find((patch) => patch.file === patchFile);
+
+  if (!manifestPatch) {
+    return corePatches;
+  }
+
+  return [manifestPatch, ...corePatches.filter((patch) => patch !== manifestPatch)];
+}
+
 function uninstall(target, options = {}) {
   ensureTarget(target);
   const manifest = readManifest(target);
   const files = manifest?.overlayFiles ?? overlayFiles().map((file) => file.relativePath);
+  const fallbackPatches = patchesForManifest(manifest);
   const plan = [
     `validate Homepage checkout: ${target}`,
-    `reverse core patch`,
+    `restore backup first; reverse fallback: ${fallbackPatches.map((patch) => `${patch.id} (${patch.file})`).join(", ")}`,
     `remove overlay files from manifest: ${files.length}`,
     `set HOMEPAGE_BROWSER_EDITOR=false`,
     `remove manifest: ${manifestName}`,
@@ -504,7 +708,11 @@ function uninstall(target, options = {}) {
   }
 
   try {
-    reversePatch(target);
+    if (restoreBackupFiles(target, manifest)) {
+      console.log("Core patch restored from previous install backup");
+    } else {
+      reverseInstalledPatch(target, manifest);
+    }
   } catch (error) {
     if (!restoreBackupFiles(target, manifest)) {
       throw error;
@@ -525,7 +733,11 @@ function prepareExistingInstall(target, manifest) {
   console.log(`Existing browser editor install detected in ${manifestName}; preparing reinstall`);
 
   try {
-    reversePatch(target);
+    if (restoreBackupFiles(target, manifest)) {
+      console.log("Previous install files restored from backup before reinstall");
+    } else {
+      reverseInstalledPatch(target, manifest);
+    }
   } catch (error) {
     if (!restoreBackupFiles(target, manifest)) {
       throw new Error(`Existing install could not be reverted before reinstall:\n${error.message}`);
@@ -627,19 +839,19 @@ function removeOverlay(target, { files = null, force = false } = {}) {
     });
 }
 
-function applyPatch(target) {
-  ensurePatchFilesNotStaged(target);
+function applyPatch(target, patch) {
+  ensurePatchFilesNotStaged(target, patch);
   const gitWorkTree = isGitWorkTree(target);
 
   try {
-    runGit(target, ["apply", "--check", patchPath], "pipe");
-    runGit(target, ["apply", patchPath], "pipe");
-    console.log("Core patch applied");
+    runGit(target, ["apply", "--check", patch.path], "pipe");
+    runGit(target, ["apply", patch.path], "pipe");
+    console.log(`Core patch applied: ${patch.id} (${patch.file})`);
     return;
   } catch (error) {
     try {
-      runGit(target, ["apply", "--reverse", "--check", patchPath], "pipe");
-      console.log("Core patch already applied");
+      runGit(target, ["apply", "--reverse", "--check", patch.path], "pipe");
+      console.log(`Core patch already applied: ${patch.id} (${patch.file})`);
       return;
     } catch {
       if (!gitWorkTree) {
@@ -647,9 +859,9 @@ function applyPatch(target) {
       }
 
       try {
-        runGit(target, ["apply", "--3way", patchPath], "pipe");
-        unstagePatchFiles(target);
-        console.log("Core patch applied with 3-way merge");
+        runGit(target, ["apply", "--3way", patch.path], "pipe");
+        unstagePatchFiles(target, patch);
+        console.log(`Core patch applied with 3-way merge: ${patch.id} (${patch.file})`);
         return;
       } catch {
         throw error;
@@ -658,23 +870,30 @@ function applyPatch(target) {
   }
 }
 
-function reversePatch(target) {
-  ensurePatchFilesNotStaged(target);
+function reverseInstalledPatch(target, manifest) {
+  const candidates = patchesForManifest(manifest);
+  const appliedPatch = candidates.find((patch) => canApplyPatch(target, patch, true));
 
-  try {
-    runGit(target, ["apply", "--reverse", "--check", patchPath], "pipe");
-    runGit(target, ["apply", "--reverse", patchPath], "pipe");
-    console.log("Core patch reverted");
+  if (appliedPatch) {
+    reversePatch(target, appliedPatch);
     return;
-  } catch {
-    try {
-      runGit(target, ["apply", "--check", patchPath], "pipe");
-      console.log("Core patch is not applied");
-      return;
-    } catch {
-      throw new Error("Core patch cannot be reverted automatically. Check target changes before removing overlay files.");
-    }
   }
+
+  if (candidates.some((patch) => canApplyPatch(target, patch))) {
+    console.log("Core patch is not applied");
+    return;
+  }
+
+  throw new Error(
+    `Core patch cannot be reverted automatically. Tried: ${candidates.map((patch) => patch.file).join(", ")}. Check target changes before removing overlay files.`,
+  );
+}
+
+function reversePatch(target, patch) {
+  ensurePatchFilesNotStaged(target, patch);
+  runGit(target, ["apply", "--reverse", "--check", patch.path], "pipe");
+  runGit(target, ["apply", "--reverse", patch.path], "pipe");
+  console.log(`Core patch reverted: ${patch.id} (${patch.file})`);
 }
 
 const { command, target, dryRun, force } = parseArgs();

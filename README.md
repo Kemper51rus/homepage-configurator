@@ -3,6 +3,8 @@
   Homepage configurator
 </h1>
 
+> Начиная с версии `0.7.0`, этот репозиторий снова содержит классический конфигуратор без Dashboard Studio, автоматизации обновления сервисов и интеграции 3x-ui. Сохранённая интегрированная версия Studio `0.6.82` находится в отдельном репозитории [Kemper51rus/homepage-studio](https://github.com/Kemper51rus/homepage-studio).
+
 Отдельный мод для [gethomepage/homepage](https://github.com/gethomepage/homepage), который добавляет редактирование dashboard прямо из браузера:
 
 - настройка, добавление и удаление сервисов;
