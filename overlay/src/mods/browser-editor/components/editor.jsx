@@ -13,6 +13,10 @@ import { ThemeContext } from "utils/contexts/theme";
 import ResolvedIcon from "components/resolvedicon";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
 import {
+  createEditorComponentHost,
+  validateInstalledEditorComponents,
+} from "mods/browser-editor/lib/component-host";
+import {
   bookmarkFields,
   buildServiceCardId,
   collapsedBookmarkFieldKeys,
@@ -42,7 +46,10 @@ import {
   setGlobalResizeCursor,
   writeStoredEditorWindow,
 } from "mods/browser-editor/lib/editor-window";
+import { installedEditorComponents } from "./installed-components";
 import TopBarSettingsEditor from "./topbar-editor";
+
+const editorComponents = validateInstalledEditorComponents(installedEditorComponents);
 
 const ConfigEditorContext = createContext({
   activePageName: null,
@@ -9979,6 +9986,35 @@ export function ConfigEditorProvider({ children }) {
     [activePageName, data, draggedGroup, editMode, editorUiScale, moveTab, mutate, setDraggedGroup, setSettings, iconSelectorCallback, iconsManagerOpen],
   );
 
+  const componentHost = useMemo(
+    () =>
+      createEditorComponentHost({
+        snapshot: data
+          ? {
+              services: data.services ?? [],
+              bookmarks: data.bookmarks ?? [],
+              settings: data.settings ?? {},
+              settingsTabs: data.settingsTabs ?? [],
+            }
+          : null,
+        editor: value,
+        actions: {
+          refresh: () => refreshConfigData(mutate),
+          notify: handleSaved,
+          close: () => setModal(null),
+          openSettings: () => setModal({ type: "settings-tabs" }),
+          openIcons: () => setIconsManagerOpen(true),
+          openUpdates: () => setModal({ type: "configurator-updates" }),
+          setEditMode,
+        },
+        ui: {
+          toolbarButtonClassName,
+          toolbarPrimaryButtonClassName,
+        },
+      }),
+    [data, mutate, value],
+  );
+
   const showEditButton = useCallback(() => {
     if (editButtonHideTimeoutRef.current) {
       window.clearTimeout(editButtonHideTimeoutRef.current);
@@ -10085,6 +10121,9 @@ export function ConfigEditorProvider({ children }) {
           <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
             Обновления
           </button>
+          {editorComponents.map(({ id, ToolbarAction }) =>
+            ToolbarAction ? <ToolbarAction key={id} host={componentHost} /> : null,
+          )}
         </div>
       ) : (
         <div className="fixed bottom-0 left-0 z-50 h-36 w-36" style={editorBottomLeftScaleStyle}>
@@ -10124,6 +10163,9 @@ export function ConfigEditorProvider({ children }) {
         >
           {notice}
         </div>
+      )}
+      {editorComponents.map(({ id, Overlay }) =>
+        Overlay ? <Overlay key={id} host={componentHost} /> : null,
       )}
       {modal?.type === "background" && (
         <BackgroundModal
