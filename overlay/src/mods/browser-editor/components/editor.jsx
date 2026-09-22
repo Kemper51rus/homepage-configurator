@@ -5,17 +5,7 @@ import "prismjs/components/prism-css";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-yaml";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";
 import { TabContext } from "utils/contexts/tab";
@@ -30,7 +20,6 @@ import {
   formToConfig,
   getServiceCardColor,
   knownFields,
-  parseInputValue,
   serviceCardColorOptions,
   serviceFields,
   splitConfig,
@@ -53,29 +42,6 @@ import {
   setGlobalResizeCursor,
   writeStoredEditorWindow,
 } from "mods/browser-editor/lib/editor-window";
-import {
-  normalizeServiceUpdateConfig,
-  serializeServiceUpdateConfig,
-  serviceUpdateTypes,
-} from "mods/browser-editor/lib/service-update-config";
-import {
-  updateStudioPageSettings,
-  updateStudioPageStyles,
-} from "mods/browser-editor/lib/studio-pages";
-import {
-  buildThreeXuiWidget,
-  defaultThreeXuiMetricKeys,
-  isThreeXuiWidget,
-  threeXuiDefaultSource,
-  threeXuiMetricDefinitions,
-  threeXuiMetricKeysFromWidget,
-  threeXuiSourceFromWidget,
-  threeXuiSourcePattern,
-} from "mods/browser-editor/lib/three-x-ui-config";
-import DashboardStudio, {
-  StudioModalWindow,
-  StudioServiceWidgetModal,
-} from "./dashboard-studio";
 import TopBarSettingsEditor from "./topbar-editor";
 
 const ConfigEditorContext = createContext({
@@ -96,7 +62,6 @@ const ConfigEditorContext = createContext({
   setIconSelectorCallback: () => {},
   selectIcon: () => {},
   editorUiScale: 1,
-  studioOpen: false,
 });
 
 const noopEditorContext = {
@@ -117,7 +82,6 @@ const noopEditorContext = {
   setIconSelectorCallback: () => {},
   selectIcon: () => {},
   editorUiScale: 1,
-  studioOpen: false,
 };
 
 const toolbarButtonClassName =
@@ -135,16 +99,13 @@ const PAGE_AUTO_OPEN_DELAY_MS = 450;
 const CODE_EDITOR_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom";
 const CODE_EDITOR_MIN_ZOOM = 1;
 const CODE_EDITOR_MAX_ZOOM = 500;
-const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 const CONFIGURATOR_UPDATE_LOG_TAB = "__homepage-configurator-update-log__";
 const GROUP_ORDER_SETTINGS_KEY = "__browserEditorGroupOrderByPage";
 const DEFAULT_GROUP_ORDER_PAGE_KEY = "__default__";
-const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY =
-  "homepage-configurator-update-checked-at";
+const CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY = "homepage-configurator-update-checked-at";
 const CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const EDITOR_UI_SCALE_STORAGE_KEY = "homepage-browser-editor-ui-scale";
-const CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY =
-  "homepage-browser-editor-configurator-transparent-backdrop";
+const CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY = "homepage-browser-editor-configurator-transparent-backdrop";
 const CUSTOM_CSS_PREVIEW_STYLE_ID = "homepage-configurator-custom-css-preview";
 const EDITOR_UI_SCALE_MIN = 0.75;
 const EDITOR_UI_SCALE_MAX = 1.35;
@@ -160,8 +121,7 @@ let activeDragPayload = null;
 let pageAutoOpenTimeoutId = 0;
 let pageAutoOpenTabName = null;
 
-const BOOKMARK_YAML_ZOOM_STORAGE_KEY =
-  "homepage-browser-editor-code-zoom-item-bookmarks";
+const BOOKMARK_YAML_ZOOM_STORAGE_KEY = "homepage-browser-editor-code-zoom-item-bookmarks";
 
 function normalizeEditorUiScale(value) {
   const parsed = Number(value);
@@ -169,10 +129,7 @@ function normalizeEditorUiScale(value) {
     return EDITOR_UI_SCALE_DEFAULT;
   }
 
-  const clamped = Math.min(
-    EDITOR_UI_SCALE_MAX,
-    Math.max(EDITOR_UI_SCALE_MIN, parsed),
-  );
+  const clamped = Math.min(EDITOR_UI_SCALE_MAX, Math.max(EDITOR_UI_SCALE_MIN, parsed));
   return Math.round(clamped / EDITOR_UI_SCALE_STEP) * EDITOR_UI_SCALE_STEP;
 }
 
@@ -181,9 +138,7 @@ function readStoredEditorUiScale() {
     return EDITOR_UI_SCALE_DEFAULT;
   }
 
-  return normalizeEditorUiScale(
-    window.localStorage.getItem(EDITOR_UI_SCALE_STORAGE_KEY),
-  );
+  return normalizeEditorUiScale(window.localStorage.getItem(EDITOR_UI_SCALE_STORAGE_KEY));
 }
 
 function writeStoredEditorUiScale(value) {
@@ -191,10 +146,7 @@ function writeStoredEditorUiScale(value) {
     return;
   }
 
-  window.localStorage.setItem(
-    EDITOR_UI_SCALE_STORAGE_KEY,
-    String(normalizeEditorUiScale(value)),
-  );
+  window.localStorage.setItem(EDITOR_UI_SCALE_STORAGE_KEY, String(normalizeEditorUiScale(value)));
 }
 
 function readStoredConfiguratorTransparentBackdrop() {
@@ -202,11 +154,7 @@ function readStoredConfiguratorTransparentBackdrop() {
     return false;
   }
 
-  return (
-    window.localStorage.getItem(
-      CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY,
-    ) === "true"
-  );
+  return window.localStorage.getItem(CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY) === "true";
 }
 
 function writeStoredConfiguratorTransparentBackdrop(value) {
@@ -214,10 +162,7 @@ function writeStoredConfiguratorTransparentBackdrop(value) {
     return;
   }
 
-  window.localStorage.setItem(
-    CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY,
-    value ? "true" : "false",
-  );
+  window.localStorage.setItem(CONFIGURATOR_TRANSPARENT_BACKDROP_STORAGE_KEY, value ? "true" : "false");
 }
 
 function normalizeServiceStatusOffset(value) {
@@ -226,10 +171,7 @@ function normalizeServiceStatusOffset(value) {
     return SERVICE_STATUS_OFFSET_DEFAULT;
   }
 
-  return Math.min(
-    SERVICE_STATUS_OFFSET_MAX,
-    Math.max(SERVICE_STATUS_OFFSET_MIN, Math.round(parsed)),
-  );
+  return Math.min(SERVICE_STATUS_OFFSET_MAX, Math.max(SERVICE_STATUS_OFFSET_MIN, Math.round(parsed)));
 }
 
 function applyServiceStatusOffsets(pageStyles = {}) {
@@ -250,9 +192,7 @@ function applyServiceStatusOffsets(pageStyles = {}) {
 function parseSettingsDraft(content) {
   try {
     const parsed = yaml.load(content) ?? {};
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed
-      : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -279,10 +219,7 @@ function applyCustomCssPreview(content) {
   if (!styleElement) {
     styleElement = document.createElement("style");
     styleElement.id = CUSTOM_CSS_PREVIEW_STYLE_ID;
-    styleElement.setAttribute(
-      "data-homepage-configurator-preview",
-      "custom-css",
-    );
+    styleElement.setAttribute("data-homepage-configurator-preview", "custom-css");
     document.head.appendChild(styleElement);
   }
 
@@ -314,11 +251,7 @@ function runRadioManagedPreview(customJs) {
     return;
   }
 
-  const radioBlock = extractMarkedBlock(
-    customJs,
-    RADIO_JS_START_MARKER,
-    RADIO_JS_END_MARKER,
-  );
+  const radioBlock = extractMarkedBlock(customJs, RADIO_JS_START_MARKER, RADIO_JS_END_MARKER);
   if (!radioBlock.trim()) {
     cleanupRadioManagedPreview();
     return;
@@ -371,10 +304,7 @@ function normalizeComparableValue(value) {
 }
 
 function comparableValuesEqual(left, right) {
-  return (
-    JSON.stringify(normalizeComparableValue(left)) ===
-    JSON.stringify(normalizeComparableValue(right))
-  );
+  return JSON.stringify(normalizeComparableValue(left)) === JSON.stringify(normalizeComparableValue(right));
 }
 
 function createItemMatcher(type, itemName, itemConfig = {}) {
@@ -393,11 +323,7 @@ function createItemMatcher(type, itemName, itemConfig = {}) {
 }
 
 function createEntryMatcher(entry, type) {
-  return createItemMatcher(
-    type,
-    getEntryName(entry),
-    rawEntryToConfig(entry, type),
-  );
+  return createItemMatcher(type, getEntryName(entry), rawEntryToConfig(entry, type));
 }
 
 function itemMatcherEquals(left, right) {
@@ -422,9 +348,7 @@ function entryMatchesItemMatcher(entry, type, itemName, matcher = null) {
 
 function findItemEntryIndex(entries = [], type, itemName, matcher = null) {
   const exactIndex = entries.findIndex(
-    (entry) =>
-      isItemEntry(entry, type) &&
-      entryMatchesItemMatcher(entry, type, itemName, matcher),
+    (entry) => isItemEntry(entry, type) && entryMatchesItemMatcher(entry, type, itemName, matcher),
   );
 
   if (exactIndex >= 0 || !matcher) {
@@ -478,10 +402,7 @@ function countMatchingRawEntries(rawGroups, type, matchesEntry) {
 }
 
 function getMatcherConfigValue(matcher, key) {
-  if (
-    !matcher?.config ||
-    !Object.prototype.hasOwnProperty.call(matcher.config, key)
-  ) {
+  if (!matcher?.config || !Object.prototype.hasOwnProperty.call(matcher.config, key)) {
     return undefined;
   }
 
@@ -494,31 +415,20 @@ function rawEntryConfigValueEquals(entry, type, key, value) {
   }
 
   const config = rawEntryToConfig(entry, type);
-  return (
-    config?.[key] !== undefined && comparableValuesEqual(config[key], value)
-  );
+  return config?.[key] !== undefined && comparableValuesEqual(config[key], value);
 }
 
 function findUniqueRawEntryPredicate(rawGroups, type, predicates) {
-  return (
-    predicates.find(
-      (matchesEntry) =>
-        countMatchingRawEntries(rawGroups, type, matchesEntry) === 1,
-    ) ?? null
-  );
+  return predicates.find((matchesEntry) => countMatchingRawEntries(rawGroups, type, matchesEntry) === 1) ?? null;
 }
 
 function normalizedItemIndex(itemIndex) {
   const numericIndex = Number(itemIndex);
-  return Number.isInteger(numericIndex) && numericIndex >= 0
-    ? numericIndex
-    : null;
+  return Number.isInteger(numericIndex) && numericIndex >= 0 ? numericIndex : null;
 }
 
 function getRenderedItemEntryIndexes(entries = [], type) {
-  const itemEntries = entries
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => isItemEntry(entry, type));
+  const itemEntries = entries.map((entry, index) => ({ entry, index })).filter(({ entry }) => isItemEntry(entry, type));
 
   if (type !== "services") {
     return itemEntries.map(({ index }) => index);
@@ -530,16 +440,12 @@ function getRenderedItemEntryIndexes(entries = [], type) {
         [getEntryName(entry)]: {
           ...getEntryValue(entry),
           weight:
-            typeof getEntryValue(entry)?.weight === "number"
-              ? getEntryValue(entry).weight
-              : (serviceIndex + 1) * 100,
+            typeof getEntryValue(entry)?.weight === "number" ? getEntryValue(entry).weight : (serviceIndex + 1) * 100,
         },
       },
       index,
     }))
-    .sort((entryA, entryB) =>
-      compareServiceEntriesByWeight(entryA.entry, entryB.entry),
-    )
+    .sort((entryA, entryB) => compareServiceEntriesByWeight(entryA.entry, entryB.entry))
     .map(({ index }) => index);
 }
 
@@ -552,26 +458,18 @@ function getRenderedItemRawIndex(entries = [], type, itemIndex = null) {
   return getRenderedItemEntryIndexes(entries, type)[normalizedIndex] ?? -1;
 }
 
-function rawItemFallbackPredicates(
-  rawGroups,
-  type,
-  groupName,
-  itemName,
-  itemMatcher = null,
-) {
+function rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher = null) {
   const matcherId = getMatcherConfigValue(itemMatcher, "id");
   const matcherHref = getMatcherConfigValue(itemMatcher, "href");
   const predicates = [
     (entry, currentGroup) =>
-      namesEqual(currentGroup, groupName) &&
-      entryMatchesItemMatcher(entry, type, itemName, null),
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, itemName, null),
   ];
 
   if (type === "services" && matcherId !== undefined) {
     predicates.push(
       (entry, currentGroup) =>
-        namesEqual(currentGroup, groupName) &&
-        rawEntryConfigValueEquals(entry, type, "id", matcherId),
+        namesEqual(currentGroup, groupName) && rawEntryConfigValueEquals(entry, type, "id", matcherId),
       (entry) => rawEntryConfigValueEquals(entry, type, "id", matcherId),
     );
   }
@@ -579,25 +477,18 @@ function rawItemFallbackPredicates(
   if (matcherHref !== undefined) {
     predicates.push(
       (entry, currentGroup) =>
-        namesEqual(currentGroup, groupName) &&
-        rawEntryConfigValueEquals(entry, type, "href", matcherHref),
+        namesEqual(currentGroup, groupName) && rawEntryConfigValueEquals(entry, type, "href", matcherHref),
       (entry) => rawEntryConfigValueEquals(entry, type, "href", matcherHref),
     );
   }
 
   if (itemMatcher) {
-    predicates.push((entry) =>
-      entryMatchesItemMatcher(entry, type, itemName, itemMatcher),
-    );
+    predicates.push((entry) => entryMatchesItemMatcher(entry, type, itemName, itemMatcher));
   }
 
-  predicates.push((entry) =>
-    entryMatchesItemMatcher(entry, type, itemName, null),
-  );
+  predicates.push((entry) => entryMatchesItemMatcher(entry, type, itemName, null));
 
-  return predicates.filter(
-    (predicate) => countMatchingRawEntries(rawGroups, type, predicate) > 0,
-  );
+  return predicates.filter((predicate) => countMatchingRawEntries(rawGroups, type, predicate) > 0);
 }
 
 function rawEntryToConfig(entry, type) {
@@ -611,9 +502,7 @@ function rawEntryToConfig(entry, type) {
     return value && typeof value === "object" ? value : {};
   }
 
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
 function configToRawEntry(type, itemName, itemConfig) {
@@ -652,11 +541,7 @@ function collectRawEntryNames(rawGroups, type, groupName) {
 
 function buildUniqueEntryName(rawGroups, type, groupName, baseName) {
   const normalizedBaseName = String(baseName ?? "").trim() || "Copy";
-  const usedNames = new Set(
-    collectRawEntryNames(rawGroups, type, groupName).map((entryName) =>
-      String(entryName).trim(),
-    ),
-  );
+  const usedNames = new Set(collectRawEntryNames(rawGroups, type, groupName).map((entryName) => String(entryName).trim()));
   let candidate = `${normalizedBaseName} copy`;
   let index = 2;
 
@@ -737,25 +622,14 @@ function findRawEntry(
     const fallbackPredicate = findUniqueRawEntryPredicate(
       rawGroups,
       type,
-      rawItemFallbackPredicates(
-        rawGroups,
-        type,
-        groupName,
-        itemName,
-        itemMatcher,
-      ),
+      rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher),
     );
 
     if (fallbackPredicate) {
       return findWithPredicate(fallbackPredicate);
     }
 
-    const indexMatch = findWithRenderedIndex(
-      rawGroups,
-      type,
-      groupName,
-      itemIndex,
-    );
+    const indexMatch = findWithRenderedIndex(rawGroups, type, groupName, itemIndex);
     if (indexMatch) {
       return indexMatch;
     }
@@ -814,11 +688,7 @@ function updateRawEntry(
         const name = getEntryName(entry);
         const value = entry[name];
 
-        if (
-          isItemEntry(entry, type) &&
-          !changed &&
-          matchesEntry(entry, currentGroup)
-        ) {
+        if (isItemEntry(entry, type) && !changed && matchesEntry(entry, currentGroup)) {
           changed = true;
           return configToRawEntry(type, nextName, nextConfig);
         }
@@ -844,9 +714,7 @@ function updateRawEntry(
     let changed = false;
 
     const updateEntries = (entries = [], currentGroup) => {
-      const rawIndex = namesEqual(currentGroup, groupName)
-        ? getRenderedItemRawIndex(entries, type, originalIndex)
-        : -1;
+      const rawIndex = namesEqual(currentGroup, groupName) ? getRenderedItemRawIndex(entries, type, originalIndex) : -1;
 
       return entries.map((entry, index) => {
         const name = getEntryName(entry);
@@ -877,21 +745,14 @@ function updateRawEntry(
 
   let result = updateWithPredicate(
     (entry, currentGroup) =>
-      namesEqual(currentGroup, groupName) &&
-      entryMatchesItemMatcher(entry, type, originalName, originalMatcher),
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, originalName, originalMatcher),
   );
 
   if (!result.changed) {
     const fallbackPredicate = findUniqueRawEntryPredicate(
       rawGroups,
       type,
-      rawItemFallbackPredicates(
-        rawGroups,
-        type,
-        groupName,
-        originalName,
-        originalMatcher,
-      ),
+      rawItemFallbackPredicates(rawGroups, type, groupName, originalName, originalMatcher),
     );
 
     if (fallbackPredicate) {
@@ -904,9 +765,7 @@ function updateRawEntry(
   }
 
   if (!result.changed) {
-    throw new Error(
-      "Исходная карточка не найдена. Обновите страницу и попробуйте снова.",
-    );
+    throw new Error("Исходная карточка не найдена. Обновите страницу и попробуйте снова.");
   }
 
   return result.nextGroups;
@@ -924,9 +783,7 @@ function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
     return entries.map((entry) => {
       const name = getEntryName(entry);
       const value = entry[name];
-      return type === "services" && Array.isArray(value)
-        ? { [name]: addToEntries(value, name) }
-        : entry;
+      return type === "services" && Array.isArray(value) ? { [name]: addToEntries(value, name) } : entry;
     });
   };
 
@@ -936,26 +793,16 @@ function addRawEntry(rawGroups, type, groupName, itemName, itemConfig) {
   });
 
   if (added) return nextGroups;
-  return [
-    ...nextGroups,
-    { [groupName]: [configToRawEntry(type, itemName, itemConfig)] },
-  ];
+  return [...nextGroups, { [groupName]: [configToRawEntry(type, itemName, itemConfig)] }];
 }
 
 function addRawGroup(rawGroups, groupName, type) {
-  if (
-    (rawGroups ?? []).some((group) =>
-      namesEqual(getEntryName(group), groupName),
-    )
-  ) {
+  if ((rawGroups ?? []).some((group) => namesEqual(getEntryName(group), groupName))) {
     throw new Error("Группа уже существует");
   }
 
   if (type === "services") {
-    return [
-      ...(rawGroups ?? []),
-      { [groupName]: [{ "Новый сервис": { href: "#", weight: 100 } }] },
-    ];
+    return [...(rawGroups ?? []), { [groupName]: [{ "Новый сервис": { href: "#", weight: 100 } }] }];
   }
 
   return [...(rawGroups ?? []), { [groupName]: [] }];
@@ -994,14 +841,7 @@ function deleteRawGroup(rawGroups, groupName) {
   return extractNamedNode(rawGroups, groupName).nodes;
 }
 
-function deleteRawEntry(
-  rawGroups,
-  type,
-  groupName,
-  itemName,
-  itemMatcher = null,
-  itemIndex = null,
-) {
+function deleteRawEntry(rawGroups, type, groupName, itemName, itemMatcher = null, itemIndex = null) {
   const deleteWithPredicate = (matchesEntry) => {
     let removed = false;
 
@@ -1022,9 +862,7 @@ function deleteRawEntry(
         .map((entry) => {
           const name = getEntryName(entry);
           const value = entry[name];
-          return type === "services" && Array.isArray(value)
-            ? { [name]: filterEntries(value, name) }
-            : entry;
+          return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
         });
 
     const nextGroups = (rawGroups ?? []).map((group) => {
@@ -1039,9 +877,7 @@ function deleteRawEntry(
     let removed = false;
 
     const filterEntries = (entries = [], currentGroup) => {
-      const rawIndex = namesEqual(currentGroup, groupName)
-        ? getRenderedItemRawIndex(entries, type, itemIndex)
-        : -1;
+      const rawIndex = namesEqual(currentGroup, groupName) ? getRenderedItemRawIndex(entries, type, itemIndex) : -1;
 
       return entries
         .filter((entry, index) => {
@@ -1055,9 +891,7 @@ function deleteRawEntry(
         .map((entry) => {
           const name = getEntryName(entry);
           const value = entry[name];
-          return type === "services" && Array.isArray(value)
-            ? { [name]: filterEntries(value, name) }
-            : entry;
+          return type === "services" && Array.isArray(value) ? { [name]: filterEntries(value, name) } : entry;
         });
     };
 
@@ -1071,21 +905,14 @@ function deleteRawEntry(
 
   let result = deleteWithPredicate(
     (entry, currentGroup) =>
-      namesEqual(currentGroup, groupName) &&
-      entryMatchesItemMatcher(entry, type, itemName, itemMatcher),
+      namesEqual(currentGroup, groupName) && entryMatchesItemMatcher(entry, type, itemName, itemMatcher),
   );
 
   if (!result.removed) {
     const fallbackPredicate = findUniqueRawEntryPredicate(
       rawGroups,
       type,
-      rawItemFallbackPredicates(
-        rawGroups,
-        type,
-        groupName,
-        itemName,
-        itemMatcher,
-      ),
+      rawItemFallbackPredicates(rawGroups, type, groupName, itemName, itemMatcher),
     );
 
     if (fallbackPredicate) {
@@ -1098,9 +925,7 @@ function deleteRawEntry(
   }
 
   if (!result.removed) {
-    throw new Error(
-      "Исходная карточка не найдена. Обновите страницу и попробуйте снова.",
-    );
+    throw new Error("Исходная карточка не найдена. Обновите страницу и попробуйте снова.");
   }
 
   return result.nextGroups;
@@ -1148,10 +973,7 @@ function getSortedServiceEntries(entries = []) {
 
     serviceEntries.push({
       entry,
-      effectiveWeight:
-        typeof value?.weight === "number"
-          ? value.weight
-          : (serviceIndex + 1) * 100,
+      effectiveWeight: typeof value?.weight === "number" ? value.weight : (serviceIndex + 1) * 100,
     });
     serviceIndex += 1;
   });
@@ -1166,10 +988,7 @@ function getSortedServiceEntries(entries = []) {
     .sort(compareServiceEntriesByWeight);
 }
 
-function applyWeightedServiceEntries(
-  entries = [],
-  weightedServiceEntries = [],
-) {
+function applyWeightedServiceEntries(entries = [], weightedServiceEntries = []) {
   const remainingWeightedEntries = [...weightedServiceEntries];
 
   return entries.map((entry) => {
@@ -1180,10 +999,7 @@ function applyWeightedServiceEntries(
 
     const entryMatcher = createEntryMatcher(entry, "services");
     const weightedIndex = remainingWeightedEntries.findIndex((weightedEntry) =>
-      itemMatcherEquals(
-        createEntryMatcher(weightedEntry, "services"),
-        entryMatcher,
-      ),
+      itemMatcherEquals(createEntryMatcher(weightedEntry, "services"), entryMatcher),
     );
 
     if (weightedIndex < 0) {
@@ -1205,18 +1021,12 @@ function reorderServiceEntriesInGroup(
   targetIndex = null,
 ) {
   const currentServiceEntries = getSortedServiceEntries(entries);
-  const matchedSourceIndex = findItemEntryIndex(
-    currentServiceEntries,
-    "services",
-    sourceName,
-    sourceMatcher,
-  );
+  const matchedSourceIndex = findItemEntryIndex(currentServiceEntries, "services", sourceName, sourceMatcher);
   const renderedSourceIndex = normalizedItemIndex(sourceIndex);
   const sourceEntryIndex =
     matchedSourceIndex >= 0
       ? matchedSourceIndex
-      : renderedSourceIndex !== null &&
-          renderedSourceIndex < currentServiceEntries.length
+      : renderedSourceIndex !== null && renderedSourceIndex < currentServiceEntries.length
         ? renderedSourceIndex
         : -1;
   if (sourceEntryIndex < 0) {
@@ -1224,18 +1034,12 @@ function reorderServiceEntriesInGroup(
   }
 
   if (targetName !== null) {
-    const matchedTargetIndex = findItemEntryIndex(
-      currentServiceEntries,
-      "services",
-      targetName,
-      targetMatcher,
-    );
+    const matchedTargetIndex = findItemEntryIndex(currentServiceEntries, "services", targetName, targetMatcher);
     const renderedTargetIndex = normalizedItemIndex(targetIndex);
     const targetEntryIndex =
       matchedTargetIndex >= 0
         ? matchedTargetIndex
-        : renderedTargetIndex !== null &&
-            renderedTargetIndex < currentServiceEntries.length
+        : renderedTargetIndex !== null && renderedTargetIndex < currentServiceEntries.length
           ? renderedTargetIndex
           : -1;
     if (targetEntryIndex < 0 || targetEntryIndex === sourceEntryIndex) {
@@ -1330,14 +1134,7 @@ function reorderRawServiceEntryInGroup(
   return { moved, nextGroups: moved ? nextGroups : rawGroups };
 }
 
-function removeRawEntryForMove(
-  rawGroups,
-  type,
-  sourceGroupName,
-  sourceName,
-  sourceMatcher = null,
-  sourceIndex = null,
-) {
+function removeRawEntryForMove(rawGroups, type, sourceGroupName, sourceName, sourceMatcher = null, sourceIndex = null) {
   let removedEntry = null;
 
   const removeFromEntries = (entries = [], currentGroup) => {
@@ -1382,10 +1179,7 @@ function removeRawEntryForMove(
     const name = getEntryName(group);
     const nextEntries = removeFromEntries(group[name], name);
     return {
-      [name]:
-        type === "services" && namesEqual(name, sourceGroupName)
-          ? resetServiceWeights(nextEntries)
-          : nextEntries,
+      [name]: type === "services" && namesEqual(name, sourceGroupName) ? resetServiceWeights(nextEntries) : nextEntries,
     };
   });
 
@@ -1408,23 +1202,15 @@ function insertRawEntryForMove(
       return entries.map((entry) => {
         const name = getEntryName(entry);
         const value = entry[name];
-        return isItemEntry(entry, type)
-          ? entry
-          : { [name]: insertToEntries(value, name) };
+        return isItemEntry(entry, type) ? entry : { [name]: insertToEntries(value, name) };
       });
     }
 
     const nextEntries = [...entries];
     const matchedTargetIndex =
-      targetName === null
-        ? nextEntries.length
-        : findItemEntryIndex(nextEntries, type, targetName, targetMatcher);
-    const renderedRawIndex =
-      targetName === null
-        ? -1
-        : getRenderedItemRawIndex(nextEntries, type, targetIndex);
-    const insertionIndex =
-      matchedTargetIndex >= 0 ? matchedTargetIndex : renderedRawIndex;
+      targetName === null ? nextEntries.length : findItemEntryIndex(nextEntries, type, targetName, targetMatcher);
+    const renderedRawIndex = targetName === null ? -1 : getRenderedItemRawIndex(nextEntries, type, targetIndex);
+    const insertionIndex = matchedTargetIndex >= 0 ? matchedTargetIndex : renderedRawIndex;
 
     if (insertionIndex < 0) {
       return entries;
@@ -1439,10 +1225,7 @@ function insertRawEntryForMove(
     const name = getEntryName(group);
     const nextEntries = insertToEntries(group[name], name);
     return {
-      [name]:
-        type === "services" && namesEqual(name, targetGroupName)
-          ? resetServiceWeights(nextEntries)
-          : nextEntries,
+      [name]: type === "services" && namesEqual(name, targetGroupName) ? resetServiceWeights(nextEntries) : nextEntries,
     };
   });
 
@@ -1474,15 +1257,14 @@ function reorderRawEntry(
     );
   }
 
-  const { removedEntry, nextGroups: groupsWithoutSource } =
-    removeRawEntryForMove(
-      rawGroups,
-      type,
-      sourceGroupName,
-      sourceName,
-      sourceMatcher,
-      sourceIndex,
-    );
+  const { removedEntry, nextGroups: groupsWithoutSource } = removeRawEntryForMove(
+    rawGroups,
+    type,
+    sourceGroupName,
+    sourceName,
+    sourceMatcher,
+    sourceIndex,
+  );
   if (!removedEntry) {
     return { moved: false, nextGroups: rawGroups };
   }
@@ -1505,10 +1287,7 @@ function groupLayoutToForm(layout) {
     columns: layout?.columns !== undefined ? String(layout.columns) : "",
     header: layout?.header !== undefined ? String(layout.header) : "",
     icon: layout?.icon ?? "",
-    initiallyCollapsed:
-      layout?.initiallyCollapsed !== undefined
-        ? String(layout.initiallyCollapsed)
-        : "",
+    initiallyCollapsed: layout?.initiallyCollapsed !== undefined ? String(layout.initiallyCollapsed) : "",
     style: layout?.style ?? "",
     tab: layout?.tab ?? "",
     titleColor: layout?.titleColor ?? "",
@@ -1526,8 +1305,7 @@ function formToGroupLayout(form) {
   if (form.alignRowHeights === "false") layout.alignRowHeights = false;
   if (form.header.trim()) layout.header = form.header === "true";
   if (form.icon.trim()) layout.icon = form.icon;
-  if (form.initiallyCollapsed.trim())
-    layout.initiallyCollapsed = form.initiallyCollapsed === "true";
+  if (form.initiallyCollapsed.trim()) layout.initiallyCollapsed = form.initiallyCollapsed === "true";
   if (form.tab.trim()) layout.tab = form.tab;
   if (form.titleColor.trim()) layout.titleColor = form.titleColor;
   if (form.titleAlign.trim()) layout.titleAlign = form.titleAlign;
@@ -1564,17 +1342,9 @@ function collectTopLevelLayoutTabs(layoutMap) {
   const tabs = [];
 
   Object.entries(layoutMap ?? {}).forEach(([key, value]) => {
-    if (
-      key === "Bookmarks" &&
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value)
-    ) {
+    if (key === "Bookmarks" && value && typeof value === "object" && !Array.isArray(value)) {
       Object.values(value).forEach((bookmarkLayout) => {
-        const tab =
-          typeof bookmarkLayout?.tab === "string"
-            ? bookmarkLayout.tab.trim()
-            : "";
+        const tab = typeof bookmarkLayout?.tab === "string" ? bookmarkLayout.tab.trim() : "";
         if (tab && !tabs.some((existingTab) => namesEqual(existingTab, tab))) {
           tabs.push(tab);
         }
@@ -1599,23 +1369,15 @@ export function getGroupLayout(layoutMap, type, groupName) {
 
   if (type === "bookmarks") {
     const bookmarkLayoutMap = layoutMap?.Bookmarks;
-    if (
-      !bookmarkLayoutMap ||
-      typeof bookmarkLayoutMap !== "object" ||
-      Array.isArray(bookmarkLayoutMap)
-    ) {
+    if (!bookmarkLayoutMap || typeof bookmarkLayoutMap !== "object" || Array.isArray(bookmarkLayoutMap)) {
       return undefined;
     }
 
-    const matchedBookmarkEntry = Object.entries(bookmarkLayoutMap).find(
-      ([name]) => namesEqual(name, normalizedName),
-    );
+    const matchedBookmarkEntry = Object.entries(bookmarkLayoutMap).find(([name]) => namesEqual(name, normalizedName));
     return matchedBookmarkEntry?.[1];
   }
 
-  const matchedEntry = Object.entries(layoutMap ?? {}).find(([name]) =>
-    namesEqual(name, normalizedName),
-  );
+  const matchedEntry = Object.entries(layoutMap ?? {}).find(([name]) => namesEqual(name, normalizedName));
   return matchedEntry?.[1];
 }
 
@@ -1629,13 +1391,8 @@ export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
       return;
     }
 
-    const matchedTab = discoveredTabs.find((existingTab) =>
-      namesEqual(existingTab, normalizedTab),
-    );
-    if (
-      matchedTab &&
-      !orderedTabs.some((existingTab) => namesEqual(existingTab, matchedTab))
-    ) {
+    const matchedTab = discoveredTabs.find((existingTab) => namesEqual(existingTab, normalizedTab));
+    if (matchedTab && !orderedTabs.some((existingTab) => namesEqual(existingTab, matchedTab))) {
       orderedTabs.push(matchedTab);
     }
   });
@@ -1650,8 +1407,7 @@ export function getOrderedTabsForLayout(layoutMap, savedOrder = []) {
 }
 
 function normalizeGroupOrderPageName(pageName) {
-  const normalizedPageName =
-    typeof pageName === "string" ? pageName.trim() : "";
+  const normalizedPageName = typeof pageName === "string" ? pageName.trim() : "";
   return normalizedPageName || DEFAULT_GROUP_ORDER_PAGE_KEY;
 }
 
@@ -1664,13 +1420,9 @@ function createGroupOrderEntry(type, groupName) {
 
 function normalizeGroupOrderEntry(entry) {
   const normalizedType = entry?.type;
-  const normalizedGroupName =
-    typeof entry?.groupName === "string" ? entry.groupName.trim() : "";
+  const normalizedGroupName = typeof entry?.groupName === "string" ? entry.groupName.trim() : "";
 
-  if (
-    (normalizedType !== "services" && normalizedType !== "bookmarks") ||
-    !normalizedGroupName
-  ) {
+  if ((normalizedType !== "services" && normalizedType !== "bookmarks") || !normalizedGroupName) {
     return null;
   }
 
@@ -1683,23 +1435,17 @@ function groupOrderEntryKey(entry) {
 
 function readGroupOrderMap(settings) {
   const groupOrderMap = settings?.[GROUP_ORDER_SETTINGS_KEY];
-  return groupOrderMap &&
-    typeof groupOrderMap === "object" &&
-    !Array.isArray(groupOrderMap)
-    ? groupOrderMap
-    : {};
+  return groupOrderMap && typeof groupOrderMap === "object" && !Array.isArray(groupOrderMap) ? groupOrderMap : {};
 }
 
 function getGroupPageName(settings, type, groupName) {
   const groupLayout = getGroupLayout(settings?.layout ?? {}, type, groupName);
-  const normalizedPageName =
-    typeof groupLayout?.tab === "string" ? groupLayout.tab.trim() : "";
+  const normalizedPageName = typeof groupLayout?.tab === "string" ? groupLayout.tab.trim() : "";
   return normalizedPageName || null;
 }
 
 function groupMatchesPage(settings, type, groupName, pageName) {
-  const normalizedPageName =
-    typeof pageName === "string" ? pageName.trim() : "";
+  const normalizedPageName = typeof pageName === "string" ? pageName.trim() : "";
   const groupPageName = getGroupPageName(settings, type, groupName);
 
   if (!groupPageName) {
@@ -1714,12 +1460,8 @@ function dedupeTopLevelGroupEntries(groups = []) {
 
   return groups.filter((entry) => {
     const normalizedType = entry?.type;
-    const normalizedGroupName =
-      typeof entry?.group?.name === "string" ? entry.group.name.trim() : "";
-    if (
-      (normalizedType !== "services" && normalizedType !== "bookmarks") ||
-      !normalizedGroupName
-    ) {
+    const normalizedGroupName = typeof entry?.group?.name === "string" ? entry.group.name.trim() : "";
+    if ((normalizedType !== "services" && normalizedType !== "bookmarks") || !normalizedGroupName) {
       return false;
     }
 
@@ -1759,9 +1501,7 @@ function normalizeRawTopLevelGroup(group, type) {
 }
 
 function reorderBookmarkLayoutToMatchGroups(settings, rawGroups) {
-  const bookmarkOrder = (rawGroups ?? [])
-    .map(rawTopLevelGroupName)
-    .filter(Boolean);
+  const bookmarkOrder = (rawGroups ?? []).map(rawTopLevelGroupName).filter(Boolean);
   if (bookmarkOrder.length === 0) {
     return settings;
   }
@@ -1772,15 +1512,11 @@ function reorderBookmarkLayoutToMatchGroups(settings, rawGroups) {
   const reorderedBookmarkLayout = {};
 
   bookmarkOrder.forEach((groupName) => {
-    const matchedKey = Object.keys(currentBookmarkLayout).find((key) =>
-      namesEqual(key, groupName),
-    );
+    const matchedKey = Object.keys(currentBookmarkLayout).find((key) => namesEqual(key, groupName));
     const layoutKey = matchedKey ?? groupName;
 
     if (!(layoutKey in reorderedBookmarkLayout)) {
-      reorderedBookmarkLayout[layoutKey] = matchedKey
-        ? currentBookmarkLayout[matchedKey]
-        : {};
+      reorderedBookmarkLayout[layoutKey] = matchedKey ? currentBookmarkLayout[matchedKey] : {};
     }
   });
 
@@ -1795,22 +1531,11 @@ function reorderBookmarkLayoutToMatchGroups(settings, rawGroups) {
   return nextSettings;
 }
 
-function collectCurrentPageTopLevelGroups(
-  settings,
-  rawServices,
-  rawBookmarks,
-  pageName,
-) {
-  const serviceGroups = (rawServices ?? [])
-    .map((group) => normalizeRawTopLevelGroup(group, "services"))
-    .filter(Boolean);
-  const bookmarkGroups = (rawBookmarks ?? [])
-    .map((group) => normalizeRawTopLevelGroup(group, "bookmarks"))
-    .filter(Boolean);
+function collectCurrentPageTopLevelGroups(settings, rawServices, rawBookmarks, pageName) {
+  const serviceGroups = (rawServices ?? []).map((group) => normalizeRawTopLevelGroup(group, "services")).filter(Boolean);
+  const bookmarkGroups = (rawBookmarks ?? []).map((group) => normalizeRawTopLevelGroup(group, "bookmarks")).filter(Boolean);
   const serviceMap = new Map(serviceGroups.map((group) => [group.name, group]));
-  const bookmarkMap = new Map(
-    bookmarkGroups.map((group) => [group.name, group]),
-  );
+  const bookmarkMap = new Map(bookmarkGroups.map((group) => [group.name, group]));
   const layoutEntries = Object.entries(settings?.layout ?? {});
 
   const layoutGroups = layoutEntries
@@ -1832,21 +1557,11 @@ function collectCurrentPageTopLevelGroups(
         group: { name: groupName, services: [], groups: [] },
       };
     })
-    .filter(
-      (entry) =>
-        entry &&
-        groupMatchesPage(settings, entry.type, entry.group.name, pageName),
-    );
+    .filter((entry) => entry && groupMatchesPage(settings, entry.type, entry.group.name, pageName));
 
   const serviceFallbackGroups = serviceGroups
-    .filter((group) =>
-      groupMatchesPage(settings, "services", group.name, pageName),
-    )
-    .filter(
-      (group) =>
-        getGroupLayout(settings?.layout ?? {}, "services", group.name) ===
-        undefined,
-    )
+    .filter((group) => groupMatchesPage(settings, "services", group.name, pageName))
+    .filter((group) => getGroupLayout(settings?.layout ?? {}, "services", group.name) === undefined)
     .map((group) => ({ type: "services", group }));
 
   const bookmarkLayoutGroups = Object.keys(settings?.layout?.Bookmarks ?? {})
@@ -1854,38 +1569,19 @@ function collectCurrentPageTopLevelGroups(
       type: "bookmarks",
       group: bookmarkMap.get(groupName) ?? { name: groupName, bookmarks: [] },
     }))
-    .filter((entry) =>
-      groupMatchesPage(settings, "bookmarks", entry.group.name, pageName),
-    );
+    .filter((entry) => groupMatchesPage(settings, "bookmarks", entry.group.name, pageName));
 
   const bookmarkFallbackGroups = bookmarkGroups
-    .filter((group) =>
-      groupMatchesPage(settings, "bookmarks", group.name, pageName),
-    )
-    .filter(
-      (group) =>
-        getGroupLayout(settings?.layout ?? {}, "bookmarks", group.name) ===
-        undefined,
-    )
+    .filter((group) => groupMatchesPage(settings, "bookmarks", group.name, pageName))
+    .filter((group) => getGroupLayout(settings?.layout ?? {}, "bookmarks", group.name) === undefined)
     .map((group) => ({ type: "bookmarks", group }));
 
-  return dedupeTopLevelGroupEntries([
-    ...layoutGroups,
-    ...serviceFallbackGroups,
-    ...bookmarkLayoutGroups,
-    ...bookmarkFallbackGroups,
-  ]);
+  return dedupeTopLevelGroupEntries([...layoutGroups, ...serviceFallbackGroups, ...bookmarkLayoutGroups, ...bookmarkFallbackGroups]);
 }
 
-export function getOrderedTopLevelGroupsForPage(
-  settings,
-  pageName,
-  groups = [],
-) {
+export function getOrderedTopLevelGroupsForPage(settings, pageName, groups = []) {
   const fallbackGroups = dedupeTopLevelGroupEntries(groups);
-  const persistedOrder = (
-    readGroupOrderMap(settings)[normalizeGroupOrderPageName(pageName)] ?? []
-  )
+  const persistedOrder = (readGroupOrderMap(settings)[normalizeGroupOrderPageName(pageName)] ?? [])
     .map(normalizeGroupOrderEntry)
     .filter(Boolean);
   const orderedGroups = [];
@@ -1893,9 +1589,7 @@ export function getOrderedTopLevelGroupsForPage(
 
   persistedOrder.forEach((entry) => {
     const matchedGroup = fallbackGroups.find(
-      (candidate) =>
-        candidate.type === entry.type &&
-        namesEqual(candidate.group?.name, entry.groupName),
+      (candidate) => candidate.type === entry.type && namesEqual(candidate.group?.name, entry.groupName),
     );
     if (!matchedGroup) {
       return;
@@ -1938,20 +1632,11 @@ function applyGroupTabToSettings(settings, type, groupName, tabName) {
     delete nextLayout.tab;
   }
 
-  return updateSettingsLayout(
-    settings,
-    type,
-    groupName,
-    groupName,
-    nextLayout,
-    "save",
-  );
+  return updateSettingsLayout(settings, type, groupName, groupName, nextLayout, "save");
 }
 
 function isTopLevelRawGroup(rawGroups, groupName) {
-  return (rawGroups ?? []).some((group) =>
-    namesEqual(getEntryName(group), groupName),
-  );
+  return (rawGroups ?? []).some((group) => namesEqual(getEntryName(group), groupName));
 }
 
 function setGroupOrderEntriesForPage(settings, pageName, entries) {
@@ -1987,30 +1672,21 @@ function updateGroupOrderSettings(
   targetName,
   placement,
 ) {
-  const beforeRawGroups =
-    type === "services" ? rawServicesBefore : rawBookmarksBefore;
-  const afterRawGroups =
-    type === "services" ? rawServicesAfter : rawBookmarksAfter;
+  const beforeRawGroups = type === "services" ? rawServicesBefore : rawBookmarksBefore;
+  const afterRawGroups = type === "services" ? rawServicesAfter : rawBookmarksAfter;
   const sourceWasTopLevel = isTopLevelRawGroup(beforeRawGroups, sourceName);
   const sourceIsTopLevel = isTopLevelRawGroup(afterRawGroups, sourceName);
-  const targetIsTopLevel =
-    ["before", "after"].includes(placement) && targetName
-      ? isTopLevelRawGroup(afterRawGroups, targetName)
-      : false;
+  const targetIsTopLevel = ["before", "after"].includes(placement) && targetName
+    ? isTopLevelRawGroup(afterRawGroups, targetName)
+    : false;
 
   if (!sourceWasTopLevel && !sourceIsTopLevel && !targetIsTopLevel) {
     return settingsAfter;
   }
 
-  const sourcePageBefore = sourceWasTopLevel
-    ? getGroupPageName(settingsBefore, type, sourceName)
-    : undefined;
-  const sourcePageAfter = sourceIsTopLevel
-    ? getGroupPageName(settingsAfter, type, sourceName)
-    : undefined;
-  const targetPageAfter = targetIsTopLevel
-    ? getGroupPageName(settingsAfter, type, targetName)
-    : undefined;
+  const sourcePageBefore = sourceWasTopLevel ? getGroupPageName(settingsBefore, type, sourceName) : undefined;
+  const sourcePageAfter = sourceIsTopLevel ? getGroupPageName(settingsAfter, type, sourceName) : undefined;
+  const targetPageAfter = targetIsTopLevel ? getGroupPageName(settingsAfter, type, targetName) : undefined;
   const sourceEntry = createGroupOrderEntry(type, sourceName);
   const baseOrders = new Map();
   const affectedPages = new Map();
@@ -2032,28 +1708,18 @@ function updateGroupOrderSettings(
     const currentPageGroups = getOrderedTopLevelGroupsForPage(
       settingsBefore,
       rawPageName,
-      collectCurrentPageTopLevelGroups(
-        settingsBefore,
-        rawServicesBefore,
-        rawBookmarksBefore,
-        rawPageName,
-      ),
+      collectCurrentPageTopLevelGroups(settingsBefore, rawServicesBefore, rawBookmarksBefore, rawPageName),
     );
     baseOrders.set(
       pageKey,
-      currentPageGroups.map((entry) =>
-        createGroupOrderEntry(entry.type, entry.group.name),
-      ),
+      currentPageGroups.map((entry) => createGroupOrderEntry(entry.type, entry.group.name)),
     );
   });
 
   baseOrders.forEach((entries, pageKey) => {
     baseOrders.set(
       pageKey,
-      entries.filter(
-        (entry) =>
-          groupOrderEntryKey(entry) !== groupOrderEntryKey(sourceEntry),
-      ),
+      entries.filter((entry) => groupOrderEntryKey(entry) !== groupOrderEntryKey(sourceEntry)),
     );
   });
 
@@ -2061,23 +1727,12 @@ function updateGroupOrderSettings(
     const destinationPageKey = normalizeGroupOrderPageName(sourcePageAfter);
     const destinationEntries = [...(baseOrders.get(destinationPageKey) ?? [])];
 
-    if (
-      ["before", "after"].includes(placement) &&
-      targetIsTopLevel &&
-      namesEqual(sourcePageAfter, targetPageAfter)
-    ) {
+    if (["before", "after"].includes(placement) && targetIsTopLevel && namesEqual(sourcePageAfter, targetPageAfter)) {
       const targetEntry = createGroupOrderEntry(type, targetName);
-      const targetIndex = destinationEntries.findIndex(
-        (entry) =>
-          groupOrderEntryKey(entry) === groupOrderEntryKey(targetEntry),
-      );
+      const targetIndex = destinationEntries.findIndex((entry) => groupOrderEntryKey(entry) === groupOrderEntryKey(targetEntry));
 
       if (targetIndex >= 0) {
-        destinationEntries.splice(
-          placement === "after" ? targetIndex + 1 : targetIndex,
-          0,
-          sourceEntry,
-        );
+        destinationEntries.splice(placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceEntry);
       } else {
         destinationEntries.push(sourceEntry);
       }
@@ -2091,16 +1746,9 @@ function updateGroupOrderSettings(
   let nextSettings = settingsAfter;
 
   affectedPages.forEach((rawPageName, pageKey) => {
-    const fallbackGroups = collectCurrentPageTopLevelGroups(
-      nextSettings,
-      rawServicesAfter,
-      rawBookmarksAfter,
-      rawPageName,
-    );
+    const fallbackGroups = collectCurrentPageTopLevelGroups(nextSettings, rawServicesAfter, rawBookmarksAfter, rawPageName);
     const orderedEntries = [...(baseOrders.get(pageKey) ?? [])];
-    const actualEntries = fallbackGroups.map((entry) =>
-      createGroupOrderEntry(entry.type, entry.group.name),
-    );
+    const actualEntries = fallbackGroups.map((entry) => createGroupOrderEntry(entry.type, entry.group.name));
     const actualEntryKeys = new Set(actualEntries.map(groupOrderEntryKey));
     const seen = new Set();
     const sanitizedEntries = [];
@@ -2125,32 +1773,19 @@ function updateGroupOrderSettings(
       sanitizedEntries.push(entry);
     });
 
-    nextSettings = setGroupOrderEntriesForPage(
-      nextSettings,
-      rawPageName,
-      sanitizedEntries,
-    );
+    nextSettings = setGroupOrderEntriesForPage(nextSettings, rawPageName, sanitizedEntries);
   });
 
   return nextSettings;
 }
 
-function updateSettingsLayout(
-  settings,
-  type,
-  originalName,
-  nextName,
-  nextLayout,
-  mode,
-) {
+function updateSettingsLayout(settings, type, originalName, nextName, nextLayout, mode) {
   const nextSettings = { ...(settings ?? {}) };
 
   if (type === "bookmarks") {
     const nextRootLayout = cloneLayoutValue(settings?.layout ?? {});
     const nextBookmarkLayout = cloneLayoutValue(nextRootLayout.Bookmarks ?? {});
-    const matchedBookmarkEntry = Object.keys(nextBookmarkLayout).find((name) =>
-      namesEqual(name, originalName),
-    );
+    const matchedBookmarkEntry = Object.keys(nextBookmarkLayout).find((name) => namesEqual(name, originalName));
 
     if (mode === "delete") {
       if (matchedBookmarkEntry) {
@@ -2275,10 +1910,7 @@ function insertRawGroup(nodes, targetName, sourceNode, placement) {
 }
 
 function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
-  if (
-    placement !== "root" &&
-    (!targetName || namesEqual(sourceName, targetName))
-  ) {
+  if (placement !== "root" && (!targetName || namesEqual(sourceName, targetName))) {
     return { moved: false, nextGroups: rawGroups };
   }
 
@@ -2291,25 +1923,13 @@ function moveRawServiceGroup(rawGroups, sourceName, targetName, placement) {
     return { moved: true, nextGroups: [...nodes, extracted] };
   }
 
-  const { inserted, nodes: nextGroups } = insertRawGroup(
-    nodes,
-    targetName,
-    extracted,
-    placement,
-  );
+  const { inserted, nodes: nextGroups } = insertRawGroup(nodes, targetName, extracted, placement);
   return { moved: inserted, nextGroups: inserted ? nextGroups : rawGroups };
 }
 
-function moveRawBookmarkGroup(
-  rawGroups,
-  sourceName,
-  targetName,
-  placement = "before",
-) {
+function moveRawBookmarkGroup(rawGroups, sourceName, targetName, placement = "before") {
   if (placement === "root") {
-    const sourceIndex = (rawGroups ?? []).findIndex((group) =>
-      namesEqual(getEntryName(group), sourceName),
-    );
+    const sourceIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), sourceName));
     if (sourceIndex < 0) {
       return { moved: false, nextGroups: rawGroups };
     }
@@ -2320,29 +1940,19 @@ function moveRawBookmarkGroup(
     return { moved: true, nextGroups };
   }
 
-  if (
-    !targetName ||
-    namesEqual(sourceName, targetName) ||
-    !["before", "after"].includes(placement)
-  ) {
+  if (!targetName || namesEqual(sourceName, targetName) || !["before", "after"].includes(placement)) {
     return { moved: false, nextGroups: rawGroups };
   }
 
-  const sourceIndex = (rawGroups ?? []).findIndex((group) =>
-    namesEqual(getEntryName(group), sourceName),
-  );
-  const targetIndex = (rawGroups ?? []).findIndex((group) =>
-    namesEqual(getEntryName(group), targetName),
-  );
+  const sourceIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), sourceName));
+  const targetIndex = (rawGroups ?? []).findIndex((group) => namesEqual(getEntryName(group), targetName));
   if (sourceIndex < 0 || targetIndex < 0) {
     return { moved: false, nextGroups: rawGroups };
   }
 
   const nextGroups = [...rawGroups];
   const [sourceGroup] = nextGroups.splice(sourceIndex, 1);
-  const nextTargetIndex = nextGroups.findIndex((group) =>
-    namesEqual(getEntryName(group), targetName),
-  );
+  const nextTargetIndex = nextGroups.findIndex((group) => namesEqual(getEntryName(group), targetName));
   const effectivePlacement =
     (placement === "before" && targetIndex === sourceIndex + 1) ||
     (placement === "after" && sourceIndex === targetIndex + 1)
@@ -2350,11 +1960,7 @@ function moveRawBookmarkGroup(
         ? "after"
         : "before"
       : placement;
-  nextGroups.splice(
-    effectivePlacement === "after" ? nextTargetIndex + 1 : nextTargetIndex,
-    0,
-    sourceGroup,
-  );
+  nextGroups.splice(effectivePlacement === "after" ? nextTargetIndex + 1 : nextTargetIndex, 0, sourceGroup);
 
   return { moved: true, nextGroups };
 }
@@ -2391,9 +1997,7 @@ function extractLayoutNode(layoutMap, sourceName) {
     }
 
     const childResult =
-      value && typeof value === "object" && !Array.isArray(value)
-        ? extractLayoutNode(value, sourceName)
-        : null;
+      value && typeof value === "object" && !Array.isArray(value) ? extractLayoutNode(value, sourceName) : null;
 
     if (childResult?.extracted) {
       extracted = childResult.extracted;
@@ -2443,9 +2047,7 @@ function reorderLayoutToMatchGroups(layout, rawGroups) {
   if (!layout || typeof layout !== "object") return layout;
 
   // Build ordered list of group names from the new services order
-  const serviceOrder = (rawGroups ?? [])
-    .map((node) => getEntryName(node))
-    .filter(Boolean);
+  const serviceOrder = (rawGroups ?? []).map((node) => getEntryName(node)).filter(Boolean);
 
   const reordered = {};
 
@@ -2467,17 +2069,8 @@ function reorderLayoutToMatchGroups(layout, rawGroups) {
   return reordered;
 }
 
-function moveSettingsLayoutGroup(
-  settings,
-  rawGroups,
-  sourceName,
-  targetName,
-  placement,
-) {
-  const { extracted, layout } = extractLayoutNode(
-    settings?.layout ?? {},
-    sourceName,
-  );
+function moveSettingsLayoutGroup(settings, rawGroups, sourceName, targetName, placement) {
+  const { extracted, layout } = extractLayoutNode(settings?.layout ?? {}, sourceName);
   const sourceLayout = extracted ?? {};
   if (placement === "root") {
     return {
@@ -2527,24 +2120,13 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
   const normalizedSourceTab = sourceTab?.trim();
   const normalizedTargetTab = targetTab?.trim();
 
-  if (
-    !normalizedSourceTab ||
-    !normalizedTargetTab ||
-    namesEqual(normalizedSourceTab, normalizedTargetTab)
-  ) {
+  if (!normalizedSourceTab || !normalizedTargetTab || namesEqual(normalizedSourceTab, normalizedTargetTab)) {
     return { moved: false, settings };
   }
 
-  const currentOrder = getOrderedTabsForLayout(
-    settings?.layout ?? {},
-    settings?.__browserEditorTabOrder ?? [],
-  );
-  const sourceIndex = currentOrder.findIndex((tab) =>
-    namesEqual(tab, normalizedSourceTab),
-  );
-  const targetIndex = currentOrder.findIndex((tab) =>
-    namesEqual(tab, normalizedTargetTab),
-  );
+  const currentOrder = getOrderedTabsForLayout(settings?.layout ?? {}, settings?.__browserEditorTabOrder ?? []);
+  const sourceIndex = currentOrder.findIndex((tab) => namesEqual(tab, normalizedSourceTab));
+  const targetIndex = currentOrder.findIndex((tab) => namesEqual(tab, normalizedTargetTab));
 
   if (sourceIndex < 0 || targetIndex < 0) {
     return { moved: false, settings };
@@ -2552,13 +2134,9 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
 
   const nextOrder = [...currentOrder];
   const [movedTab] = nextOrder.splice(sourceIndex, 1);
-  const nextTargetIndex = nextOrder.findIndex((tab) =>
-    namesEqual(tab, normalizedTargetTab),
-  );
+  const nextTargetIndex = nextOrder.findIndex((tab) => namesEqual(tab, normalizedTargetTab));
   nextOrder.splice(nextTargetIndex, 0, movedTab);
-  const unchanged =
-    nextOrder.length === currentOrder.length &&
-    nextOrder.every((tab, index) => namesEqual(tab, currentOrder[index]));
+  const unchanged = nextOrder.length === currentOrder.length && nextOrder.every((tab, index) => namesEqual(tab, currentOrder[index]));
 
   if (unchanged) {
     return { moved: false, settings };
@@ -2573,12 +2151,7 @@ function moveSettingsLayoutTab(settings, sourceTab, targetTab) {
   };
 }
 
-function ColorInput({
-  value,
-  onChange,
-  placeholder = "#ffffff",
-  compact = false,
-}) {
+function ColorInput({ value, onChange, placeholder = "#ffffff", compact = false }) {
   const [localValue, setLocalValue] = useState(value ?? "");
   const timeoutRef = useRef(null);
 
@@ -2586,17 +2159,14 @@ function ColorInput({
     setLocalValue(value ?? "");
   }, [value]);
 
-  const commitValue = useCallback(
-    (val) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      if (val !== value) {
-        onChange(val);
-      }
-    },
-    [onChange, value],
-  );
+  const commitValue = useCallback((val) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (val !== value) {
+      onChange(val);
+    }
+  }, [onChange, value]);
 
   const handleTextChange = (e) => {
     const val = e.target.value;
@@ -2626,20 +2196,12 @@ function ColorInput({
     };
   }, []);
 
-  const pickerValue =
-    localValue &&
-    localValue.startsWith("#") &&
-    (localValue.length === 4 || localValue.length === 7)
-      ? localValue
-      : "#ffffff";
+  const pickerValue = localValue && localValue.startsWith('#') && (localValue.length === 4 || localValue.length === 7)
+    ? localValue
+    : "#ffffff";
 
   return (
-    <div
-      className={classNames(
-        "mt-1 flex items-center gap-1.5",
-        compact ? "h-[28px]" : "h-[32px]",
-      )}
-    >
+    <div className={classNames("mt-1 flex items-center gap-1.5", compact ? "h-[28px]" : "h-[32px]")}>
       <input
         type="text"
         placeholder={placeholder}
@@ -2648,7 +2210,7 @@ function ColorInput({
         onBlur={handleBlur}
         className={classNames(
           "flex-1 min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 px-2 py-1 h-full",
-          compact ? "text-[13px]" : "text-sm",
+          compact ? "text-[13px]" : "text-sm"
         )}
       />
       <input
@@ -2667,12 +2229,7 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "showLink" || name === "showStats" || name === "ping") {
     return (
-      <label
-        className={classNames(
-          "flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer h-[28px] mt-4",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("flex items-center gap-2 text-xs text-theme-600 dark:text-theme-300 cursor-pointer h-[28px] mt-4", compact && "text-[11px]")}>
         <input
           type="checkbox"
           checked={value === true || value === "true"}
@@ -2686,12 +2243,7 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "titleColor") {
     return (
-      <label
-        className={classNames(
-          "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
         <ColorInput
           value={value}
@@ -2710,12 +2262,7 @@ function Field({ name, label, value, onChange, compact = false }) {
       ["right", "Право"],
     ];
     return (
-      <label
-        className={classNames(
-          "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
         <div className="mt-1 flex gap-1 h-[28px]">
           {alignments.map(([alignVal, alignLabel]) => (
@@ -2727,7 +2274,7 @@ function Field({ name, label, value, onChange, compact = false }) {
                 "flex-1 rounded-md border text-center text-[12px] font-medium transition-colors cursor-pointer",
                 value === alignVal
                   ? "border-theme-500 bg-theme-500/20 text-theme-900 dark:border-white/40 dark:bg-white/10 dark:text-theme-100"
-                  : "border-theme-300/50 bg-theme-50/30 text-theme-700 hover:bg-theme-50/70 dark:border-white/10 dark:bg-theme-900/30 dark:text-theme-300 dark:hover:bg-theme-900/50",
+                  : "border-theme-300/50 bg-theme-50/30 text-theme-700 hover:bg-theme-50/70 dark:border-white/10 dark:bg-theme-900/30 dark:text-theme-300 dark:hover:bg-theme-900/50"
               )}
             >
               {alignLabel}
@@ -2757,12 +2304,7 @@ function Field({ name, label, value, onChange, compact = false }) {
       ["1.2rem", "1.2rem"],
     ];
     return (
-      <label
-        className={classNames(
-          "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
         <select
           value={value}
@@ -2791,12 +2333,7 @@ function Field({ name, label, value, onChange, compact = false }) {
       ["Courier New", "Monospace"],
     ];
     return (
-      <label
-        className={classNames(
-          "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
         <select
           value={value}
@@ -2815,12 +2352,7 @@ function Field({ name, label, value, onChange, compact = false }) {
 
   if (name === "icon") {
     return (
-      <label
-        className={classNames(
-          "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-          compact && "text-[11px]",
-        )}
-      >
+      <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
         {label}
         <div className="mt-1 flex gap-2">
           <input
@@ -2852,12 +2384,7 @@ function Field({ name, label, value, onChange, compact = false }) {
   }
 
   return (
-    <label
-      className={classNames(
-        "block min-w-0 text-xs text-theme-600 dark:text-theme-300",
-        compact && "text-[11px]",
-      )}
-    >
+    <label className={classNames("block min-w-0 text-xs text-theme-600 dark:text-theme-300", compact && "text-[11px]")}>
       {label}
       <input
         type="text"
@@ -2869,159 +2396,6 @@ function Field({ name, label, value, onChange, compact = false }) {
         )}
       />
     </label>
-  );
-}
-
-function ServiceUpdateFields({ value, onChange, registry, registryError }) {
-  const config = normalizeServiceUpdateConfig(value);
-  const matchingTargets = (registry?.targets ?? []).filter(
-    (target) => target.type === config.type,
-  );
-  const selectedTargets = matchingTargets.filter(
-    (target) =>
-      target.id === config.target &&
-      (!config.source || target.source === config.source),
-  );
-  const selectedTarget =
-    selectedTargets.length === 1 ? selectedTargets[0] : null;
-  const selectedValue = selectedTarget
-    ? `${selectedTarget.source || ""}::${selectedTarget.id}`
-    : "";
-  const typeInfo = serviceUpdateTypes[config.type];
-  const availableTargets = matchingTargets.filter(
-    (target) => target.available !== false,
-  );
-  const sourceErrors = (registry?.sourceErrors ?? []).filter(
-    (sourceError) => sourceError.type === config.type,
-  );
-
-  const updateConfig = (patch) => {
-    onChange({
-      ...config,
-      ...patch,
-    });
-  };
-
-  return (
-    <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-      <label className="flex cursor-pointer items-center justify-between gap-3">
-        <span>
-          <span className="block text-xs font-medium text-theme-800 dark:text-theme-100">
-            Информатор обновлений
-          </span>
-          <span className="mt-0.5 block text-[11px] text-theme-500 dark:text-theme-400">
-            Выберите найденный контейнер или сервис — внутренняя цель создастся
-            автоматически.
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          checked={config.enabled}
-          onChange={(event) => updateConfig({ enabled: event.target.checked })}
-          className="h-4 w-4 shrink-0 rounded border-theme-300 dark:border-white/10"
-        />
-      </label>
-
-      {config.enabled && (
-        <div className="mt-3 space-y-3 border-t border-theme-300/30 pt-3 dark:border-white/10">
-          <div>
-            <div className="mb-1 text-[11px] text-theme-600 dark:text-theme-300">
-              Среда установки
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(serviceUpdateTypes).map(([type, info]) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => updateConfig({ source: "", type, target: "" })}
-                  className={classNames(
-                    "rounded-md border px-3 py-2 text-xs font-medium transition-colors",
-                    config.type === type
-                      ? "border-theme-500 bg-theme-500/20 text-theme-900 dark:border-white/40 dark:bg-white/10 dark:text-theme-100"
-                      : "border-theme-300/50 text-theme-600 hover:bg-theme-200/40 dark:border-white/10 dark:text-theme-300 dark:hover:bg-white/5",
-                  )}
-                >
-                  {info.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-            Найденный {config.type === "docker" ? "контейнер" : "LXC-сервис"}
-            <select
-              value={selectedValue}
-              onChange={(event) => {
-                const target = matchingTargets.find(
-                  (candidate) =>
-                    `${candidate.source || ""}::${candidate.id}` ===
-                    event.target.value,
-                );
-                updateConfig({
-                  source: target?.source || "",
-                  target: target?.id || "",
-                });
-              }}
-              className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-            >
-              <option value="">
-                {registry
-                  ? "Выберите сервис из списка"
-                  : "Идёт поиск сервисов…"}
-              </option>
-              {matchingTargets.map((target) => (
-                <option
-                  key={`${target.source || "runner"}-${target.id}`}
-                  value={`${target.source || ""}::${target.id}`}
-                  disabled={target.available === false}
-                >
-                  {target.label}
-                  {target.image ? ` · ${target.image}` : ""}
-                  {target.source ? ` · ${target.source}` : ""}
-                  {target.available === false
-                    ? ` · ${target.reason || "недоступен"}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="rounded-md bg-theme-200/40 p-2.5 text-[11px] text-theme-600 dark:bg-white/5 dark:text-theme-300">
-            <div>{typeInfo.description}</div>
-            {registryError && (
-              <div className="mt-1 text-rose-600 dark:text-rose-300">
-                {registryError.message}
-              </div>
-            )}
-            {!registryError && availableTargets.length === 0 && (
-              <div className="mt-1 text-amber-700 dark:text-amber-300">
-                {config.type === "docker"
-                  ? "Доступных контейнеров нет. Добавьте Docker-подключение в настройках Homepage."
-                  : "LXC найдены через Proxmox, но ограниченный исполнитель обновлений на узле ещё не настроен."}
-              </div>
-            )}
-            {sourceErrors.map((sourceError) => (
-              <div
-                key={sourceError.source}
-                className="mt-1 text-rose-600 dark:text-rose-300"
-              >
-                {sourceError.source}: {sourceError.message}
-              </div>
-            ))}
-            {selectedTarget?.reason && (
-              <div className="mt-1 text-amber-700 dark:text-amber-300">
-                {selectedTarget.reason}
-              </div>
-            )}
-            {selectedTarget && (
-              <div className="mt-1 text-emerald-700 dark:text-emerald-300">
-                Выбран сервис: {selectedTarget.label}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -3245,133 +2619,7 @@ function CodeEditorTheme() {
       .homepage-editor-textarea:focus {
         outline: none;
       }
-    `}</style>
-  );
-}
 
-function ConfiguratorControlTheme() {
-  return (
-    <style jsx global>{`
-      .homepage-configurator-ui input[type="checkbox"] {
-        accent-color: #22c55e !important;
-      }
-
-      .homepage-configurator-ui input[type="checkbox"]:checked {
-        color: #22c55e !important;
-        background-color: #22c55e !important;
-        border-color: #22c55e !important;
-      }
-
-      .homepage-configurator-ui input[type="checkbox"]:focus {
-        --tw-ring-color: rgb(34 197 94 / 0.55) !important;
-        outline-color: #22c55e !important;
-      }
-
-      .homepage-configurator-ui input[type="checkbox"].peer:checked + * {
-        background-color: #22c55e !important;
-        border-color: #22c55e !important;
-      }
-
-      .homepage-configurator-ui select {
-        color: #f4f4f5 !important;
-        background-color: #18181b !important;
-        color-scheme: dark;
-      }
-
-      .homepage-configurator-ui select option,
-      .homepage-configurator-ui select optgroup {
-        color: #f4f4f5 !important;
-        background-color: #18181b !important;
-      }
-
-      .homepage-configurator-ui select option:checked {
-        color: #09090b !important;
-        background-color: #22c55e !important;
-      }
-
-      .homepage-themed-configurator {
-        color: var(--studio-text) !important;
-      }
-
-      .homepage-themed-configurator .bg-theme-50,
-      .homepage-themed-configurator .bg-theme-50\/90,
-      .homepage-themed-configurator .bg-theme-100\/40,
-      .homepage-themed-configurator .bg-theme-100\/60,
-      .homepage-themed-configurator .bg-theme-200\/70 {
-        background-color: var(--studio-panel) !important;
-      }
-
-      .homepage-themed-configurator .bg-theme-900\/95,
-      .homepage-themed-configurator .dark\\:bg-theme-900\/95 {
-        background-color: var(--studio-bg) !important;
-      }
-
-      .homepage-themed-configurator .text-theme-900,
-      .homepage-themed-configurator .text-theme-800,
-      .homepage-themed-configurator .text-theme-700,
-      .homepage-themed-configurator .text-theme-600,
-      .homepage-themed-configurator .text-theme-500,
-      .homepage-themed-configurator .text-theme-400 {
-        color: var(--studio-text) !important;
-      }
-
-      .homepage-themed-configurator .border-theme-300\/50,
-      .homepage-themed-configurator .border-theme-300\/60,
-      .homepage-themed-configurator .border-theme-300\/40 {
-        border-color: color-mix(
-          in srgb,
-          var(--studio-accent) 35%,
-          transparent
-        ) !important;
-      }
-
-      .homepage-themed-configurator textarea,
-      .homepage-themed-configurator input,
-      .homepage-themed-configurator select {
-        background-color: color-mix(
-          in srgb,
-          var(--studio-bg) 76%,
-          black
-        ) !important;
-        color: var(--studio-text) !important;
-      }
-
-      .homepage-themed-configurator .homepage-editor-surface {
-        background-color: var(--studio-bg) !important;
-        border-color: color-mix(
-          in srgb,
-          var(--studio-accent) 35%,
-          transparent
-        ) !important;
-      }
-
-      .homepage-themed-configurator .homepage-editor-highlight,
-      .homepage-themed-configurator .homepage-editor-highlight code {
-        display: block !important;
-      }
-
-      .homepage-themed-configurator .homepage-editor-textarea {
-        color: transparent !important;
-        -webkit-text-fill-color: transparent !important;
-        caret-color: var(--studio-accent) !important;
-      }
-
-      .homepage-studio-editor-window .rounded-md {
-        border-radius: 0.75rem !important;
-      }
-
-      .homepage-studio-editor-window button.rounded-md {
-        border-radius: 0.75rem !important;
-      }
-
-      .homepage-studio-editor-window [aria-pressed="true"] {
-        border-color: var(--studio-accent) !important;
-        background-color: color-mix(
-          in srgb,
-          var(--studio-accent) 16%,
-          transparent
-        ) !important;
-      }
     `}</style>
   );
 }
@@ -3451,19 +2699,13 @@ function selectedLineRange(value, selectionStart, selectionEnd) {
 
 function toggleLineComments(value, selectionStart, selectionEnd, language) {
   const syntax = lineCommentSyntax(language);
-  const { lineStart, lineEnd } = selectedLineRange(
-    value,
-    selectionStart,
-    selectionEnd,
-  );
+  const { lineStart, lineEnd } = selectedLineRange(value, selectionStart, selectionEnd);
   const before = value.slice(0, lineStart);
   const selected = value.slice(lineStart, lineEnd);
   const after = value.slice(lineEnd);
   const lines = selected.split("\n");
   const hasCodeLines = lines.some((line) => line.trim().length > 0);
-  const activeLines = hasCodeLines
-    ? lines.filter((line) => line.trim().length > 0)
-    : lines;
+  const activeLines = hasCodeLines ? lines.filter((line) => line.trim().length > 0) : lines;
 
   const allCommented = activeLines.length
     ? activeLines.every((line) => {
@@ -3471,9 +2713,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
         const body = line.slice(indent.length);
 
         if (syntax.kind === "block") {
-          return (
-            body.startsWith(syntax.start) && body.trimEnd().endsWith(syntax.end)
-          );
+          return body.startsWith(syntax.start) && body.trimEnd().endsWith(syntax.end);
         }
 
         return body.startsWith(syntax.token);
@@ -3490,9 +2730,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
 
     if (syntax.kind === "block") {
       if (allCommented) {
-        const withoutStart = body.startsWith(syntax.start)
-          ? body.slice(syntax.start.length).replace(/^ ?/, "")
-          : body;
+        const withoutStart = body.startsWith(syntax.start) ? body.slice(syntax.start.length).replace(/^ ?/, "") : body;
         const withoutEnd = withoutStart.endsWith(syntax.end)
           ? withoutStart.slice(0, -syntax.end.length).replace(/ ?$/, "")
           : withoutStart;
@@ -3503,9 +2741,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
     }
 
     if (allCommented) {
-      const withoutToken = body.startsWith(syntax.token)
-        ? body.slice(syntax.token.length).replace(/^ ?/, "")
-        : body;
+      const withoutToken = body.startsWith(syntax.token) ? body.slice(syntax.token.length).replace(/^ ?/, "") : body;
       return `${indent}${withoutToken}`;
     }
 
@@ -3521,8 +2757,7 @@ function toggleLineComments(value, selectionStart, selectionEnd, language) {
   };
 }
 
-export function CodeEditor({
-  "aria-label": ariaLabel,
+function CodeEditor({
   label,
   value,
   onChange,
@@ -3532,7 +2767,6 @@ export function CodeEditor({
   fillAvailableHeight = false,
   zoomStorageKey = CODE_EDITOR_ZOOM_STORAGE_KEY,
   readOnly = false,
-  showToolbar = true,
 }) {
   const textareaRef = useRef(null);
   const highlightRef = useRef(null);
@@ -3541,20 +2775,12 @@ export function CodeEditor({
       return 100;
     }
 
-    const stored = Number.parseInt(
-      window.localStorage.getItem(zoomStorageKey) ?? "",
-      10,
-    );
-    return Number.isFinite(stored)
-      ? Math.min(CODE_EDITOR_MAX_ZOOM, Math.max(CODE_EDITOR_MIN_ZOOM, stored))
-      : 100;
+    const stored = Number.parseInt(window.localStorage.getItem(zoomStorageKey) ?? "", 10);
+    return Number.isFinite(stored) ? Math.min(CODE_EDITOR_MAX_ZOOM, Math.max(CODE_EDITOR_MIN_ZOOM, stored)) : 100;
   });
-  const highlightedCode = useMemo(
-    () => highlightEditorCode(value, language),
-    [language, value],
-  );
-  const editorFontSize = Math.round(((13 * zoom) / 100) * 100) / 100;
-  const editorLineHeight = `${Math.round(((24 * zoom) / 100) * 100) / 100}px`;
+  const highlightedCode = useMemo(() => highlightEditorCode(value, language), [language, value]);
+  const editorFontSize = Math.round((13 * zoom) / 100 * 100) / 100;
+  const editorLineHeight = `${Math.round((24 * zoom) / 100 * 100) / 100}px`;
   const zoomDecreaseStep = zoom <= 10 ? 1 : 10;
   const zoomIncreaseStep = zoom < 10 ? 1 : 10;
 
@@ -3580,22 +2806,13 @@ export function CodeEditor({
         return;
       }
 
-      if (
-        event.key !== "/" ||
-        (!event.ctrlKey && !event.metaKey) ||
-        event.altKey
-      ) {
+      if (event.key !== "/" || (!event.ctrlKey && !event.metaKey) || event.altKey) {
         return;
       }
 
       event.preventDefault();
       const target = event.currentTarget;
-      const next = toggleLineComments(
-        value,
-        target.selectionStart,
-        target.selectionEnd,
-        language,
-      );
+      const next = toggleLineComments(value, target.selectionStart, target.selectionEnd, language);
       onChange(next.value);
 
       window.requestAnimationFrame(() => {
@@ -3613,11 +2830,11 @@ export function CodeEditor({
       if (index !== -1 && textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(index, index + marker.length);
-
+        
         // Рассчитываем скролл
         const textBefore = value.substring(0, index);
         const lines = textBefore.split("\n").length;
-        const lineVal = Math.round(((24 * zoom) / 100) * 100) / 100; // Высота строки
+        const lineVal = Math.round((24 * zoom) / 100 * 100) / 100; // Высота строки
         const targetScrollTop = Math.max(0, (lines - 2) * lineVal);
         textareaRef.current.scrollTop = targetScrollTop;
         syncScrollPosition(textareaRef.current);
@@ -3649,7 +2866,7 @@ export function CodeEditor({
           marker: "/* >>> HOMEPAGE-EDITOR RADIO CSS START >>> */",
           label: "Стили радио",
         },
-      ].filter((btn) => value.includes(btn.marker));
+      ].filter(btn => value.includes(btn.marker));
     }
     if (placeholder === "custom.js") {
       return [
@@ -3661,7 +2878,7 @@ export function CodeEditor({
           marker: "/* >>> HOMEPAGE-EDITOR PARTICLES JS START >>> */",
           label: "Скрипт живых обоев",
         },
-      ].filter((btn) => value.includes(btn.marker));
+      ].filter(btn => value.includes(btn.marker));
     }
     return [];
   }, [placeholder, value]);
@@ -3695,10 +2912,8 @@ export function CodeEditor({
           fillAvailableHeight && "flex min-h-0 flex-1 flex-col",
         )}
       >
-        {showToolbar && <div className="flex items-center justify-between gap-3 border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
-          <span className="font-medium uppercase tracking-[0.18em] opacity-70">
-            {language === "plain" ? "text" : language}
-          </span>
+        <div className="flex items-center justify-between gap-3 border-b border-theme-300/40 px-3 py-2 dark:border-white/10">
+          <span className="font-medium uppercase tracking-[0.18em] opacity-70">{language === "plain" ? "text" : language}</span>
           <div className="flex items-center gap-2">
             <span className="opacity-60">{value.length} симв.</span>
             {jumpButtons.map((btn) => (
@@ -3713,11 +2928,7 @@ export function CodeEditor({
             ))}
             <button
               type="button"
-              onClick={() =>
-                setZoom((current) =>
-                  Math.max(CODE_EDITOR_MIN_ZOOM, current - zoomDecreaseStep),
-                )
-              }
+              onClick={() => setZoom((current) => Math.max(CODE_EDITOR_MIN_ZOOM, current - zoomDecreaseStep))}
               className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10"
             >
               A-
@@ -3731,17 +2942,13 @@ export function CodeEditor({
             </button>
             <button
               type="button"
-              onClick={() =>
-                setZoom((current) =>
-                  Math.min(CODE_EDITOR_MAX_ZOOM, current + zoomIncreaseStep),
-                )
-              }
+              onClick={() => setZoom((current) => Math.min(CODE_EDITOR_MAX_ZOOM, current + zoomIncreaseStep))}
               className="rounded border border-theme-300/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-theme-100/70 dark:border-white/10 dark:hover:bg-white/10"
             >
               A+
             </button>
           </div>
-        </div>}
+        </div>
         <div
           className={classNames(
             "homepage-editor-scroll relative overflow-hidden overscroll-contain",
@@ -3761,18 +2968,12 @@ export function CodeEditor({
             className="homepage-editor-highlight absolute inset-0 overflow-hidden px-3 py-3 text-theme-900 dark:text-theme-100"
           >
             {value ? (
-              <code
-                className="homepage-editor-code"
-                dangerouslySetInnerHTML={{ __html: `${highlightedCode}\n` }}
-              />
+              <code className="homepage-editor-code" dangerouslySetInnerHTML={{ __html: `${highlightedCode}\n` }} />
             ) : (
-              <code className="homepage-editor-code opacity-40">
-                {placeholder || " "}
-              </code>
+              <code className="homepage-editor-code opacity-40">{placeholder || " "}</code>
             )}
           </pre>
           <textarea
-            aria-label={ariaLabel}
             ref={textareaRef}
             value={value}
             onChange={(event) => {
@@ -3810,10 +3011,7 @@ function activeTopLevelYamlBlocks(content) {
   return starts.map((start, index) => ({
     start,
     end: starts[index + 1] ?? lines.length,
-    content: lines
-      .slice(start, starts[index + 1] ?? lines.length)
-      .join("\n")
-      .replace(/\n+$/, ""),
+    content: lines.slice(start, starts[index + 1] ?? lines.length).join("\n").replace(/\n+$/, ""),
   }));
 }
 
@@ -3823,19 +3021,11 @@ function replaceTopLevelYamlBlock(content, blockIndex, nextBlock) {
   const block = blocks[blockIndex];
 
   if (!block) {
-    throw new Error(
-      "Виджет не найден в widgets.yaml. Обновите страницу и попробуйте снова.",
-    );
+    throw new Error("Виджет не найден в widgets.yaml. Обновите страницу и попробуйте снова.");
   }
 
-  const nextLines = String(nextBlock ?? "")
-    .trimEnd()
-    .split("\n");
-  return [
-    ...lines.slice(0, block.start),
-    ...nextLines,
-    ...lines.slice(block.end),
-  ].join("\n");
+  const nextLines = String(nextBlock ?? "").trimEnd().split("\n");
+  return [...lines.slice(0, block.start), ...nextLines, ...lines.slice(block.end)].join("\n");
 }
 
 function moveTopLevelYamlBlock(content, sourceIndex, targetIndex) {
@@ -3854,10 +3044,7 @@ function moveTopLevelYamlBlock(content, sourceIndex, targetIndex) {
 
   const prefix = lines.slice(0, blocks[0].start);
   const blockLines = blocks.map((block) => lines.slice(block.start, block.end));
-  [blockLines[sourceIndex], blockLines[targetIndex]] = [
-    blockLines[targetIndex],
-    blockLines[sourceIndex],
-  ];
+  [blockLines[sourceIndex], blockLines[targetIndex]] = [blockLines[targetIndex], blockLines[sourceIndex]];
 
   return {
     moved: true,
@@ -3872,22 +3059,12 @@ function topWidgetDisplayName(widget, index) {
 
 function TopWidgetModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const widgetsTab = data?.settingsTabs?.find(
-    (tab) => tab.fileName === "widgets.yaml",
-  );
+  const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
   const originalContent = widgetsTab?.content ?? "";
-  const originalBlock =
-    activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
-  const [widgetYaml, setWidgetYaml] = useState(
-    () =>
-      originalBlock ||
-      yaml
-        .dump([{ [modal.widget?.type ?? "widget"]: {} }], {
-          lineWidth: -1,
-          noRefs: true,
-          sortKeys: false,
-        })
-        .trimEnd(),
+  const originalBlock = activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
+  const [widgetYaml, setWidgetYaml] = useState(() =>
+    originalBlock ||
+    yaml.dump([{ [modal.widget?.type ?? "widget"]: {} }], { lineWidth: -1, noRefs: true, sortKeys: false }).trimEnd(),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -3916,27 +3093,16 @@ function TopWidgetModal({ modal, data, onClose, onSaved }) {
         Array.isArray(parsed[0]) ||
         Object.keys(parsed[0]).length !== 1
       ) {
-        throw new Error(
-          "YAML должен быть одной записью widgets.yaml, например: - resources:",
-        );
+        throw new Error("YAML должен быть одной записью widgets.yaml, например: - resources:");
       }
 
       const latestData = await loadLatestEditorData();
-      const latestWidgetsTab = latestData?.settingsTabs?.find(
-        (tab) => tab.fileName === "widgets.yaml",
-      );
-      const nextContent = replaceTopLevelYamlBlock(
-        latestWidgetsTab?.content ?? "",
-        modal.widgetIndex,
-        widgetYaml,
-      );
+      const latestWidgetsTab = latestData?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+      const nextContent = replaceTopLevelYamlBlock(latestWidgetsTab?.content ?? "", modal.widgetIndex, widgetYaml);
       const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: "widgets.yaml",
-          content: nextContent,
-        }),
+        body: JSON.stringify({ fileName: "widgets.yaml", content: nextContent }),
       });
 
       if (!response.ok) {
@@ -3944,9 +3110,7 @@ function TopWidgetModal({ modal, data, onClose, onSaved }) {
       }
 
       await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
-      onSaved(
-        `Виджет сохранён: ${topWidgetDisplayName(modal.widget, modal.widgetIndex)}`,
-      );
+      onSaved(`Виджет сохранён: ${topWidgetDisplayName(modal.widget, modal.widgetIndex)}`);
       onClose();
     } catch (saveError) {
       setError(saveError.message);
@@ -3976,11 +3140,7 @@ function TopWidgetModal({ modal, data, onClose, onSaved }) {
           placeholder="- resources:\n    cpu: true\n    memory: true"
         />
       </div>
-      {error && (
-        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-          {error}
-        </div>
-      )}
+      {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>}
       <div className="mt-4 flex justify-end">
         <button
           type="button"
@@ -3997,12 +3157,9 @@ function TopWidgetModal({ modal, data, onClose, onSaved }) {
 
 function ClockWidgetModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const widgetsTab = data?.settingsTabs?.find(
-    (tab) => tab.fileName === "widgets.yaml",
-  );
+  const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
   const originalContent = widgetsTab?.content ?? "";
-  const originalBlock =
-    activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
+  const originalBlock = activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
 
   const initialParsed = useMemo(() => {
     try {
@@ -4016,9 +3173,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
     }
   }, [originalBlock]);
 
-  const [widgetOptions, setWidgetOptions] = useState(
-    () => initialParsed.datetime ?? {},
-  );
+  const [widgetOptions, setWidgetOptions] = useState(() => initialParsed.datetime ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -4044,29 +3199,18 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
 
     try {
       const updatedParsed = {
-        datetime: widgetOptions,
+        datetime: widgetOptions
       };
-      const widgetYaml = yaml
-        .dump([updatedParsed], { lineWidth: -1, noRefs: true, sortKeys: false })
-        .trimEnd();
+      const widgetYaml = yaml.dump([updatedParsed], { lineWidth: -1, noRefs: true, sortKeys: false }).trimEnd();
 
       const latestData = await loadLatestEditorData();
-      const latestWidgetsTab = latestData?.settingsTabs?.find(
-        (tab) => tab.fileName === "widgets.yaml",
-      );
-      const nextContent = replaceTopLevelYamlBlock(
-        latestWidgetsTab?.content ?? "",
-        modal.widgetIndex,
-        widgetYaml,
-      );
+      const latestWidgetsTab = latestData?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+      const nextContent = replaceTopLevelYamlBlock(latestWidgetsTab?.content ?? "", modal.widgetIndex, widgetYaml);
 
       const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: "widgets.yaml",
-          content: nextContent,
-        }),
+        body: JSON.stringify({ fileName: "widgets.yaml", content: nextContent }),
       });
 
       if (!response.ok) {
@@ -4116,10 +3260,8 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
     }).format(previewTime);
   }, [previewTime, dateLocale]);
 
-  const hourDeg =
-    (previewTime.getHours() % 12) * 30 + previewTime.getMinutes() * 0.5;
-  const minuteDeg =
-    previewTime.getMinutes() * 6 + previewTime.getSeconds() * 0.1;
+  const hourDeg = (previewTime.getHours() % 12) * 30 + previewTime.getMinutes() * 0.5;
+  const minuteDeg = previewTime.getMinutes() * 6 + previewTime.getSeconds() * 0.1;
   const secondDeg = previewTime.getSeconds() * 6;
 
   const fontSizes = [
@@ -4162,51 +3304,19 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
   };
 
   const align = clockStyle.align ?? "right";
-  const justifyClass =
-    align === "left"
-      ? "justify-start"
-      : align === "center"
-        ? "justify-center"
-        : "justify-end";
-  const colAlignClass =
-    align === "left"
-      ? "items-start text-left"
-      : align === "center"
-        ? "items-center text-center"
-        : "items-end text-right";
+  const justifyClass = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
+  const colAlignClass = align === "left" ? "items-start text-left" : align === "center" ? "items-center text-center" : "items-end text-right";
 
   const renderPreviewClock = () => {
     switch (clockType) {
       case "only-time":
-        return (
-          <span
-            className="tabular-nums text-theme-900 dark:text-theme-100"
-            style={previewStyle}
-          >
-            {formattedTime}
-          </span>
-        );
+        return <span className="tabular-nums text-theme-900 dark:text-theme-100" style={previewStyle}>{formattedTime}</span>;
       case "only-date":
-        return (
-          <span
-            className="text-theme-900 dark:text-theme-100"
-            style={previewStyle}
-          >
-            {formattedDate}
-          </span>
-        );
+        return <span className="text-theme-900 dark:text-theme-100" style={previewStyle}>{formattedDate}</span>;
       case "digital-two-lines-date-time":
         return (
-          <div
-            className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}
-          >
-            <span
-              style={{
-                ...previewStyle,
-                fontSize: `calc(${previewStyle.fontSize} * 0.75)`,
-              }}
-              className="opacity-80"
-            >
+          <div className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}>
+            <span style={{ ...previewStyle, fontSize: `calc(${previewStyle.fontSize} * 0.75)` }} className="opacity-80">
               {formattedDate}
             </span>
             <span style={previewStyle} className="font-semibold tabular-nums">
@@ -4216,33 +3326,18 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
         );
       case "digital-two-lines-time-date":
         return (
-          <div
-            className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}
-          >
+          <div className={`flex flex-col leading-tight ${colAlignClass} text-theme-900 dark:text-theme-100`}>
             <span style={previewStyle} className="font-semibold tabular-nums">
               {formattedTime}
             </span>
-            <span
-              style={{
-                ...previewStyle,
-                fontSize: `calc(${previewStyle.fontSize} * 0.75)`,
-              }}
-              className="opacity-80"
-            >
+            <span style={{ ...previewStyle, fontSize: `calc(${previewStyle.fontSize} * 0.75)` }} className="opacity-80">
               {formattedDate}
             </span>
           </div>
         );
       case "digital-one-line":
       default:
-        return (
-          <span
-            className="tabular-nums text-theme-900 dark:text-theme-100"
-            style={previewStyle}
-          >
-            {formattedDate}, {formattedTime}
-          </span>
-        );
+        return <span className="tabular-nums text-theme-900 dark:text-theme-100" style={previewStyle}>{formattedDate}, {formattedTime}</span>;
     }
   };
 
@@ -4259,12 +3354,8 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col space-y-6 overflow-y-auto pr-1">
         {/* Live Preview Section */}
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-theme-300/40 p-6 dark:border-white/10 min-h-[140px] shrink-0">
-          <div className="text-[10px] uppercase tracking-widest opacity-40 mb-3">
-            Предпросмотр
-          </div>
-          <div
-            className={`flex items-center w-full min-h-[80px] px-4 ${justifyClass}`}
-          >
+          <div className="text-[10px] uppercase tracking-widest opacity-40 mb-3">Предпросмотр</div>
+          <div className={`flex items-center w-full min-h-[80px] px-4 ${justifyClass}`}>
             {renderPreviewClock()}
           </div>
         </div>
@@ -4272,9 +3363,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
         <div className="grid gap-6 md:grid-cols-2">
           {/* Style Customization */}
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
-            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-              Внешний вид
-            </h3>
+            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Внешний вид</h3>
 
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Тип часов / Формат
@@ -4284,9 +3373,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                 className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               >
                 {clockTypes.map(([val, label]) => (
-                  <option key={val} value={val}>
-                    {label}
-                  </option>
+                  <option key={val} value={val}>{label}</option>
                 ))}
               </select>
             </label>
@@ -4312,9 +3399,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                 className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               >
                 {fonts.map(([val, label]) => (
-                  <option key={val} value={val}>
-                    {label}
-                  </option>
+                  <option key={val} value={val}>{label}</option>
                 ))}
               </select>
             </label>
@@ -4327,9 +3412,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                 className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               >
                 {fontSizes.map(([val, label]) => (
-                  <option key={val} value={val}>
-                    {label}
-                  </option>
+                  <option key={val} value={val}>{label}</option>
                 ))}
               </select>
             </label>
@@ -4348,9 +3431,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
               <input
                 type="checkbox"
                 checked={clockStyle.noBackground ?? false}
-                onChange={(e) =>
-                  updateClockStyle("noBackground", e.target.checked)
-                }
+                onChange={(e) => updateClockStyle("noBackground", e.target.checked)}
                 className="rounded border-theme-300 text-theme-600 shadow-sm dark:border-white/10 dark:bg-theme-900"
               />
               Скрыть фон виджета (Без фона)
@@ -4360,25 +3441,16 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
           {/* Standard YAML settings as fallback/advanced */}
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-                Опции локали
-              </h3>
-              <p className="text-[11px] text-theme-500 dark:text-theme-400 mt-1 mb-3">
-                Стандартные языковые настройки виджета datetime.
-              </p>
-
+              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Опции локали</h3>
+              <p className="text-[11px] text-theme-500 dark:text-theme-400 mt-1 mb-3">Стандартные языковые настройки виджета datetime.</p>
+              
               <label className="block text-xs text-theme-600 dark:text-theme-300">
                 Локаль (например ru, en)
                 <input
                   type="text"
                   placeholder="ru"
                   value={widgetOptions.locale ?? ""}
-                  onChange={(e) =>
-                    setWidgetOptions((curr) => ({
-                      ...curr,
-                      locale: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setWidgetOptions((curr) => ({ ...curr, locale: e.target.value }))}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 />
               </label>
@@ -4387,12 +3459,7 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
                 Базовый размер (Tailwind класс)
                 <select
                   value={widgetOptions.text_size ?? ""}
-                  onChange={(e) =>
-                    setWidgetOptions((curr) => ({
-                      ...curr,
-                      text_size: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setWidgetOptions((curr) => ({ ...curr, text_size: e.target.value }))}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">По умолчанию</option>
@@ -4409,19 +3476,13 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
             </div>
 
             <div className="text-[11px] text-theme-400 opacity-80 mt-4 leading-normal">
-              Изменения будут записаны в `widgets.yaml`. Настройки отображения
-              обновляются автоматически, а выбранный шрифт подгружается
-              динамически.
+              Изменения будут записаны в `widgets.yaml`. Настройки отображения обновляются автоматически, а выбранный шрифт подгружается динамически.
             </div>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200 shrink-0">
-          {error}
-        </div>
-      )}
+      {error && <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200 shrink-0">{error}</div>}
       <div className="mt-4 flex justify-end shrink-0">
         <button
           type="button"
@@ -4438,12 +3499,9 @@ function ClockWidgetModal({ modal, data, onClose, onSaved }) {
 
 function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
-  const widgetsTab = data?.settingsTabs?.find(
-    (tab) => tab.fileName === "widgets.yaml",
-  );
+  const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
   const originalContent = widgetsTab?.content ?? "";
-  const originalBlock =
-    activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
+  const originalBlock = activeTopLevelYamlBlocks(originalContent)[modal.widgetIndex]?.content;
 
   const initialParsed = useMemo(() => {
     try {
@@ -4458,9 +3516,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
   }, [originalBlock]);
 
   const widgetKey = Object.keys(initialParsed)[0] || "weather";
-  const [widgetOptions, setWidgetOptions] = useState(
-    () => initialParsed[widgetKey] ?? {},
-  );
+  const [widgetOptions, setWidgetOptions] = useState(() => initialParsed[widgetKey] ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -4469,16 +3525,11 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
   // Settings values
   const weatherUnits = widgetOptions.units ?? "metric";
   const weatherLabel = widgetOptions.label ?? "";
-  const weatherProv =
-    widgetOptions.provider ??
-    (widgetKey === "weather" ? "openweathermap" : widgetKey);
+  const weatherProv = widgetOptions.provider ?? (widgetKey === "weather" ? "openweathermap" : widgetKey);
 
   // States for coordinates and search
   const [weatherLoc, setWeatherLoc] = useState(() => {
-    if (
-      widgetOptions.latitude !== undefined &&
-      widgetOptions.longitude !== undefined
-    ) {
+    if (widgetOptions.latitude !== undefined && widgetOptions.longitude !== undefined) {
       return `${widgetOptions.latitude}, ${widgetOptions.longitude}`;
     }
     return widgetOptions.location ?? "";
@@ -4521,10 +3572,9 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
     setGeocodeResults([]);
     try {
       const settings = data?.settings ?? {};
-      const activeApiKey =
-        weatherProv === "openweathermap"
-          ? (settings.providers?.openweathermap ?? "")
-          : (settings.providers?.weatherapi ?? "");
+      const activeApiKey = weatherProv === "openweathermap"
+        ? (settings.providers?.openweathermap ?? "")
+        : (settings.providers?.weatherapi ?? "");
 
       const response = await fetch("/api/config/editor", {
         method: "POST",
@@ -4533,8 +3583,8 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
           action: "geocode",
           provider: weatherProv,
           q: searchQuery,
-          apiKey: activeApiKey,
-        }),
+          apiKey: activeApiKey
+        })
       });
 
       if (!response.ok) {
@@ -4560,29 +3610,18 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
 
     try {
       const updatedParsed = {
-        [widgetKey]: widgetOptions,
+        [widgetKey]: widgetOptions
       };
-      const widgetYaml = yaml
-        .dump([updatedParsed], { lineWidth: -1, noRefs: true, sortKeys: false })
-        .trimEnd();
+      const widgetYaml = yaml.dump([updatedParsed], { lineWidth: -1, noRefs: true, sortKeys: false }).trimEnd();
 
       const latestData = await loadLatestEditorData();
-      const latestWidgetsTab = latestData?.settingsTabs?.find(
-        (tab) => tab.fileName === "widgets.yaml",
-      );
-      const nextContent = replaceTopLevelYamlBlock(
-        latestWidgetsTab?.content ?? "",
-        modal.widgetIndex,
-        widgetYaml,
-      );
+      const latestWidgetsTab = latestData?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+      const nextContent = replaceTopLevelYamlBlock(latestWidgetsTab?.content ?? "", modal.widgetIndex, widgetYaml);
 
       const response = await editorWriteFetch("/api/config/editor", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: "widgets.yaml",
-          content: nextContent,
-        }),
+        body: JSON.stringify({ fileName: "widgets.yaml", content: nextContent }),
       });
 
       if (!response.ok) {
@@ -4655,7 +3694,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
             <span className="opacity-60 text-[9px]">Ясно</span>
           </div>
         </div>
-      ),
+      )
     },
     {
       id: "custom",
@@ -4665,16 +3704,14 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
         <div className="flex items-center justify-center rounded bg-theme-100/30 dark:bg-black/20 p-2 text-[10px] w-full max-w-[200px] border border-theme-300/30 dark:border-white/5 gap-2">
           <div className="flex flex-col items-center text-center justify-center flex-1">
             <div className="text-xl">☀️</div>
-            <span className="opacity-60 text-[8px] leading-tight text-center">
-              Ясно
-            </span>
+            <span className="opacity-60 text-[8px] leading-tight text-center">Ясно</span>
           </div>
           <div className="flex flex-col items-center text-center justify-center flex-1">
             <span className="font-bold text-xs text-center">22°C</span>
             <span className="opacity-70 text-[9px] text-center">Москва</span>
           </div>
         </div>
-      ),
+      )
     },
     {
       id: "vertical",
@@ -4685,12 +3722,10 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
           <div className="text-xl">☀️</div>
           <span className="font-bold text-xs mt-0.5">22°C</span>
           <span className="opacity-80 text-[8px]">Ясно</span>
-          <span className="opacity-60 text-[8px] mt-0.5 font-medium">
-            Москва
-          </span>
+          <span className="opacity-60 text-[8px] mt-0.5 font-medium">Москва</span>
         </div>
-      ),
-    },
+      )
+    }
   ];
 
   return (
@@ -4713,14 +3748,12 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
         <div className="grid gap-5 md:grid-cols-2">
           {/* Left Column: Basic configuration and geocoding */}
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
-            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-              Основные параметры
-            </h3>
+            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Основные параметры</h3>
+
+
 
             <div>
-              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">
-                Отображаемое название города (Label)
-              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">Отображаемое название города (Label)</label>
               <input
                 type="text"
                 value={weatherLabel}
@@ -4729,15 +3762,12 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                 className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
               <span className="text-[9px] text-theme-400 mt-0.5 block">
-                Если оставить пустым, название города будет автоматически
-                загружено из API погоды.
+                Если оставить пустым, название города будет автоматически загружено из API погоды.
               </span>
             </div>
 
             <div>
-              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">
-                Ениницы измерения
-              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">Ениницы измерения</label>
               <select
                 value={weatherUnits}
                 onChange={(e) => updateWidgetOption("units", e.target.value)}
@@ -4749,9 +3779,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
             </div>
 
             <div className="border-t border-theme-300/20 dark:border-white/5 pt-3 mt-3">
-              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">
-                Текущие координаты
-              </label>
+              <label className="block text-xs text-theme-600 dark:text-theme-300 mb-1">Текущие координаты</label>
               <div className="flex gap-1.5 items-center">
                 <input
                   type="text"
@@ -4762,9 +3790,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
               </div>
 
               <div className="mt-3">
-                <label className="block text-[11px] font-semibold text-theme-700 dark:text-theme-300 mb-1">
-                  Поиск координат города
-                </label>
+                <label className="block text-[11px] font-semibold text-theme-700 dark:text-theme-300 mb-1">Поиск координат города</label>
                 <div className="flex gap-1">
                   <input
                     type="text"
@@ -4811,12 +3837,8 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                         }}
                         className="p-2 cursor-pointer hover:bg-theme-50 dark:hover:bg-white/5 transition-colors flex justify-between items-center"
                       >
-                        <span className="font-medium text-theme-900 dark:text-theme-100">
-                          {res.name}
-                        </span>
-                        <span className="text-[10px] text-theme-500 dark:text-theme-400 font-mono shrink-0">
-                          {res.lat.toFixed(4)}, {res.lon.toFixed(4)}
-                        </span>
+                        <span className="font-medium text-theme-900 dark:text-theme-100">{res.name}</span>
+                        <span className="text-[10px] text-theme-500 dark:text-theme-400 font-mono shrink-0">{res.lat.toFixed(4)}, {res.lon.toFixed(4)}</span>
                       </div>
                     ))}
                   </div>
@@ -4828,15 +3850,11 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
           {/* Right Column: Styling & Previews */}
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col justify-between">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-                Стиль отображения
-              </h3>
+              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Стиль отображения</h3>
 
               {/* Layout Styles Selector */}
               <div>
-                <label className="block text-xs text-theme-600 dark:text-theme-300 mb-2">
-                  Выберите шаблон визуализации
-                </label>
+                <label className="block text-xs text-theme-600 dark:text-theme-300 mb-2">Выберите шаблон визуализации</label>
                 <div className="space-y-2">
                   {layouts.map((item) => (
                     <div
@@ -4846,18 +3864,16 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                         "flex items-center gap-4 p-3 rounded-md border cursor-pointer transition-all hover:bg-theme-100/20 dark:hover:bg-white/5",
                         (weatherStyle.layout || "classic") === item.id
                           ? "border-theme-600 bg-theme-100/10 dark:border-white dark:bg-white/5"
-                          : "border-theme-300/40 dark:border-white/10",
+                          : "border-theme-300/40 dark:border-white/10"
                       )}
                     >
                       <div className="flex-1 text-left min-w-0">
-                        <span className="text-xs font-semibold text-theme-900 dark:text-theme-100 block">
-                          {item.name}
-                        </span>
-                        <span className="text-[10px] text-theme-500 dark:text-theme-400 block mt-0.5 leading-normal">
-                          {item.desc}
-                        </span>
+                        <span className="text-xs font-semibold text-theme-900 dark:text-theme-100 block">{item.name}</span>
+                        <span className="text-[10px] text-theme-500 dark:text-theme-400 block mt-0.5 leading-normal">{item.desc}</span>
                       </div>
-                      <div className="shrink-0">{item.preview}</div>
+                      <div className="shrink-0">
+                        {item.preview}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -4866,66 +3882,46 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
               {/* Layout customizations */}
               <div className="grid gap-3 grid-cols-2 border-t border-theme-300/20 dark:border-white/5 pt-3">
                 <div>
-                  <label className="block text-xs text-theme-600 dark:text-theme-300">
-                    Шрифт текста погоды
-                  </label>
+                  <label className="block text-xs text-theme-600 dark:text-theme-300">Шрифт текста погоды</label>
                   <select
                     value={weatherStyle.fontFamily ?? ""}
-                    onChange={(e) =>
-                      updateWeatherStyle("fontFamily", e.target.value)
-                    }
+                    onChange={(e) => updateWeatherStyle("fontFamily", e.target.value)}
                     className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
                   >
                     {fonts.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
+                      <option key={val} value={val}>{label}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-theme-600 dark:text-theme-300">
-                    Размер шрифта текста
-                  </label>
+                  <label className="block text-xs text-theme-600 dark:text-theme-300">Размер шрифта текста</label>
                   <select
                     value={weatherStyle.fontSize ?? ""}
-                    onChange={(e) =>
-                      updateWeatherStyle("fontSize", e.target.value)
-                    }
+                    onChange={(e) => updateWeatherStyle("fontSize", e.target.value)}
                     className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
                   >
                     {fontSizes.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
+                      <option key={val} value={val}>{label}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs text-theme-600 dark:text-theme-300">
-                    Размер иконки погоды
-                  </label>
+                  <label className="block text-xs text-theme-600 dark:text-theme-300">Размер иконки погоды</label>
                   <select
                     value={weatherStyle.iconSize ?? ""}
-                    onChange={(e) =>
-                      updateWeatherStyle("iconSize", e.target.value)
-                    }
+                    onChange={(e) => updateWeatherStyle("iconSize", e.target.value)}
                     className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100 h-[28px]"
                   >
                     {iconSizes.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
+                      <option key={val} value={val}>{label}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-xs text-theme-600 dark:text-theme-300">
-                    Цвет текста погоды
-                  </label>
+                  <label className="block text-xs text-theme-600 dark:text-theme-300">Цвет текста погоды</label>
                   <ColorInput
                     value={weatherStyle.textColor ?? ""}
                     onChange={(val) => updateWeatherStyle("textColor", val)}
@@ -4938,9 +3934,7 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                   <input
                     type="checkbox"
                     checked={weatherStyle.hideBackground ?? false}
-                    onChange={(e) =>
-                      updateWeatherStyle("hideBackground", e.target.checked)
-                    }
+                    onChange={(e) => updateWeatherStyle("hideBackground", e.target.checked)}
                     className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
                   />
                   Скрыть фон виджета погоды (сделать прозрачным)
@@ -4950,13 +3944,10 @@ function WeatherWidgetModal({ modal, data, onClose, onSaved }) {
                   <input
                     type="checkbox"
                     checked={weatherStyle.hideDescription ?? false}
-                    onChange={(e) =>
-                      updateWeatherStyle("hideDescription", e.target.checked)
-                    }
+                    onChange={(e) => updateWeatherStyle("hideDescription", e.target.checked)}
                     className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
                   />
-                  Скрыть описание состояния погоды (например, "переменная
-                  облачность")
+                  Скрыть описание состояния погоды (например, "переменная облачность")
                 </label>
               </div>
             </div>
@@ -5003,23 +3994,15 @@ function ServiceCardColorField({ value, itemName, onChange }) {
               title={optionSwatch ? `${label} ${optionSwatch}` : label}
               aria-label={label}
               aria-pressed={selected}
-              onClick={() =>
-                onChange(buildServiceCardId(value, itemName, colorValue))
-              }
+              onClick={() => onChange(buildServiceCardId(value, itemName, colorValue))}
               className={classNames(
                 "flex h-7 w-7 items-center justify-center rounded border border-theme-400/50 bg-theme-200/40 shadow-sm transition-[transform,box-shadow,border-color] hover:scale-110 hover:border-theme-700 hover:shadow-md focus:outline-hidden focus:ring-2 focus:ring-theme-600 dark:border-white/20 dark:bg-white/5 dark:hover:border-white/50 dark:focus:ring-theme-200",
                 selected &&
                   "scale-110 border-theme-950 shadow-lg ring-2 ring-theme-700 ring-offset-2 ring-offset-theme-50 dark:border-white dark:ring-theme-100 dark:ring-offset-theme-900",
               )}
-              style={
-                optionSwatch ? { backgroundColor: optionSwatch } : undefined
-              }
+              style={optionSwatch ? { backgroundColor: optionSwatch } : undefined}
             >
-              {!optionSwatch && (
-                <span className="text-sm leading-none text-theme-700 dark:text-theme-200">
-                  ×
-                </span>
-              )}
+              {!optionSwatch && <span className="text-sm leading-none text-theme-700 dark:text-theme-200">×</span>}
             </button>
           );
         })}
@@ -5028,10 +4011,7 @@ function ServiceCardColorField({ value, itemName, onChange }) {
   );
 }
 
-async function refreshConfigData(
-  mutate,
-  keys = ["/api/config/editor", "/api/services", "/api/bookmarks"],
-) {
+async function refreshConfigData(mutate, keys = ["/api/config/editor", "/api/services", "/api/bookmarks"]) {
   await fetch("/api/revalidate");
   await Promise.all(keys.map((key) => mutate(key)));
 
@@ -5053,9 +4033,7 @@ async function postEditorAction(body) {
   });
 
   if (!response.ok) {
-    throw new Error(
-      (await response.text()) || "Запрос к редактору не выполнен",
-    );
+    throw new Error((await response.text()) || "Запрос к редактору не выполнен");
   }
 
   return response.json();
@@ -5080,8 +4058,7 @@ function formatUpdateDataFileContent(file) {
   if (!file?.content) {
     return JSON.stringify(
       {
-        message:
-          "Файл пока не создан. Он появится после проверки версии или запуска обновления.",
+        message: "Файл пока не создан. Он появится после проверки версии или запуска обновления.",
       },
       null,
       2,
@@ -5136,29 +4113,25 @@ function updateStateToneClasses(state) {
     case "restarting":
       return {
         box: "border-amber-500/70 bg-amber-500/15 text-amber-950 dark:text-amber-100",
-        badge:
-          "border-amber-500/60 bg-amber-500/20 text-amber-900 dark:text-amber-100",
+        badge: "border-amber-500/60 bg-amber-500/20 text-amber-900 dark:text-amber-100",
         bar: "bg-amber-500",
       };
     case "completed":
       return {
         box: "border-emerald-500/60 bg-emerald-500/15 text-emerald-950 dark:text-emerald-100",
-        badge:
-          "border-emerald-500/50 bg-emerald-500/20 text-emerald-900 dark:text-emerald-100",
+        badge: "border-emerald-500/50 bg-emerald-500/20 text-emerald-900 dark:text-emerald-100",
         bar: "bg-emerald-500",
       };
     case "failed":
       return {
         box: "border-rose-500/70 bg-rose-500/15 text-rose-950 dark:text-rose-100",
-        badge:
-          "border-rose-500/60 bg-rose-500/20 text-rose-900 dark:text-rose-100",
+        badge: "border-rose-500/60 bg-rose-500/20 text-rose-900 dark:text-rose-100",
         bar: "bg-rose-500",
       };
     default:
       return {
         box: "border-theme-300/50 bg-theme-100/20 text-theme-800 dark:border-white/10 dark:bg-white/5 dark:text-theme-200",
-        badge:
-          "border-theme-300/50 bg-theme-50/50 text-theme-700 dark:border-white/10 dark:bg-white/10 dark:text-theme-200",
+        badge: "border-theme-300/50 bg-theme-50/50 text-theme-700 dark:border-white/10 dark:bg-white/10 dark:text-theme-200",
         bar: "bg-theme-500",
       };
   }
@@ -5189,30 +4162,20 @@ const EDITOR_WINDOW_AUTOFIT_THRESHOLD = 28;
 
 function isVisibleEditorElement(element) {
   const rect = element.getBoundingClientRect();
-  return (
-    rect.width > 0 &&
-    rect.height > 0 &&
-    window.getComputedStyle(element).display !== "none"
-  );
+  return rect.width > 0 && rect.height > 0 && window.getComputedStyle(element).display !== "none";
 }
 
 function measureEditorElementNaturalHeight(element) {
   const rect = element.getBoundingClientRect();
   const style = window.getComputedStyle(element);
   const paddingBottom = Number.parseFloat(style.paddingBottom) || 0;
-  const children = Array.from(element.children ?? []).filter(
-    isVisibleEditorElement,
-  );
+  const children = Array.from(element.children ?? []).filter(isVisibleEditorElement);
 
   const childHeight = children.reduce((height, child) => {
     const childRect = child.getBoundingClientRect();
-    return Math.max(
-      height,
-      childRect.bottom - rect.top + element.scrollTop + paddingBottom,
-    );
+    return Math.max(height, childRect.bottom - rect.top + element.scrollTop + paddingBottom);
   }, 0);
-  const overflowHeight =
-    element.scrollHeight > element.clientHeight + 1 ? element.scrollHeight : 0;
+  const overflowHeight = element.scrollHeight > element.clientHeight + 1 ? element.scrollHeight : 0;
 
   return Math.ceil(Math.max(childHeight, overflowHeight, 0));
 }
@@ -5222,30 +4185,18 @@ function measureEditorWindowAutoFitHeight(bodyElement, targetElement) {
   const bodyStyle = window.getComputedStyle(bodyElement);
   const bodyPaddingBottom = Number.parseFloat(bodyStyle.paddingBottom) || 0;
   const scrollRoots = [
-    ...(targetElement.matches?.(EDITOR_WINDOW_AUTOFIT_SELECTOR)
-      ? [targetElement]
-      : []),
-    ...Array.from(
-      targetElement.querySelectorAll?.(EDITOR_WINDOW_AUTOFIT_SELECTOR) ?? [],
-    ),
+    ...(targetElement.matches?.(EDITOR_WINDOW_AUTOFIT_SELECTOR) ? [targetElement] : []),
+    ...Array.from(targetElement.querySelectorAll?.(EDITOR_WINDOW_AUTOFIT_SELECTOR) ?? []),
   ].filter(isVisibleEditorElement);
 
   if (scrollRoots.length === 0) {
     const targetRect = targetElement.getBoundingClientRect();
-    return Math.ceil(
-      targetRect.top -
-        bodyRect.top +
-        measureEditorElementNaturalHeight(targetElement) +
-        bodyPaddingBottom,
-    );
+    return Math.ceil(targetRect.top - bodyRect.top + measureEditorElementNaturalHeight(targetElement) + bodyPaddingBottom);
   }
 
   const measuredBottom = scrollRoots.reduce((bottom, element) => {
     const rect = element.getBoundingClientRect();
-    return Math.max(
-      bottom,
-      rect.top - bodyRect.top + measureEditorElementNaturalHeight(element),
-    );
+    return Math.max(bottom, rect.top - bodyRect.top + measureEditorElementNaturalHeight(element));
   }, 0);
 
   return Math.ceil(measuredBottom + bodyPaddingBottom);
@@ -5271,13 +4222,7 @@ function useEditorWindow({
     }
 
     return anchorRef
-      ? anchoredEditorWindow(
-          anchorRef,
-          defaultWidth,
-          defaultHeight,
-          minWidth,
-          minHeight,
-        )
+      ? anchoredEditorWindow(anchorRef, defaultWidth, defaultHeight, minWidth, minHeight)
       : centeredEditorWindow(defaultWidth, defaultHeight, minWidth, minHeight);
   }, [anchorRef, defaultHeight, defaultWidth, minHeight, minWidth, storageKey]);
 
@@ -5294,9 +4239,7 @@ function useEditorWindow({
   }, [storageKey, windowRect]);
 
   useEffect(() => {
-    setWindowRect((current) =>
-      current ? clampEditorWindow(current, minWidth, minHeight) : current,
-    );
+    setWindowRect((current) => (current ? clampEditorWindow(current, minWidth, minHeight) : current));
   }, [minHeight, minWidth]);
 
   useEffect(() => {
@@ -5305,9 +4248,7 @@ function useEditorWindow({
     }
 
     function handleViewportResize() {
-      setWindowRect((current) =>
-        current ? clampEditorWindow(current, minWidth, minHeight) : current,
-      );
+      setWindowRect((current) => (current ? clampEditorWindow(current, minWidth, minHeight) : current));
     }
 
     window.addEventListener("resize", handleViewportResize);
@@ -5322,16 +4263,7 @@ function useEditorWindow({
     function handlePointerMove(event) {
       if (resizeRef.current) {
         const { directions, rect, startX, startY } = resizeRef.current;
-        setWindowRect(
-          resizeEditorWindow(
-            rect,
-            event.clientX - startX,
-            event.clientY - startY,
-            directions,
-            minWidth,
-            minHeight,
-          ),
-        );
+        setWindowRect(resizeEditorWindow(rect, event.clientX - startX, event.clientY - startY, directions, minWidth, minHeight));
         return;
       }
 
@@ -5377,11 +4309,7 @@ function useEditorWindow({
         return;
       }
 
-      if (
-        event.target.closest(
-          "button, input, textarea, select, label, a, [data-no-drag='true']",
-        )
-      ) {
+      if (event.target.closest("button, input, textarea, select, label, a, [data-no-drag='true']")) {
         return;
       }
 
@@ -5424,27 +4352,9 @@ function useEditorWindow({
   };
 }
 
-function editorWindowDescription(title) {
-  const normalizedTitle = String(title ?? "").toLowerCase();
-  if (normalizedTitle.includes("добавить")) {
-    return "Заполните основные поля; расширенные параметры можно настроить ниже.";
-  }
-  if (normalizedTitle.includes("изменить")) {
-    return "Проверьте параметры и сохраните изменения, когда всё будет готово.";
-  }
-  if (normalizedTitle.includes("виджет")) {
-    return "Настройте содержимое и отображение виджета на дашборде.";
-  }
-  if (normalizedTitle.includes("фон")) {
-    return "Выберите локальное изображение или укажите адрес фонового изображения.";
-  }
-  return "Настройте параметры Homepage в одном окне.";
-}
-
 function EditorWindow({
   storageKey,
   title,
-  description = null,
   onClose,
   children,
   headerActions = null,
@@ -5459,22 +4369,13 @@ function EditorWindow({
   windowApiRef = null,
   resizeDirections = ["left", "right", "bottom", "bottom-left", "bottom-right"],
   wrapperClassName = "",
-  themeStyle = {},
   dimBackdrop = true,
   autoFitKey = null,
-  studioChrome = false,
 }) {
   const bodyRef = useRef(null);
   const lastAutoFitKeyRef = useRef(null);
-  const { editorUiScale, studioOpen } = useConfigEditor();
-  const {
-    panelRef,
-    resizeRef,
-    windowRect,
-    setWindowRect,
-    handleDragStart,
-    handleResizeStart,
-  } = useEditorWindow({
+  const { editorUiScale } = useConfigEditor();
+  const { panelRef, resizeRef, windowRect, setWindowRect, handleDragStart, handleResizeStart } = useEditorWindow({
     storageKey,
     defaultWidth,
     defaultHeight,
@@ -5510,17 +4411,11 @@ function EditorWindow({
 
       const bodyElement = bodyRef.current;
       const targetElement = autoFitTargetRef?.current ?? bodyElement;
-      const contentHeight = measureEditorWindowAutoFitHeight(
-        bodyElement,
-        targetElement,
-      );
+      const contentHeight = measureEditorWindowAutoFitHeight(bodyElement, targetElement);
       const desiredBodyHeight = contentHeight + EDITOR_WINDOW_AUTOFIT_PADDING;
       const heightDelta = desiredBodyHeight - bodyElement.clientHeight;
 
-      if (
-        !Number.isFinite(heightDelta) ||
-        Math.abs(heightDelta) <= EDITOR_WINDOW_AUTOFIT_THRESHOLD
-      ) {
+      if (!Number.isFinite(heightDelta) || Math.abs(heightDelta) <= EDITOR_WINDOW_AUTOFIT_THRESHOLD) {
         return;
       }
 
@@ -5546,16 +4441,7 @@ function EditorWindow({
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [
-    autoFitContent,
-    autoFitKey,
-    autoFitTargetRef,
-    minHeight,
-    minWidth,
-    resizeRef,
-    setWindowRect,
-    windowRect,
-  ]);
+  }, [autoFitContent, autoFitKey, autoFitTargetRef, minHeight, minWidth, resizeRef, setWindowRect, windowRect]);
 
   useEffect(() => {
     if (!windowApiRef) {
@@ -5580,88 +4466,11 @@ function EditorWindow({
     return null;
   }
 
-  const studioWorkspace =
-    studioOpen && typeof document !== "undefined"
-      ? document.getElementById("dashboard-studio-workspace")
-      : null;
-
-  if (studioWorkspace) {
-    return createPortal(
-      <section
-        ref={panelRef}
-        style={{
-          ...themeStyle,
-          backgroundColor: "var(--studio-bg)",
-          color: "var(--studio-text)",
-        }}
-        className={classNames(
-          "pointer-events-auto absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden bg-zinc-950 text-zinc-100",
-          wrapperClassName,
-        )}
-        role="region"
-        aria-label={`Редактор: ${title}`}
-      >
-        <header
-          className="flex min-h-[76px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-zinc-950/90 px-4 py-3 backdrop-blur-xl sm:px-5"
-          style={{
-            backgroundColor: "var(--studio-panel)",
-            backgroundImage: "none",
-          }}
-        >
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:border-white/15 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white"
-              aria-label="Вернуться в панель управления"
-            >
-              <span aria-hidden="true">←</span>
-              <span className="hidden sm:inline">Назад</span>
-            </button>
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                Настройка
-              </div>
-              <h2 className="truncate text-base font-semibold leading-tight sm:text-lg">
-                {title}
-              </h2>
-              <p className="mt-0.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                {description || editorWindowDescription(title)}
-              </p>
-            </div>
-          </div>
-          {headerActions && (
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-              {headerActions}
-            </div>
-          )}
-        </header>
-        <div
-          ref={bodyRef}
-          style={{
-            backgroundColor: "var(--studio-bg)",
-            color: "var(--studio-text)",
-          }}
-          className={classNames(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-transparent to-zinc-200/35 p-4 dark:to-black/10",
-            bodyClassName,
-          )}
-        >
-          {children}
-        </div>
-      </section>,
-      studioWorkspace,
-    );
-  }
-
   const leftResizeCursor = resizeCursorForDirections(["left"]);
   const rightResizeCursor = resizeCursorForDirections(["right"]);
   const bottomResizeCursor = resizeCursorForDirections(["bottom"]);
   const bottomLeftResizeCursor = resizeCursorForDirections(["bottom", "left"]);
-  const bottomRightResizeCursor = resizeCursorForDirections([
-    "bottom",
-    "right",
-  ]);
+  const bottomRightResizeCursor = resizeCursorForDirections(["bottom", "right"]);
   const canResizeLeft = resizeDirections.includes("left");
   const canResizeRight = resizeDirections.includes("right");
   const canResizeBottom = resizeDirections.includes("bottom");
@@ -5670,12 +4479,7 @@ function EditorWindow({
 
   return (
     <div
-      className={classNames(
-        "homepage-configurator-ui fixed inset-0 z-[500] transition-colors",
-        dimBackdrop ? "bg-black/55 backdrop-blur-[2px]" : "bg-transparent",
-        studioChrome && "homepage-studio-editor-window dark",
-        wrapperClassName,
-      )}
+      className={classNames("fixed inset-0 z-[60]", dimBackdrop ? "bg-black/50" : "bg-transparent", wrapperClassName)}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <div
@@ -5689,144 +4493,23 @@ function EditorWindow({
           minHeight: `${minHeight}px`,
           transform: `scale(${editorUiScale})`,
           transformOrigin: "top left",
-          ...themeStyle,
-          backgroundColor: "var(--studio-bg)",
-          color: "var(--studio-text)",
         }}
-        className={classNames(
-          "fixed z-[501] flex overflow-hidden border bg-theme-50/95 text-theme-900 backdrop-blur-xl dark:bg-theme-900/95 dark:text-theme-100",
-          studioChrome
-            ? "rounded-3xl border-white/10 shadow-[0_30px_100px_-24px_rgba(0,0,0,0.85)] ring-1 ring-white/5"
-            : "rounded-2xl border-theme-300/60 shadow-[0_28px_90px_-24px_rgba(0,0,0,0.55)] ring-1 ring-white/60 dark:border-white/15 dark:ring-white/5",
-        )}
-        data-themed-window={themeStyle["--studio-bg"] ? "true" : undefined}
-        data-studio-editor-window={studioChrome ? "true" : undefined}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
+        className="fixed z-[61] flex overflow-hidden rounded-md border border-theme-300/50 bg-theme-50 text-theme-900 shadow-xl dark:border-white/10 dark:bg-theme-800 dark:text-theme-100"
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div
             onPointerDown={handleDragStart}
-            className={classNames(
-              "flex min-w-0 cursor-move select-none flex-wrap items-center justify-between gap-3 border-b px-4 py-3.5",
-              studioChrome
-                ? "min-h-[72px] border-white/10 backdrop-blur-xl sm:px-5"
-                : "border-theme-300/40 bg-gradient-to-r from-theme-100/90 via-theme-50/60 to-theme-200/30 dark:border-white/10 dark:from-white/10 dark:via-white/[0.04] dark:to-transparent",
-            )}
-            style={{
-              backgroundColor: "var(--studio-panel)",
-              backgroundImage: "none",
-            }}
+            className="flex min-w-0 cursor-move select-none flex-wrap items-center justify-between gap-3 border-b border-theme-300/40 px-4 py-3 dark:border-white/10"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div
-                className={classNames(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm",
-                  studioChrome
-                    ? "border-white/10 bg-white/5"
-                    : "border-theme-300/50 bg-theme-50/80 text-theme-700 dark:border-white/15 dark:bg-white/10 dark:text-theme-100",
-                )}
-                style={{
-                  backgroundColor: "var(--studio-panel)",
-                  color: "var(--studio-accent)",
-                }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  {studioChrome ? (
-                    <>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 3.5 13.4 8l4.6 1.4-4.6 1.4L12 15.5l-1.4-4.7L6 9.4 10.6 8 12 3.5Z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m18.5 15 .7 2.2 2.3.8-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.8.7-2.2Z"
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 3.75a2.25 2.25 0 0 1 2.122 1.5l.213.638a7.5 7.5 0 0 1 1.86 1.073l.66-.137a2.25 2.25 0 0 1 2.384 1.19l.75 1.299a2.25 2.25 0 0 1-.263 2.646l-.447.502a7.6 7.6 0 0 1 0 2.078l.447.502a2.25 2.25 0 0 1 .263 2.646l-.75 1.299a2.25 2.25 0 0 1-2.384 1.19l-.66-.137a7.5 7.5 0 0 1-1.86 1.073l-.213.638a2.25 2.25 0 0 1-2.122 1.5h-1.5a2.25 2.25 0 0 1-2.122-1.5l-.213-.638a7.5 7.5 0 0 1-1.86-1.073l-.66.137a2.25 2.25 0 0 1-2.384-1.19l-.75-1.299a2.25 2.25 0 0 1 .263-2.646l.447-.502a7.6 7.6 0 0 1 0-2.078l-.447-.502a2.25 2.25 0 0 1-.263-2.646l.75-1.299a2.25 2.25 0 0 1 2.384-1.19l.66.137a7.5 7.5 0 0 1 1.86-1.073l.213-.638a2.25 2.25 0 0 1 2.122-1.5H12Z"
-                      />
-                      <circle cx="11.25" cy="13.5" r="2.25" />
-                    </>
-                  )}
-                </svg>
-              </div>
-              <div className="min-w-0">
-                <div
-                  className={classNames(
-                    "text-[10px] font-semibold uppercase tracking-[0.18em]",
-                    studioChrome
-                      ? "text-zinc-400"
-                      : "text-theme-500 dark:text-theme-400",
-                  )}
-                >
-                  {studioChrome
-                    ? "Студия кастомизации"
-                    : "Homepage · Конфигуратор"}
-                </div>
-                <h2 className="truncate text-base font-semibold leading-tight sm:text-lg">
-                  {title}
-                </h2>
-                <p className="mt-0.5 truncate text-[11px] text-theme-500 dark:text-theme-400">
-                  {description || editorWindowDescription(title)}
-                </p>
-              </div>
-            </div>
-            <div
-              className="relative z-[510] flex min-w-0 flex-wrap items-center justify-end gap-2"
-              data-no-drag="true"
-            >
+            <h2 className="min-w-0 flex-1 text-lg font-semibold">{title}</h2>
+            <div className="relative z-[70] flex min-w-0 flex-wrap items-center justify-end gap-2 pr-3" data-no-drag="true">
               {headerActions}
-              <button
-                type="button"
-                onClick={onClose}
-                className={classNames(
-                  "flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors",
-                  studioChrome
-                    ? "border-white/10 bg-white/5 text-zinc-400 hover:border-white/20 hover:bg-white/10 hover:text-white"
-                    : "border-theme-300/60 bg-theme-50/60 text-theme-600 hover:bg-theme-200/70 hover:text-theme-950 dark:border-white/15 dark:bg-white/5 dark:text-theme-300 dark:hover:bg-white/15 dark:hover:text-white",
-                )}
-                aria-label="Закрыть окно"
-                title="Закрыть"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" />
-                </svg>
+              <button type="button" onClick={onClose} className="rounded-md border border-theme-400/60 px-3 py-2 text-sm">
+                Закрыть
               </button>
             </div>
           </div>
-          <div
-            ref={bodyRef}
-            className={classNames(
-              "flex min-h-0 min-w-0 flex-1 flex-col bg-gradient-to-b from-transparent to-theme-100/25 p-4 dark:to-black/10",
-              bodyClassName,
-            )}
-            style={{
-              backgroundColor: "var(--studio-bg)",
-              color: "var(--studio-text)",
-            }}
-          >
+          <div ref={bodyRef} className={classNames("flex min-h-0 min-w-0 flex-1 flex-col p-4", bodyClassName)}>
             {children}
           </div>
         </div>
@@ -5836,7 +4519,7 @@ function EditorWindow({
             onPointerDown={(event) => handleResizeStart(event, ["left"])}
             onMouseEnter={() => setGlobalResizeCursor(leftResizeCursor)}
             onMouseLeave={() => setGlobalResizeCursor("")}
-            className="absolute inset-y-0 left-0 z-[502] w-5 cursor-ew-resize"
+            className="absolute inset-y-0 left-0 z-[62] w-5 cursor-ew-resize"
           />
         )}
         {canResizeRight && (
@@ -5845,7 +4528,7 @@ function EditorWindow({
             onPointerDown={(event) => handleResizeStart(event, ["right"])}
             onMouseEnter={() => setGlobalResizeCursor(rightResizeCursor)}
             onMouseLeave={() => setGlobalResizeCursor("")}
-            className="absolute inset-y-0 right-0 z-[502] w-5 cursor-ew-resize"
+            className="absolute inset-y-0 right-0 z-[62] w-5 cursor-ew-resize"
           />
         )}
         {canResizeBottom && (
@@ -5854,29 +4537,25 @@ function EditorWindow({
             onPointerDown={(event) => handleResizeStart(event, ["bottom"])}
             onMouseEnter={() => setGlobalResizeCursor(bottomResizeCursor)}
             onMouseLeave={() => setGlobalResizeCursor("")}
-            className="absolute right-2 bottom-0 left-2 z-[502] h-5 cursor-ns-resize"
+            className="absolute right-2 bottom-0 left-2 z-[62] h-5 cursor-ns-resize"
           />
         )}
         {canResizeBottomLeft && (
           <div
             data-window-resize-handle="true"
-            onPointerDown={(event) =>
-              handleResizeStart(event, ["bottom", "left"])
-            }
+            onPointerDown={(event) => handleResizeStart(event, ["bottom", "left"])}
             onMouseEnter={() => setGlobalResizeCursor(bottomLeftResizeCursor)}
             onMouseLeave={() => setGlobalResizeCursor("")}
-            className="absolute bottom-0 left-0 z-[503] h-8 w-8 cursor-nesw-resize"
+            className="absolute bottom-0 left-0 z-[63] h-8 w-8 cursor-nesw-resize"
           />
         )}
         {canResizeBottomRight && (
           <div
             data-window-resize-handle="true"
-            onPointerDown={(event) =>
-              handleResizeStart(event, ["bottom", "right"])
-            }
+            onPointerDown={(event) => handleResizeStart(event, ["bottom", "right"])}
             onMouseEnter={() => setGlobalResizeCursor(bottomRightResizeCursor)}
             onMouseLeave={() => setGlobalResizeCursor("")}
-            className="absolute bottom-0 right-0 z-[503] h-8 w-8 cursor-nwse-resize"
+            className="absolute bottom-0 right-0 z-[63] h-8 w-8 cursor-nwse-resize"
           />
         )}
       </div>
@@ -5884,11 +4563,10 @@ function EditorWindow({
   );
 }
 
-function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
+function ItemModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const isServiceModal = modal.type === "services";
   const isBookmarkModal = modal.type === "bookmarks";
-  const WindowComponent = studioChrome ? StudioModalWindow : EditorWindow;
   const bookmarkWindowApiRef = useRef(null);
   const typeFields = modal.type === "services" ? serviceFields : bookmarkFields;
   const rawEntryConfig =
@@ -5903,86 +4581,37 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
         )
       : null;
   const rawConfig = modal.mode === "edit" ? (rawEntryConfig ?? modal.item) : {};
-  const rawConfigWithoutServiceUpdate = isServiceModal
-    ? Object.fromEntries(
-        Object.entries(rawConfig ?? {}).filter(
-          ([key]) => key !== "serviceUpdate",
-        ),
-      )
-    : rawConfig;
   const originalItemMatcher =
     modal.mode === "edit" && rawEntryConfig
       ? createItemMatcher(modal.type, modal.itemName, rawEntryConfig)
       : modal.itemMatcher;
   const [name, setName] = useState(modal.mode === "edit" ? modal.itemName : "");
-  const [form, setForm] = useState(() =>
-    splitConfig(rawConfigWithoutServiceUpdate, modal.type),
-  );
-  const [serviceUpdate, setServiceUpdate] = useState(() =>
-    normalizeServiceUpdateConfig(rawConfig?.serviceUpdate),
-  );
+  const [form, setForm] = useState(() => splitConfig(rawConfig, modal.type));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [showAdvancedServiceFields, setShowAdvancedServiceFields] =
-    useState(false);
-  const [showAdvancedBookmarkFields, setShowAdvancedBookmarkFields] =
-    useState(false);
-  const { data: serviceUpdateRegistry, error: serviceUpdateRegistryError } =
-    useSWR(
-      isServiceModal ? "/api/config/service-updates" : null,
-      async (url) => {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(await response.text());
-        return response.json();
-      },
-    );
+  const [showAdvancedServiceFields, setShowAdvancedServiceFields] = useState(false);
+  const [showAdvancedBookmarkFields, setShowAdvancedBookmarkFields] = useState(false);
   const title = isServiceModal ? "сервис" : "закладка";
-  const bookmarkWindowWidth = 760;
-  const bookmarkCollapsedHeight = 660;
-  const bookmarkExpandedHeight = 840;
-  const bookmarkWindowStorageKey =
-    "homepage-browser-editor-window-item-bookmarks-v9";
-  const itemModalDefaultHeight = isServiceModal
-    ? 840
-    : showAdvancedBookmarkFields
-      ? bookmarkExpandedHeight
-      : bookmarkCollapsedHeight;
-  const itemModalMinHeight = isServiceModal
-    ? 780
-    : showAdvancedBookmarkFields
-      ? 620
-      : 520;
-  const primaryTypeFields = isServiceModal
-    ? typeFields.filter(([key]) => !collapsedServiceFieldKeys.has(key))
-    : isBookmarkModal
-      ? typeFields.filter(
-          ([key]) =>
-            !collapsedBookmarkFieldKeys.has(key) &&
-            key !== "href" &&
-            key !== "showLink",
-        )
+  const bookmarkWindowWidth = 648;
+  const bookmarkCollapsedHeight = 379;
+  const bookmarkExpandedHeight = 760;
+  const bookmarkWindowStorageKey = "homepage-browser-editor-window-item-bookmarks-v9";
+  const itemModalDefaultHeight = isServiceModal ? 840 : showAdvancedBookmarkFields ? bookmarkExpandedHeight : bookmarkCollapsedHeight;
+  const itemModalMinHeight = isServiceModal ? 780 : showAdvancedBookmarkFields ? 620 : 360;
+  const primaryTypeFields =
+    isServiceModal
+      ? typeFields.filter(([key]) => !collapsedServiceFieldKeys.has(key))
+      : isBookmarkModal
+        ? typeFields.filter(([key]) => !collapsedBookmarkFieldKeys.has(key) && key !== "href" && key !== "showLink")
       : typeFields;
-  const advancedServiceFields = isServiceModal
-    ? typeFields.filter(([key]) => collapsedServiceFieldKeys.has(key))
-    : [];
-  const advancedBookmarkFields = isBookmarkModal
-    ? typeFields.filter(
-        ([key]) =>
-          collapsedBookmarkFieldKeys.has(key) &&
-          ![
-            "id",
-            "titleColor",
-            "titleSize",
-            "titleAlign",
-            "titleFont",
-          ].includes(key),
-      )
-    : [];
-  const bookmarkStyleFields = isBookmarkModal
-    ? typeFields.filter(([key]) =>
-        ["titleColor", "titleSize", "titleAlign", "titleFont"].includes(key),
-      )
-    : [];
+  const advancedServiceFields =
+    isServiceModal
+      ? typeFields.filter(([key]) => collapsedServiceFieldKeys.has(key))
+      : [];
+  const advancedBookmarkFields =
+    isBookmarkModal
+      ? typeFields.filter(([key]) => collapsedBookmarkFieldKeys.has(key))
+      : [];
 
   async function save(nextData) {
     const response = await editorWriteFetch("/api/config/editor", {
@@ -6038,13 +4667,6 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
       }
 
       const config = formToConfig(form);
-      delete config.serviceUpdate;
-      if (isServiceModal) {
-        const serializedServiceUpdate =
-          serializeServiceUpdateConfig(serviceUpdate);
-        if (serializedServiceUpdate)
-          config.serviceUpdate = serializedServiceUpdate;
-      }
       validateItemConfig(modal.type, config);
       const latestData = await loadLatestEditorData();
       const nextData =
@@ -6059,13 +4681,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
               trimmedName,
               config,
             )
-          : addRawEntry(
-              latestData[modal.type],
-              modal.type,
-              modal.groupName,
-              trimmedName,
-              config,
-            );
+          : addRawEntry(latestData[modal.type], modal.type, modal.groupName, trimmedName, config);
 
       await save(nextData);
       onSaved(`Сохранено: ${trimmedName}`);
@@ -6113,30 +4729,10 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
       }
 
       const config = formToConfig(form);
-      delete config.serviceUpdate;
-      if (isServiceModal) {
-        const serializedServiceUpdate =
-          serializeServiceUpdateConfig(serviceUpdate);
-        if (serializedServiceUpdate)
-          config.serviceUpdate = serializedServiceUpdate;
-      }
       validateItemConfig(modal.type, config);
       const latestData = await loadLatestEditorData();
-      const cloneName = buildUniqueEntryName(
-        latestData[modal.type],
-        modal.type,
-        modal.groupName,
-        trimmedName,
-      );
-      await save(
-        addRawEntry(
-          latestData[modal.type],
-          modal.type,
-          modal.groupName,
-          cloneName,
-          config,
-        ),
-      );
+      const cloneName = buildUniqueEntryName(latestData[modal.type], modal.type, modal.groupName, trimmedName);
+      await save(addRawEntry(latestData[modal.type], modal.type, modal.groupName, cloneName, config));
       onSaved(`Копия создана: ${cloneName}`);
       onClose();
     } catch (cloneError) {
@@ -6155,9 +4751,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
 
       const currentRect = bookmarkWindowApiRef.current?.windowRect;
       if (currentRect) {
-        const targetHeight = expanded
-          ? Math.max(currentRect.height, bookmarkExpandedHeight)
-          : bookmarkCollapsedHeight;
+        const targetHeight = expanded ? Math.max(currentRect.height, bookmarkExpandedHeight) : bookmarkCollapsedHeight;
         bookmarkWindowApiRef.current?.setWindowRect((current) =>
           current
             ? clampEditorWindow(
@@ -6166,17 +4760,14 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
                   height: targetHeight,
                 },
                 620,
-                expanded ? 620 : 520,
+                expanded ? 520 : 360,
               )
             : current,
         );
       }
 
       if (expanded && typeof window !== "undefined") {
-        const currentZoom = Number.parseInt(
-          window.localStorage.getItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY) ?? "",
-          10,
-        );
+        const currentZoom = Number.parseInt(window.localStorage.getItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY) ?? "", 10);
         if (!Number.isFinite(currentZoom) || currentZoom < 50) {
           window.localStorage.setItem(BOOKMARK_YAML_ZOOM_STORAGE_KEY, "100");
         }
@@ -6189,13 +4780,8 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
 
   const fieldsBlock = (
     <div className="space-y-3">
-      <Field
-        label="Имя"
-        value={name}
-        onChange={setName}
-        compact={isServiceModal}
-      />
-      {isServiceModal && (
+      <Field label="Имя" value={name} onChange={setName} compact={isServiceModal} />
+      {(isServiceModal || isBookmarkModal) && (
         <ServiceCardColorField
           value={form.fields.id ?? ""}
           itemName={name}
@@ -6209,50 +4795,6 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
             }))
           }
         />
-      )}
-      {isBookmarkModal && (
-        <section className="rounded-xl border border-theme-300/50 bg-theme-50/30 p-3 dark:border-white/10 dark:bg-white/5">
-          <div className="mb-3">
-            <div className="text-xs font-semibold text-theme-800 dark:text-theme-100">
-              Стилизация закладки
-            </div>
-            <div className="mt-0.5 text-[10px] text-theme-500 dark:text-theme-400">
-              Фон карточки, цвет, размер, шрифт и выравнивание заголовка
-            </div>
-          </div>
-          <ServiceCardColorField
-            value={form.fields.id ?? ""}
-            itemName={name}
-            onChange={(value) =>
-              setForm((current) => ({
-                ...current,
-                fields: {
-                  ...current.fields,
-                  id: value,
-                },
-              }))
-            }
-          />
-          <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-2">
-            {bookmarkStyleFields.map(([key, label]) => (
-              <Field
-                key={key}
-                name={key}
-                label={label}
-                value={form.fields[key] ?? ""}
-                onChange={(value) =>
-                  setForm((current) => ({
-                    ...current,
-                    fields: {
-                      ...current.fields,
-                      [key]: value,
-                    },
-                  }))
-                }
-              />
-            ))}
-          </div>
-        </section>
       )}
       {isBookmarkModal && (
         <div className="grid grid-cols-3 gap-3 items-end">
@@ -6288,12 +4830,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
           />
         </div>
       )}
-      <div
-        className={classNames(
-          "grid min-w-0 gap-2",
-          isServiceModal ? "grid-cols-3" : "md:grid-cols-2",
-        )}
-      >
+      <div className={classNames("grid min-w-0 gap-2", isServiceModal ? "grid-cols-3" : "md:grid-cols-2")}>
         {primaryTypeFields.map(([key, label]) => (
           <Field
             key={key}
@@ -6314,22 +4851,12 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
         ))}
       </div>
       {isServiceModal && (
-        <ServiceUpdateFields
-          value={serviceUpdate}
-          onChange={setServiceUpdate}
-          registry={serviceUpdateRegistry}
-          registryError={serviceUpdateRegistryError}
-        />
-      )}
-      {isServiceModal && (
         <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
           <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200">
             <input
               type="checkbox"
               checked={showAdvancedServiceFields}
-              onChange={(event) =>
-                setShowAdvancedServiceFields(event.target.checked)
-              }
+              onChange={(event) => setShowAdvancedServiceFields(event.target.checked)}
               className="h-4 w-4"
             />
             Дополнительные поля
@@ -6365,9 +4892,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
             <input
               type="checkbox"
               checked={showAdvancedBookmarkFields}
-              onChange={(event) =>
-                handleAdvancedBookmarkToggle(event.target.checked)
-              }
+              onChange={(event) => handleAdvancedBookmarkToggle(event.target.checked)}
               className="h-4 w-4"
             />
             Дополнительные поля
@@ -6399,9 +4924,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
   );
 
   const errorBlock = error && (
-    <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-      {error}
-    </div>
+    <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">{error}</div>
   );
 
   const footerBlock = (
@@ -6440,12 +4963,8 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
   );
 
   return (
-    <WindowComponent
-      storageKey={
-        isBookmarkModal
-          ? bookmarkWindowStorageKey
-          : `homepage-browser-editor-window-item-${modal.type}`
-      }
+    <EditorWindow
+      storageKey={isBookmarkModal ? bookmarkWindowStorageKey : `homepage-browser-editor-window-item-${modal.type}`}
       title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
       onClose={onClose}
       defaultWidth={isServiceModal ? 1040 : bookmarkWindowWidth}
@@ -6453,15 +4972,6 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
       minWidth={isServiceModal ? 760 : 620}
       minHeight={itemModalMinHeight}
       windowApiRef={isBookmarkModal ? bookmarkWindowApiRef : null}
-      studioChrome={studioChrome}
-      description={
-        studioChrome
-          ? modal.mode === "edit"
-            ? `Измените ${title} в стиле студии кастомизации`
-            : `Добавьте ${title} в стиле студии кастомизации`
-          : null
-      }
-      wrapperClassName={studioChrome ? "homepage-themed-configurator" : ""}
     >
       {isBookmarkModal ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -6490,8 +5000,8 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
           <div className="mt-4 shrink-0">{footerBlock}</div>
         </div>
       ) : (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {fieldsBlock}
             {isServiceModal && (
               <WidgetTemplateSelector
@@ -6504,7 +5014,7 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
                 }
               />
             )}
-            <div className="mt-3 flex min-w-0 flex-col">
+            <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col">
               <CodeEditor
                 label="Расширенный YAML"
                 language="yaml"
@@ -6515,651 +5025,282 @@ function ItemModal({ modal, data, onClose, onSaved, studioChrome = false }) {
                     extraYaml: value,
                   }))
                 }
-                minHeightClassName="h-[20rem] min-h-[20rem]"
+                minHeightClassName="min-h-[20rem]"
+                fillAvailableHeight
                 zoomStorageKey="homepage-browser-editor-code-zoom-item-services"
                 placeholder="widget:\n  type: customapi\n  url: http://example.local"
               />
             </div>
-            {errorBlock && <div className="mt-4">{errorBlock}</div>}
           </div>
-          <div className="mt-3 shrink-0 border-t border-theme-300/40 pt-3 dark:border-white/10">
-            {footerBlock}
-          </div>
-        </div>
+          {errorBlock && <div className="mt-4">{errorBlock}</div>}
+          <div className="mt-4">{footerBlock}</div>
+        </>
       )}
-    </WindowComponent>
+    </EditorWindow>
   );
 }
 
 const WIDGET_TEMPLATES = {
-  "3xui": yaml.dump(
-    { widget: buildThreeXuiWidget() },
-    { lineWidth: -1, noRefs: true, sortKeys: false },
-  ),
-  argocd:
-    "widget:\n  type: argocd\n  url: http://argocd.host.or.ip:port\n  key: argocdapikey",
-  truenas:
-    "widget:\n  type: truenas\n  url: http://truenas.host.or.ip\n  version: 2 # optional, defaults to 1\n  username: user # not required if using api key\n  password: pass # not required if using api key\n  key: yourtruenasapikey # not required if using username / password\n  enablePools: true # optional, defaults to false\n  nasType: scale # defaults to scale, must be set to 'core' if using enablePools with TrueNAS Core",
-  photoprism:
-    "widget:\n  type: photoprism\n  url: http://photoprism.host.or.ip:port\n  username: admin # required only if using username/password\n  password: password # required only if using username/password\n  key: # required only if using app passwords",
-  mikrotik:
-    "widget:\n  type: mikrotik\n  url: https://mikrotik.host.or.ip\n  username: username\n  password: password",
-  prometheusmetric:
-    'widget:\n  type: prometheusmetric\n  url: https://prometheus.host.or.ip\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  metrics:\n    - label: Metric 1\n      query: alertmanager_alerts{state="active"}\n    - label: Metric 2\n      query: apiserver_storage_size_bytes{node="mynode"}\n      format:\n        type: bytes\n    - label: Metric 3\n      query: avg(prometheus_notifications_latency_seconds)\n      format:\n        type: number\n        suffix: s\n        options:\n          maximumFractionDigits: 4\n    - label: Metric 4\n      query: time()\n      refreshInterval: 1000 # will override global refreshInterval\n      format:\n        type: date\n        scale: 1000\n        options:\n          timeStyle: medium',
-  flood:
-    "widget:\n  type: flood\n  url: http://flood.host.or.ip\n  username: username # if set\n  password: password # if set",
-  stash:
-    'widget:\n  type: stash\n  url: http://stash.host.or.ip\n  key: stashapikey\n  fields: ["scenes", "images"] # optional - default fields shown',
-  lidarr:
-    "widget:\n  type: lidarr\n  url: http://lidarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  fritzbox: "widget:\n  type: fritzbox\n  url: http://192.168.178.1",
-  xteve:
-    "widget:\n  type: xteve\n  url: http://xteve.host.or.ip\n  username: username # optional\n  password: password # optional",
-  crowdsec:
-    "widget:\n  type: crowdsec\n  url: http://crowdsechostorip:port\n  username: localhost # machine_id in crowdsec\n  password: password\n  limit24h: true # optional, limits alerts to last 24h. Default: false",
-  "calibre-web":
-    "widget:\n  type: calibreweb\n  url: http://your.calibreweb.host:port\n  username: username\n  password: password",
-  gitea:
-    "widget:\n  type: gitea\n  url: http://gitea.host.or.ip:port\n  key: giteaapitoken",
-  transmission:
-    'widget:\n  type: transmission\n  url: http://transmission.host.or.ip\n  username: username\n  password: password\n  rpcUrl: /transmission/ # Optional. Matches the value of "rpc-url" in your Transmission\'s settings.json file',
-  prowlarr:
-    "widget:\n  type: prowlarr\n  url: http://prowlarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  vikunja:
-    "widget:\n  type: vikunja\n  url: http[s]://vikunja.host.or.ip[:port]\n  key: vikunjaapikey\n  enableTaskList: true # optional, defaults to false\n  version: 2 # optional, defaults to 1",
-  komga:
-    "widget:\n  type: komga\n  url: http://komga.host.or.ip:port\n  username: username\n  password: password\n  key: komgaapikey # optional",
-  channelsdvrserver:
-    "widget:\n  type: channelsdvrserver\n  url: http://server.host.or.ip:port",
-  linkwarden:
-    "widget:\n  type: linkwarden\n  url: http://linkwarden.host.or.ip\n  key: myApiKeyHere # On your Linkwarden install, go to Settings > Access Tokens. Generate a token.",
-  gatus: "widget:\n  type: gatus\n  url: http://gatus.host.or.ip:port",
-  gamedig:
-    "widget:\n  type: gamedig\n  serverType: csgo # see https://github.com/gamedig/node-gamedig#games-list\n  url: udp://server.host.or.ip:port\n  gameToken: # optional, a token used by gamedig with certain games",
-  "plex-tautulli":
-    "widget:\n  type: tautulli\n  url: http://tautulli.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
-  wallos:
-    "widget:\n  type: wallos\n  url: http://wallos.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  sonarr:
-    "widget:\n  type: sonarr\n  url: http://sonarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
-  mylar:
-    "widget:\n  type: mylar\n  url: http://mylar3.host.or.ip:port\n  key: yourmylar3apikey",
-  stocks:
-    "widget:\n  type: stocks\n  provider: finnhub\n  showUSMarketStatus: true # optional, defaults to true\n  watchlist:\n    - GME\n    - AMC\n    - NVDA\n    - TSM\n    - BRK.A\n    - TSLA\n    - AAPL\n    - MSFT\n    - AMZN\n    - BRK.B",
-  audiobookshelf:
-    "widget:\n  type: audiobookshelf\n  url: http://audiobookshelf.host.or.ip:port\n  key: audiobookshelflapikey",
-  mastodon: "widget:\n  type: mastodon\n  url: https://mastodon.host.name",
-  zabbix:
-    "widget:\n  type: zabbix\n  url: http://zabbix.host.or.ip/zabbix\n  key: your-api-key",
-  diskstation:
-    "widget:\n  type: diskstation\n  url: http://diskstation.host.or.ip:port\n  username: username\n  password: password\n  volume: volume_N # optional",
-  pterodactyl:
-    "widget:\n  type: pterodactyl\n  url: http://pterodactylhost:port\n  key: pterodactylapikey",
-  "nginx-proxy-manager":
-    "widget:\n  type: npm\n  url: http://npm.host.or.ip\n  username: admin_username\n  password: admin_password",
-  dispatcharr:
-    "widget:\n  type: dispatcharr\n  url: http://dispatcharr.host.or.ip\n  username: username\n  password: password\n  enableActiveStreams: true # optional, defaults to false",
-  develancacheui:
-    "widget:\n  type: develancacheui\n  url: http://your.develancacheui_backend.host:port",
-  tailscale:
-    "widget:\n  type: tailscale\n  deviceid: deviceid\n  key: tailscalekey",
-  readarr:
-    "widget:\n  type: readarr\n  url: http://readarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  unmanic: "widget:\n  type: unmanic\n  url: http://unmanic.host.or.ip:port",
-  cloudflared:
-    "widget:\n  type: cloudflared\n  accountid: accountid # from zero trust dashboard url e.g. https://one.dash.cloudflare.com/<accountid>/home/quick-start\n  tunnelid: tunnelid # found in tunnels dashboard under the tunnel name\n  key: cloudflareapitoken # api token with `Account.Cloudflare Tunnel:Read` https://dash.cloudflare.com/profile/api-tokens",
-  "coin-market-cap":
-    "widget:\n  type: coinmarketcap\n  currency: GBP # Optional\n  symbols: [BTC, LTC, ETH]\n  key: apikeyapikeyapikeyapikeyapikey\n  defaultinterval: 7d # Optional",
-  customapi:
-    'widget:\n  type: customapi\n  url: http://custom.api.host.or.ip:port/path/to/exact/api/endpoint\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  username: username # auth - optional\n  password: password # auth - optional\n  method: GET # optional, e.g. POST\n  headers: # optional, must be object, see below\n  requestBody: # optional, can be string or object, see below\n  display: # optional, default to block, see below\n  mappings:\n    - field: key\n      label: Field 1\n      format: text # optional - defaults to text\n    - field: path.to.key2\n      format: number # optional - defaults to text\n      label: Field 2\n    - field: path.to.another.key3\n      label: Field 3\n      format: percent # optional - defaults to text\n    - field: key\n      label: Field 4\n      format: date # optional - defaults to text\n      locale: nl # optional\n      dateStyle: long # optional - defaults to "long". Allowed values: `["full", "long", "medium", "short"]`.\n      timeStyle: medium # optional - Allowed values: `["full", "long", "medium", "short"]`.\n    - field: key\n      label: Field 5\n      format: relativeDate # optional - defaults to text\n      locale: nl # optional\n      style: short # optional - defaults to "long". Allowed values: `["long", "short", "narrow"]`.\n      numeric: auto # optional - defaults to "always". Allowed values `["always", "auto"]`.\n    - field: key\n      label: Field 6\n      format: text\n      additionalField: # optional\n        field: hourly.time.key\n        color: theme # optional - defaults to "". Allowed values: `["theme", "adaptive", "black", "white"]`.\n        format: date # optional\n    - field: key\n      label: Number of things in array\n      format: size\n    # This (no field) will take the root of the API response, e.g. when APIs return an array:\n    - label: Number of items\n      format: size',
-  seerr:
-    "widget:\n  type: seerr\n  url: http://seerr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  radarr:
-    "widget:\n  type: radarr\n  url: http://radarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
-  ntfy: "widget:\n  type: ntfy\n  url: http://ntfy.host.or.ip:port # required\n  topic: mytopic # required\n  # key: tk_accesstoken # optional — for token auth\n  # username: user # optional — for basic auth\n  # password: pass # optional — for basic auth",
-  nextcloud:
-    "widget:\n  type: nextcloud\n  url: https://nextcloud.host.or.ip:port\n  key: token",
-  tandoor:
-    "widget:\n  type: tandoor\n  url: http://tandoor-frontend.host.or.ip\n  key: tandoor-api-token",
-  pfsense:
-    'widget:\n  type: pfsense\n  url: http://pfsense.host.or.ip:port\n  username: user # optional, or API key\n  password: pass # optional, or API key\n  headers: # optional, or username/password\n    X-API-Key: key\n  wan: igb0\n  version: 2 # optional, defaults to 1 for api v1\n  fields: ["load", "memory", "temp", "wanStatus"] # optional',
-  frigate:
-    "widget:\n  type: frigate\n  url: http://frigate.host.or.ip:port\n  enableRecentEvents: true # Optional, defaults to false\n  username: username # optional\n  password: password # optional",
-  qbittorrent:
-    "widget:\n  type: qbittorrent\n  url: http://qbittorrent.host.or.ip\n  username: username\n  password: password\n  enableLeechProgress: true # optional, defaults to false\n  enableLeechSize: true # optional, defaults to false",
-  arcane:
-    'widget:\n  type: arcane\n  url: http://localhost:3552\n  env: 0 # required, 0 is Arcane default local environment\n  key: your-api-key\n  fields: ["running", "stopped", "total", "image_updates"] # optional',
-  mjpeg:
-    "widget:\n  type: mjpeg\n  stream: http://mjpeg.host.or.ip/webcam/stream",
-  slskd:
-    "widget:\n  type: slskd\n  url: http[s]://slskd.host.or.ip[:5030]\n  key: generatedapikey",
-  esphome:
-    "widget:\n  type: esphome\n  url: http://esphome.host.or.ip:port\n  username: myesphomeuser # only if auth enabled\n  password: myesphomepass # only if auth enabled",
-  openwrt:
-    "widget:\n  type: openwrt\n  url: http://host.or.ip\n  username: homepage\n  password: pass\n  interfaceName: eth0 # optional",
-  netalertx:
-    "widget:\n  type: netalertx\n  url: http://ip:port # use backend port for widget version 2+\n  key: yournetalertxapitoken\n  version: 2 # optional, default is 1",
-  peanut:
-    "widget:\n  type: peanut\n  url: http://peanut.host.or.ip:port\n  key: nameofyourups\n  username: username # only needed if set\n  password: password # only needed if set",
-  ghostfolio:
-    "widget:\n  type: ghostfolio\n  url: http://ghostfoliohost:port\n  key: ghostfoliobearertoken",
-  sabnzbd:
-    "widget:\n  type: sabnzbd\n  url: http://sabnzbd.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  jackett:
-    "widget:\n  type: jackett\n  url: http://jackett.host.or.ip\n  password: jackettadminpassword # optional",
-  karakeep:
-    "widget:\n  type: karakeep\n  url: http[s]://karakeep.host.or.ip[:port]\n  key: karakeep_api_key",
-  wgeasy:
-    "widget:\n  type: wgeasy\n  url: http://wg.easy.or.ip\n  version: 2 # optional, default is 1\n  username: yourwgusername # required for v15 and above\n  password: yourwgeasypassword\n  threshold: 2 # optional",
-  jellystat:
-    "widget:\n  type: jellystat\n  url: http://jellystat.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  days: 30 # optional, defaults to 30",
-  homebridge:
-    "widget:\n  type: homebridge\n  url: http://homebridge.host.or.ip:port\n  username: username\n  password: password",
-  authentik:
-    "widget:\n  type: authentik\n  url: http://authentik.host.or.ip:port\n  key: api_token\n  version: 2 # optional, default is 1",
-  iframe:
-    "widget:\n  type: iframe\n  name: myIframe\n  src: http://example.com",
-  proxmoxbackupserver:
-    "widget:\n  type: proxmoxbackupserver\n  url: https://proxmoxbackupserver.host:port\n  username: api_token_id\n  password: api_token_secret\n  datastore: datastore_name #optional; if ommitted, will display a combination of all datastores used / total",
-  filebrowser:
-    "widget:\n  type: filebrowser\n  url: http://filebrowserhostorip:port\n  username: username\n  password: password\n  authHeader: X-My-Header # If using Proxy header authentication",
-  technitium:
-    "widget:\n  type: technitium\n  url: <url to dns server>\n  key: biglongapitoken\n  node: <node dns name or cluster> # optional, defaults to current node\n  range: LastDay # optional, defaults to LastHour",
-  healthchecks:
-    "widget:\n  type: healthchecks\n  url: http://healthchecks.host.or.ip:port\n  key: <YOUR_API_KEY>\n  uuid: <CHECK_UUID> # optional, if not included total statistics for all checks is shown",
-  proxmox:
-    "widget:\n  type: proxmox\n  url: https://proxmox.host.or.ip:8006\n  username: api_token_id\n  password: api_token_secret\n  node: pve-1 # optional",
-  scrutiny: "widget:\n  type: scrutiny\n  url: http://scrutiny.host.or.ip",
-  hdhomerun:
-    'widget:\n  type: hdhomerun\n  url: http://hdhomerun.host.or.ip\n  tuner: 0 # optional - defaults to 0, used for tuner-specific fields\n  fields: ["channels", "hd"] # optional - default fields shown',
-  yourspotify:
-    "widget:\n  type: yourspotify\n  url: http://your-spotify-server.host.or.ip # if using lsio image, add /api/\n  key: apikeyapikeyapikeyapikeyapikey\n  interval: month # optional, defaults to week",
-  tdarr:
-    "widget:\n  type: tdarr\n  url: http://tdarr.host.or.ip\n  key: tdarrapikey # optional",
-  homebox:
-    'widget:\n  type: homebox\n  url: http://homebox.host.or.ip:port\n  username: username\n  password: password\n  fields: ["items", "locations", "totalValue"] # optional - default fields shown',
-  kopia:
-    "widget:\n  type: kopia\n  url: http://kopia.host.or.ip:port\n  username: username\n  password: password\n  snapshotHost: hostname # optional\n  snapshotPath: path # optional",
-  nzbget:
-    "widget:\n  type: nzbget\n  url: http://nzbget.host.or.ip\n  username: controlusername\n  password: controlpassword",
-  booklore:
-    "widget:\n  type: booklore\n  url: https://booklore.host.or.ip\n  username: username\n  password: password",
-  rutorrent:
-    "widget:\n  type: rutorrent\n  url: http://rutorrent.host.or.ip\n  username: username # optional, false if not used\n  password: password # optional, false if not used",
-  grafana:
-    "widget:\n  type: grafana\n  version: 2 # optional, default is 1\n  alerts: alertmanager # optional, default is grafana\n  url: http://grafana.host.or.ip:port\n  username: username\n  password: password",
-  swagdashboard:
-    "widget:\n  type: swagdashboard\n  url: http://swagdashboard.host.or.ip:adminport # default port is 81",
-  romm: 'widget:\n  type: romm\n  url: http://romm.host.or.ip\n  fields: ["platforms", "totalRoms", "saves", "states"] # optional - default fields shown',
-  trilium:
-    "widget:\n  type: trilium\n  url: https://trilium.host.or.ip\n  key: etapi_token",
-  downloadstation:
-    "widget:\n  type: downloadstation\n  url: http://downloadstation.host.or.ip:port\n  username: username\n  password: password",
-  apcups: "widget:\n  type: apcups\n  url: tcp://your.acpupsd.host:3551",
-  "adguard-home":
-    "widget:\n  type: adguard\n  url: http://adguard.host.or.ip\n  username: admin\n  password: password",
-  evcc: "widget:\n  type: evcc\n  url: http://evcc.host.or.ip:port",
-  "syncthing-relay-server":
-    "widget:\n  type: strelaysrv\n  url: http://syncthing.host.or.ip:22070",
-  pihole:
-    "widget:\n  type: pihole\n  url: http://pi.hole.or.ip\n  version: 6 # required if running v6 or higher, defaults to 5\n  key: yourpiholeapikey # optional, in v6 can be your password or app password",
-  calendar:
-    "widget:\n  type: calendar\n  firstDayInWeek: sunday # optional - defaults to monday\n  view: monthly # optional - possible values monthly, agenda\n  maxEvents: 10 # optional - defaults to 10\n  showTime: true # optional - show time for event happening today - defaults to false\n  timezone: America/Los_Angeles # optional and only when timezone is not detected properly (slightly slower performance) - force timezone for ical events (if it's the same - no change, if missing or different in ical - will be converted to this timezone)\n  integrations: # optional\n    - type: sonarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr, ical\n      service_group: Media # group name where widget exists\n      service_name: Sonarr # service name for that widget\n      color: teal # optional - defaults to pre-defined color for the service (teal for sonarr)\n      baseUrl: https://sonarr.domain.url # optional - adds links to sonarr/radarr pages\n      params: # optional - additional params for the service\n        unmonitored: true # optional - defaults to false, used with *arr stack\n    - type: ical # Show calendar events from another service\n      url: https://domain.url/with/link/to.ics # URL with calendar events\n      name: My Events # required - name for these calendar events\n      color: zinc # optional - defaults to pre-defined color for the service (zinc for ical)\n      params: # optional - additional params for the service\n        showName: true # optional - show name before event title in event line - defaults to false",
-  navidrome:
-    "widget:\n  type: navidrome\n  url: http://navidrome.host.or.ip:port\n  user: username\n  token: token #md5(password + salt)\n  salt: randomsalt",
-  opendtu: "widget:\n  type: opendtu\n  url: http://opendtu.host.or.ip",
-  sparkyfitness:
-    "widget:\n  type: sparkyfitness\n  url: http://sparkyfitness.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  plex: "widget:\n  type: plex\n  url: http://plex.host.or.ip:32400\n  key: mytokenhere # see https://www.plexopedia.com/plex-media-server/general/plex-token/",
-  fileflows:
-    "widget:\n  type: fileflows\n  url: http://your.fileflows.host:port",
-  traefik:
-    "widget:\n  type: traefik\n  url: http://traefik.host.or.ip\n  username: username # optional\n  password: password # optional",
-  plantit:
-    "widget:\n  type: plantit\n  url: http://plant-it.host.or.ip:port # api port\n  key: plantit-api-key",
-  jdownloader:
-    "widget:\n  type: jdownloader\n  username: JDownloader Username\n  password: JDownloader Password\n  client: Name of JDownloader Instance",
-  urbackup:
-    "widget:\n  type: urbackup\n  username: urbackupUsername\n  password: urbackupPassword\n  url: http://urbackupUrl:55414\n  maxDays: 5 # optional",
-  deluge:
-    "widget:\n  type: deluge\n  url: http://deluge.host.or.ip\n  password: password # webui password\n  enableLeechProgress: true # optional, defaults to false",
-  headscale:
-    "widget:\n  type: headscale\n  url: http://headscale.host.or.ip:port\n  nodeId: nodeid\n  key: headscaleapiaccesstoken",
-  watchtower:
-    "widget:\n  type: watchtower\n  url: http://your-ip-address:8080\n  key: demotoken",
-  atsumeru:
-    "widget:\n  type: atsumeru\n  url: http://atsumeru.host.or.ip:port\n  username: username\n  password: password",
-  pyload:
-    "widget:\n  type: pyload\n  url: http://pyload.host.or.ip:port\n  username: username\n  password: password # only needed if set\n  key: pyloadapikey # only needed if set, takes precedence over username/password",
-  minecraft:
-    "widget:\n  type: minecraft\n  url: udp://minecraftserveripordomain:port",
-  spoolman:
-    "widget:\n  type: spoolman\n  url: http://spoolman.host.or.ip\n  spoolIds: [1, 2, 3, 4] # optional",
-  prometheus: "widget:\n  type: prometheus\n  url: http://prometheushost:port",
-  kavita:
-    "widget:\n  type: kavita\n  url: http://kavita.host.or.ip:port\n  username: username\n  password: password\n  key: kavitaapikey # Optional, e.g. if not using username and password",
-  unraid:
-    "widget:\n  type: unraid\n  url: https://unraid.host.or.ip\n  key: api-key\n  pool1: pool1name # required only if using pool1 fields\n  pool2: pool2name # required only if using pool2 fields\n  pool3: pool3name # required only if using pool3 fields\n  pool4: pool4name # required only if using pool4 fields",
-  immich:
-    "widget:\n  type: immich\n  url: http://immich.host.or.ip\n  key: adminapikeyadminapikeyadminapikey\n  version: 2 # optional, default is 1",
-  backrest:
-    "widget:\n  type: backrest\n  url: http://backrest.host.or.ip\n  username: admin # optional if auth is enabled in Backrest\n  password: admin # optional if auth is enabled in Backrest",
-  opnsense:
-    "widget:\n  type: opnsense\n  url: http://opnsense.host.or.ip\n  username: key\n  password: secret\n  wan: opt1 # optional, defaults to wan",
-  "unifi-controller":
-    "widget:\n  type: unifi\n  url: https://unifi.host.or.ip:port\n  site: Site Name # optional\n  username: user\n  password: pass\n  key: unifiapikey # required if using API key instead of username/password",
-  openmediavault:
-    "widget:\n  type: openmediavault\n  url: http://omv.host.or.ip\n  username: admin\n  password: pass\n  method: services.getStatus # required",
-  autobrr:
-    "widget:\n  type: autobrr\n  url: http://autobrr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  uptimerobot:
-    "widget:\n  type: uptimerobot\n  url: https://api.uptimerobot.com\n  key: uptimerobotapitoken",
-  "uptime-kuma":
-    "widget:\n  type: uptimekuma\n  url: http://uptimekuma.host.or.ip:port\n  slug: statuspageslug",
-  octoprint:
-    "widget:\n  type: octoprint\n  url: http://octoprint.host.or.ip:port\n  key: youroctoprintapikey",
-  gotify:
-    "widget:\n  type: gotify\n  url: http://gotify.host.or.ip\n  key: clientoken",
-  miniflux:
-    "widget:\n  type: miniflux\n  url: http://miniflux.host.or.ip:port\n  key: minifluxapikey",
-  medusa:
-    "widget:\n  type: medusa\n  url: http://medusa.host.or.ip:port\n  key: medusaapikeyapikeyapikeyapikeyapikey",
-  changedetectionio:
-    "widget:\n  type: changedetectionio\n  url: http://changedetection.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey",
-  mealie:
-    "widget:\n  type: mealie\n  url: http://mealie-frontend.host.or.ip\n  key: mealieapitoken\n  version: 2 # only required if version > 1, defaults to 1",
-  gitlab:
-    "widget:\n  type: gitlab\n  url: http://gitlab.host.or.ip:port\n  key: personal-access-token\n  user_id: 123456",
-  beszel:
-    "widget:\n  type: beszel\n  url: http://beszel.host.or.ip\n  username: username # email\n  password: password\n  systemId: systemId # optional\n  version: 2 # optional, default is 1",
-  moonraker:
-    "widget:\n  type: moonraker\n  url: http://moonraker.host.or.ip:port",
-  dockhand:
-    "widget:\n  type: dockhand\n  url: http://localhost:3001\n  environment: local # optional: name or id; aggregates all when omitted\n  username: your-user # required for local auth\n  password: your-pass # required for local auth",
-  azuredevops:
-    "widget:\n  type: azuredevops\n  organization: myOrganization\n  project: myProject\n  definitionId: pipelineDefinitionId # required for pipelines\n  branchName: branchName # optional for pipelines, leave empty for all\n  userEmail: email # required for pull requests\n  repositoryId: prRepositoryId # required for pull requests\n  key: personalaccesstoken",
-  whatsupdocker:
-    "widget:\n  type: whatsupdocker\n  url: http://whatsupdocker:port\n  username: username # optional\n  password: password # optional",
-  emby: "widget:\n  type: emby\n  url: http://emby.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
-  glances:
-    "widget:\n  type: glances\n  url: http://glances.host.or.ip:port\n  username: user # optional if auth enabled in Glances\n  password: pass # optional if auth enabled in Glances\n  version: 4 # required only if running glances v4 or higher, defaults to 3\n  metric: cpu\n  diskUnits: bytes # optional, bytes (default) or bbytes. Only applies to disk\n  refreshInterval: 5000 # optional - in milliseconds, defaults to 1000 or more, depending on the metric\n  pointsLimit: 15 # optional, defaults to 15",
-  omada:
-    "widget:\n  type: omada\n  url: http://omada.host.or.ip:port\n  username: username\n  password: password\n  site: sitename",
-  bazarr:
-    "widget:\n  type: bazarr\n  url: http://bazarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  firefly:
-    "widget:\n  type: firefly\n  url: https://firefly.host.or.ip\n  key: personalaccesstoken.personalaccesstoken.personalaccesstoken",
-  "unifi-drive":
-    "widget:\n  type: unifi_drive\n  url: https://unifi.host.or.ip\n  username: your_username\n  password: your_password",
-  jellyfin:
-    "widget:\n  type: jellyfin\n  url: http://jellyfin.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  version: 2 # optional, default is 1\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
-  lubelogger:
-    "widget:\n  type: lubelogger\n  url: https://lubelogger.host.or.ip\n  username: lubeloggerusername\n  password: lubeloggerpassword\n  vehicleID: 1 # optional, changes to single-vehicle version",
-  caddy:
-    "widget:\n  type: caddy\n  url: http://caddy.host.or.ip:adminport # default admin port is 2019",
-  checkmk:
-    "widget:\n  type: checkmk\n  url: http://checkmk.host.or.ip:port\n  site: your-site-name-cla-by-default\n  username: username\n  password: password",
-  qnap: "widget:\n  type: qnap\n  url: http://qnap.host.or.ip:port\n  username: user\n  password: pass",
-  ombi: "widget:\n  type: ombi\n  url: http://ombi.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
-  komodo:
-    "widget:\n  type: komodo\n  url: http://komodo.hostname.or.ip:port\n  key: K-xxxxxx...\n  secret: S-xxxxxx...\n  showSummary: true # optional, default: false. Takes precedence over showStacks\n  showStacks: true # optional, default: false",
-  mailcow:
-    "widget:\n  type: mailcow\n  url: https://mailcow.host.or.ip\n  key: mailcowapikey",
-  portainer:
-    "widget:\n  type: portainer\n  url: https://portainer.host.or.ip:9443\n  env: 1\n  kubernetes: true # optional, defaults to false\n  key: ptr_accesskeyaccesskeyaccesskeyaccesskey",
-  netdata: "widget:\n  type: netdata\n  url: http://netdata.host.or.ip",
-  myspeed:
-    "widget:\n  type: myspeed\n  url: http://myspeed.host.or.ip:port\n  password: password # only required if password is set",
-  suwayomi:
-    "widget:\n  type: suwayomi\n  url: http://suwayomi.host.or.ip\n  username: username #optional\n  password: password #optional\n  category: 0 #optional, defaults to all categories",
-  tubearchivist:
-    "widget:\n  type: tubearchivist\n  url: http://tubearchivist.host.or.ip\n  key: tubearchivistapikey",
-  gluetun:
-    "widget:\n  type: gluetun\n  url: http://gluetun.host.or.ip:port\n  key: gluetunkey # Not required if /v1/publicip/ip endpoint is configured with `auth = none`\n  version: 2 # optional, default is 1",
-  homeassistant:
-    "widget:\n  type: homeassistant\n  url: http://homeassistant.host.or.ip:port\n  key: access_token\n  custom:\n    - state: sensor.total_power\n    - state: sensor.total_energy_today\n      label: energy today\n    - template: \"{{ states.switch|selectattr('state','equalto','on')|list|length }}\"\n      label: switches on\n    - state: weather.forecast_home\n      label: wind speed\n      value: \"{attributes.wind_speed} {attributes.wind_speed_unit}\"",
-  pangolin:
-    "widget:\n  type: pangolin\n  url: https://api.pangolin.net\n  key: your-api-key\n  org: your-org-id",
-  "speedtest-tracker":
-    "widget:\n  type: speedtest\n  url: http://speedtest.host.or.ip\n  version: 1 # optional, default is 1\n  key: speedtestapikey # required for version 2\n  bitratePrecision: 3 # optional, default is 0",
-  nextdns:
-    "widget:\n  type: nextdns\n  profile: profileid\n  key: yourapikeyhere",
-  freshrss:
-    "widget:\n  type: freshrss\n  url: http://freshrss.host.or.ip:port\n  username: username\n  password: password",
-  tracearr:
-    'widget:\n  type: tracearr\n  url: http://tracearr.host.or.ip:3000\n  key: apikeyapikeyapikeyapikeyapikey\n  view: both # optional, "summary", "details", or "both", defaults to "details"\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true',
-  paperlessngx:
-    "widget:\n  type: paperlessngx\n  url: http://paperlessngx.host.or.ip:port\n  username: username\n  password: password",
-  torrsyncarr:
-    "widget:\n  type: torrsyncarr\n  url: http://192.168.1.132:8099\n  fields:\n    - movies\n    - series\n    - anime\n    - cartoons\n    - import",
+  "argocd": "widget:\n  type: argocd\n  url: http://argocd.host.or.ip:port\n  key: argocdapikey",
+  "truenas": "widget:\n  type: truenas\n  url: http://truenas.host.or.ip\n  version: 2 # optional, defaults to 1\n  username: user # not required if using api key\n  password: pass # not required if using api key\n  key: yourtruenasapikey # not required if using username / password\n  enablePools: true # optional, defaults to false\n  nasType: scale # defaults to scale, must be set to 'core' if using enablePools with TrueNAS Core",
+  "photoprism": "widget:\n  type: photoprism\n  url: http://photoprism.host.or.ip:port\n  username: admin # required only if using username/password\n  password: password # required only if using username/password\n  key: # required only if using app passwords",
+  "mikrotik": "widget:\n  type: mikrotik\n  url: https://mikrotik.host.or.ip\n  username: username\n  password: password",
+  "prometheusmetric": "widget:\n  type: prometheusmetric\n  url: https://prometheus.host.or.ip\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  metrics:\n    - label: Metric 1\n      query: alertmanager_alerts{state=\"active\"}\n    - label: Metric 2\n      query: apiserver_storage_size_bytes{node=\"mynode\"}\n      format:\n        type: bytes\n    - label: Metric 3\n      query: avg(prometheus_notifications_latency_seconds)\n      format:\n        type: number\n        suffix: s\n        options:\n          maximumFractionDigits: 4\n    - label: Metric 4\n      query: time()\n      refreshInterval: 1000 # will override global refreshInterval\n      format:\n        type: date\n        scale: 1000\n        options:\n          timeStyle: medium",
+  "flood": "widget:\n  type: flood\n  url: http://flood.host.or.ip\n  username: username # if set\n  password: password # if set",
+  "stash": "widget:\n  type: stash\n  url: http://stash.host.or.ip\n  key: stashapikey\n  fields: [\"scenes\", \"images\"] # optional - default fields shown",
+  "lidarr": "widget:\n  type: lidarr\n  url: http://lidarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "fritzbox": "widget:\n  type: fritzbox\n  url: http://192.168.178.1",
+  "xteve": "widget:\n  type: xteve\n  url: http://xteve.host.or.ip\n  username: username # optional\n  password: password # optional",
+  "crowdsec": "widget:\n  type: crowdsec\n  url: http://crowdsechostorip:port\n  username: localhost # machine_id in crowdsec\n  password: password\n  limit24h: true # optional, limits alerts to last 24h. Default: false",
+  "calibre-web": "widget:\n  type: calibreweb\n  url: http://your.calibreweb.host:port\n  username: username\n  password: password",
+  "gitea": "widget:\n  type: gitea\n  url: http://gitea.host.or.ip:port\n  key: giteaapitoken",
+  "transmission": "widget:\n  type: transmission\n  url: http://transmission.host.or.ip\n  username: username\n  password: password\n  rpcUrl: /transmission/ # Optional. Matches the value of \"rpc-url\" in your Transmission's settings.json file",
+  "prowlarr": "widget:\n  type: prowlarr\n  url: http://prowlarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "vikunja": "widget:\n  type: vikunja\n  url: http[s]://vikunja.host.or.ip[:port]\n  key: vikunjaapikey\n  enableTaskList: true # optional, defaults to false\n  version: 2 # optional, defaults to 1",
+  "komga": "widget:\n  type: komga\n  url: http://komga.host.or.ip:port\n  username: username\n  password: password\n  key: komgaapikey # optional",
+  "channelsdvrserver": "widget:\n  type: channelsdvrserver\n  url: http://server.host.or.ip:port",
+  "linkwarden": "widget:\n  type: linkwarden\n  url: http://linkwarden.host.or.ip\n  key: myApiKeyHere # On your Linkwarden install, go to Settings > Access Tokens. Generate a token.",
+  "gatus": "widget:\n  type: gatus\n  url: http://gatus.host.or.ip:port",
+  "gamedig": "widget:\n  type: gamedig\n  serverType: csgo # see https://github.com/gamedig/node-gamedig#games-list\n  url: udp://server.host.or.ip:port\n  gameToken: # optional, a token used by gamedig with certain games",
+  "plex-tautulli": "widget:\n  type: tautulli\n  url: http://tautulli.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "wallos": "widget:\n  type: wallos\n  url: http://wallos.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "sonarr": "widget:\n  type: sonarr\n  url: http://sonarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
+  "mylar": "widget:\n  type: mylar\n  url: http://mylar3.host.or.ip:port\n  key: yourmylar3apikey",
+  "stocks": "widget:\n  type: stocks\n  provider: finnhub\n  showUSMarketStatus: true # optional, defaults to true\n  watchlist:\n    - GME\n    - AMC\n    - NVDA\n    - TSM\n    - BRK.A\n    - TSLA\n    - AAPL\n    - MSFT\n    - AMZN\n    - BRK.B",
+  "audiobookshelf": "widget:\n  type: audiobookshelf\n  url: http://audiobookshelf.host.or.ip:port\n  key: audiobookshelflapikey",
+  "mastodon": "widget:\n  type: mastodon\n  url: https://mastodon.host.name",
+  "zabbix": "widget:\n  type: zabbix\n  url: http://zabbix.host.or.ip/zabbix\n  key: your-api-key",
+  "diskstation": "widget:\n  type: diskstation\n  url: http://diskstation.host.or.ip:port\n  username: username\n  password: password\n  volume: volume_N # optional",
+  "pterodactyl": "widget:\n  type: pterodactyl\n  url: http://pterodactylhost:port\n  key: pterodactylapikey",
+  "nginx-proxy-manager": "widget:\n  type: npm\n  url: http://npm.host.or.ip\n  username: admin_username\n  password: admin_password",
+  "dispatcharr": "widget:\n  type: dispatcharr\n  url: http://dispatcharr.host.or.ip\n  username: username\n  password: password\n  enableActiveStreams: true # optional, defaults to false",
+  "develancacheui": "widget:\n  type: develancacheui\n  url: http://your.develancacheui_backend.host:port",
+  "tailscale": "widget:\n  type: tailscale\n  deviceid: deviceid\n  key: tailscalekey",
+  "readarr": "widget:\n  type: readarr\n  url: http://readarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "unmanic": "widget:\n  type: unmanic\n  url: http://unmanic.host.or.ip:port",
+  "cloudflared": "widget:\n  type: cloudflared\n  accountid: accountid # from zero trust dashboard url e.g. https://one.dash.cloudflare.com/<accountid>/home/quick-start\n  tunnelid: tunnelid # found in tunnels dashboard under the tunnel name\n  key: cloudflareapitoken # api token with `Account.Cloudflare Tunnel:Read` https://dash.cloudflare.com/profile/api-tokens",
+  "coin-market-cap": "widget:\n  type: coinmarketcap\n  currency: GBP # Optional\n  symbols: [BTC, LTC, ETH]\n  key: apikeyapikeyapikeyapikeyapikey\n  defaultinterval: 7d # Optional",
+  "customapi": "widget:\n  type: customapi\n  url: http://custom.api.host.or.ip:port/path/to/exact/api/endpoint\n  refreshInterval: 10000 # optional - in milliseconds, defaults to 10s\n  username: username # auth - optional\n  password: password # auth - optional\n  method: GET # optional, e.g. POST\n  headers: # optional, must be object, see below\n  requestBody: # optional, can be string or object, see below\n  display: # optional, default to block, see below\n  mappings:\n    - field: key\n      label: Field 1\n      format: text # optional - defaults to text\n    - field: path.to.key2\n      format: number # optional - defaults to text\n      label: Field 2\n    - field: path.to.another.key3\n      label: Field 3\n      format: percent # optional - defaults to text\n    - field: key\n      label: Field 4\n      format: date # optional - defaults to text\n      locale: nl # optional\n      dateStyle: long # optional - defaults to \"long\". Allowed values: `[\"full\", \"long\", \"medium\", \"short\"]`.\n      timeStyle: medium # optional - Allowed values: `[\"full\", \"long\", \"medium\", \"short\"]`.\n    - field: key\n      label: Field 5\n      format: relativeDate # optional - defaults to text\n      locale: nl # optional\n      style: short # optional - defaults to \"long\". Allowed values: `[\"long\", \"short\", \"narrow\"]`.\n      numeric: auto # optional - defaults to \"always\". Allowed values `[\"always\", \"auto\"]`.\n    - field: key\n      label: Field 6\n      format: text\n      additionalField: # optional\n        field: hourly.time.key\n        color: theme # optional - defaults to \"\". Allowed values: `[\"theme\", \"adaptive\", \"black\", \"white\"]`.\n        format: date # optional\n    - field: key\n      label: Number of things in array\n      format: size\n    # This (no field) will take the root of the API response, e.g. when APIs return an array:\n    - label: Number of items\n      format: size",
+  "seerr": "widget:\n  type: seerr\n  url: http://seerr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "radarr": "widget:\n  type: radarr\n  url: http://radarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableQueue: true # optional, defaults to false",
+  "ntfy": "widget:\n  type: ntfy\n  url: http://ntfy.host.or.ip:port # required\n  topic: mytopic # required\n  # key: tk_accesstoken # optional — for token auth\n  # username: user # optional — for basic auth\n  # password: pass # optional — for basic auth",
+  "nextcloud": "widget:\n  type: nextcloud\n  url: https://nextcloud.host.or.ip:port\n  key: token",
+  "tandoor": "widget:\n  type: tandoor\n  url: http://tandoor-frontend.host.or.ip\n  key: tandoor-api-token",
+  "pfsense": "widget:\n  type: pfsense\n  url: http://pfsense.host.or.ip:port\n  username: user # optional, or API key\n  password: pass # optional, or API key\n  headers: # optional, or username/password\n    X-API-Key: key\n  wan: igb0\n  version: 2 # optional, defaults to 1 for api v1\n  fields: [\"load\", \"memory\", \"temp\", \"wanStatus\"] # optional",
+  "frigate": "widget:\n  type: frigate\n  url: http://frigate.host.or.ip:port\n  enableRecentEvents: true # Optional, defaults to false\n  username: username # optional\n  password: password # optional",
+  "qbittorrent": "widget:\n  type: qbittorrent\n  url: http://qbittorrent.host.or.ip\n  username: username\n  password: password\n  enableLeechProgress: true # optional, defaults to false\n  enableLeechSize: true # optional, defaults to false",
+  "arcane": "widget:\n  type: arcane\n  url: http://localhost:3552\n  env: 0 # required, 0 is Arcane default local environment\n  key: your-api-key\n  fields: [\"running\", \"stopped\", \"total\", \"image_updates\"] # optional",
+  "mjpeg": "widget:\n  type: mjpeg\n  stream: http://mjpeg.host.or.ip/webcam/stream",
+  "slskd": "widget:\n  type: slskd\n  url: http[s]://slskd.host.or.ip[:5030]\n  key: generatedapikey",
+  "esphome": "widget:\n  type: esphome\n  url: http://esphome.host.or.ip:port\n  username: myesphomeuser # only if auth enabled\n  password: myesphomepass # only if auth enabled",
+  "openwrt": "widget:\n  type: openwrt\n  url: http://host.or.ip\n  username: homepage\n  password: pass\n  interfaceName: eth0 # optional",
+  "netalertx": "widget:\n  type: netalertx\n  url: http://ip:port # use backend port for widget version 2+\n  key: yournetalertxapitoken\n  version: 2 # optional, default is 1",
+  "peanut": "widget:\n  type: peanut\n  url: http://peanut.host.or.ip:port\n  key: nameofyourups\n  username: username # only needed if set\n  password: password # only needed if set",
+  "ghostfolio": "widget:\n  type: ghostfolio\n  url: http://ghostfoliohost:port\n  key: ghostfoliobearertoken",
+  "sabnzbd": "widget:\n  type: sabnzbd\n  url: http://sabnzbd.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "jackett": "widget:\n  type: jackett\n  url: http://jackett.host.or.ip\n  password: jackettadminpassword # optional",
+  "karakeep": "widget:\n  type: karakeep\n  url: http[s]://karakeep.host.or.ip[:port]\n  key: karakeep_api_key",
+  "wgeasy": "widget:\n  type: wgeasy\n  url: http://wg.easy.or.ip\n  version: 2 # optional, default is 1\n  username: yourwgusername # required for v15 and above\n  password: yourwgeasypassword\n  threshold: 2 # optional",
+  "jellystat": "widget:\n  type: jellystat\n  url: http://jellystat.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  days: 30 # optional, defaults to 30",
+  "homebridge": "widget:\n  type: homebridge\n  url: http://homebridge.host.or.ip:port\n  username: username\n  password: password",
+  "authentik": "widget:\n  type: authentik\n  url: http://authentik.host.or.ip:port\n  key: api_token\n  version: 2 # optional, default is 1",
+  "iframe": "widget:\n  type: iframe\n  name: myIframe\n  src: http://example.com",
+  "proxmoxbackupserver": "widget:\n  type: proxmoxbackupserver\n  url: https://proxmoxbackupserver.host:port\n  username: api_token_id\n  password: api_token_secret\n  datastore: datastore_name #optional; if ommitted, will display a combination of all datastores used / total",
+  "filebrowser": "widget:\n  type: filebrowser\n  url: http://filebrowserhostorip:port\n  username: username\n  password: password\n  authHeader: X-My-Header # If using Proxy header authentication",
+  "technitium": "widget:\n  type: technitium\n  url: <url to dns server>\n  key: biglongapitoken\n  node: <node dns name or cluster> # optional, defaults to current node\n  range: LastDay # optional, defaults to LastHour",
+  "healthchecks": "widget:\n  type: healthchecks\n  url: http://healthchecks.host.or.ip:port\n  key: <YOUR_API_KEY>\n  uuid: <CHECK_UUID> # optional, if not included total statistics for all checks is shown",
+  "proxmox": "widget:\n  type: proxmox\n  url: https://proxmox.host.or.ip:8006\n  username: api_token_id\n  password: api_token_secret\n  node: pve-1 # optional",
+  "scrutiny": "widget:\n  type: scrutiny\n  url: http://scrutiny.host.or.ip",
+  "hdhomerun": "widget:\n  type: hdhomerun\n  url: http://hdhomerun.host.or.ip\n  tuner: 0 # optional - defaults to 0, used for tuner-specific fields\n  fields: [\"channels\", \"hd\"] # optional - default fields shown",
+  "yourspotify": "widget:\n  type: yourspotify\n  url: http://your-spotify-server.host.or.ip # if using lsio image, add /api/\n  key: apikeyapikeyapikeyapikeyapikey\n  interval: month # optional, defaults to week",
+  "tdarr": "widget:\n  type: tdarr\n  url: http://tdarr.host.or.ip\n  key: tdarrapikey # optional",
+  "homebox": "widget:\n  type: homebox\n  url: http://homebox.host.or.ip:port\n  username: username\n  password: password\n  fields: [\"items\", \"locations\", \"totalValue\"] # optional - default fields shown",
+  "kopia": "widget:\n  type: kopia\n  url: http://kopia.host.or.ip:port\n  username: username\n  password: password\n  snapshotHost: hostname # optional\n  snapshotPath: path # optional",
+  "nzbget": "widget:\n  type: nzbget\n  url: http://nzbget.host.or.ip\n  username: controlusername\n  password: controlpassword",
+  "booklore": "widget:\n  type: booklore\n  url: https://booklore.host.or.ip\n  username: username\n  password: password",
+  "rutorrent": "widget:\n  type: rutorrent\n  url: http://rutorrent.host.or.ip\n  username: username # optional, false if not used\n  password: password # optional, false if not used",
+  "grafana": "widget:\n  type: grafana\n  version: 2 # optional, default is 1\n  alerts: alertmanager # optional, default is grafana\n  url: http://grafana.host.or.ip:port\n  username: username\n  password: password",
+  "swagdashboard": "widget:\n  type: swagdashboard\n  url: http://swagdashboard.host.or.ip:adminport # default port is 81",
+  "romm": "widget:\n  type: romm\n  url: http://romm.host.or.ip\n  fields: [\"platforms\", \"totalRoms\", \"saves\", \"states\"] # optional - default fields shown",
+  "trilium": "widget:\n  type: trilium\n  url: https://trilium.host.or.ip\n  key: etapi_token",
+  "downloadstation": "widget:\n  type: downloadstation\n  url: http://downloadstation.host.or.ip:port\n  username: username\n  password: password",
+  "apcups": "widget:\n  type: apcups\n  url: tcp://your.acpupsd.host:3551",
+  "adguard-home": "widget:\n  type: adguard\n  url: http://adguard.host.or.ip\n  username: admin\n  password: password",
+  "evcc": "widget:\n  type: evcc\n  url: http://evcc.host.or.ip:port",
+  "syncthing-relay-server": "widget:\n  type: strelaysrv\n  url: http://syncthing.host.or.ip:22070",
+  "pihole": "widget:\n  type: pihole\n  url: http://pi.hole.or.ip\n  version: 6 # required if running v6 or higher, defaults to 5\n  key: yourpiholeapikey # optional, in v6 can be your password or app password",
+  "calendar": "widget:\n  type: calendar\n  firstDayInWeek: sunday # optional - defaults to monday\n  view: monthly # optional - possible values monthly, agenda\n  maxEvents: 10 # optional - defaults to 10\n  showTime: true # optional - show time for event happening today - defaults to false\n  timezone: America/Los_Angeles # optional and only when timezone is not detected properly (slightly slower performance) - force timezone for ical events (if it's the same - no change, if missing or different in ical - will be converted to this timezone)\n  integrations: # optional\n    - type: sonarr # active widget type that is currently enabled on homepage - possible values: radarr, sonarr, lidarr, readarr, ical\n      service_group: Media # group name where widget exists\n      service_name: Sonarr # service name for that widget\n      color: teal # optional - defaults to pre-defined color for the service (teal for sonarr)\n      baseUrl: https://sonarr.domain.url # optional - adds links to sonarr/radarr pages\n      params: # optional - additional params for the service\n        unmonitored: true # optional - defaults to false, used with *arr stack\n    - type: ical # Show calendar events from another service\n      url: https://domain.url/with/link/to.ics # URL with calendar events\n      name: My Events # required - name for these calendar events\n      color: zinc # optional - defaults to pre-defined color for the service (zinc for ical)\n      params: # optional - additional params for the service\n        showName: true # optional - show name before event title in event line - defaults to false",
+  "navidrome": "widget:\n  type: navidrome\n  url: http://navidrome.host.or.ip:port\n  user: username\n  token: token #md5(password + salt)\n  salt: randomsalt",
+  "opendtu": "widget:\n  type: opendtu\n  url: http://opendtu.host.or.ip",
+  "sparkyfitness": "widget:\n  type: sparkyfitness\n  url: http://sparkyfitness.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "plex": "widget:\n  type: plex\n  url: http://plex.host.or.ip:32400\n  key: mytokenhere # see https://www.plexopedia.com/plex-media-server/general/plex-token/",
+  "fileflows": "widget:\n  type: fileflows\n  url: http://your.fileflows.host:port",
+  "traefik": "widget:\n  type: traefik\n  url: http://traefik.host.or.ip\n  username: username # optional\n  password: password # optional",
+  "plantit": "widget:\n  type: plantit\n  url: http://plant-it.host.or.ip:port # api port\n  key: plantit-api-key",
+  "jdownloader": "widget:\n  type: jdownloader\n  username: JDownloader Username\n  password: JDownloader Password\n  client: Name of JDownloader Instance",
+  "urbackup": "widget:\n  type: urbackup\n  username: urbackupUsername\n  password: urbackupPassword\n  url: http://urbackupUrl:55414\n  maxDays: 5 # optional",
+  "deluge": "widget:\n  type: deluge\n  url: http://deluge.host.or.ip\n  password: password # webui password\n  enableLeechProgress: true # optional, defaults to false",
+  "headscale": "widget:\n  type: headscale\n  url: http://headscale.host.or.ip:port\n  nodeId: nodeid\n  key: headscaleapiaccesstoken",
+  "watchtower": "widget:\n  type: watchtower\n  url: http://your-ip-address:8080\n  key: demotoken",
+  "atsumeru": "widget:\n  type: atsumeru\n  url: http://atsumeru.host.or.ip:port\n  username: username\n  password: password",
+  "pyload": "widget:\n  type: pyload\n  url: http://pyload.host.or.ip:port\n  username: username\n  password: password # only needed if set\n  key: pyloadapikey # only needed if set, takes precedence over username/password",
+  "minecraft": "widget:\n  type: minecraft\n  url: udp://minecraftserveripordomain:port",
+  "spoolman": "widget:\n  type: spoolman\n  url: http://spoolman.host.or.ip\n  spoolIds: [1, 2, 3, 4] # optional",
+  "prometheus": "widget:\n  type: prometheus\n  url: http://prometheushost:port",
+  "kavita": "widget:\n  type: kavita\n  url: http://kavita.host.or.ip:port\n  username: username\n  password: password\n  key: kavitaapikey # Optional, e.g. if not using username and password",
+  "unraid": "widget:\n  type: unraid\n  url: https://unraid.host.or.ip\n  key: api-key\n  pool1: pool1name # required only if using pool1 fields\n  pool2: pool2name # required only if using pool2 fields\n  pool3: pool3name # required only if using pool3 fields\n  pool4: pool4name # required only if using pool4 fields",
+  "immich": "widget:\n  type: immich\n  url: http://immich.host.or.ip\n  key: adminapikeyadminapikeyadminapikey\n  version: 2 # optional, default is 1",
+  "backrest": "widget:\n  type: backrest\n  url: http://backrest.host.or.ip\n  username: admin # optional if auth is enabled in Backrest\n  password: admin # optional if auth is enabled in Backrest",
+  "opnsense": "widget:\n  type: opnsense\n  url: http://opnsense.host.or.ip\n  username: key\n  password: secret\n  wan: opt1 # optional, defaults to wan",
+  "unifi-controller": "widget:\n  type: unifi\n  url: https://unifi.host.or.ip:port\n  site: Site Name # optional\n  username: user\n  password: pass\n  key: unifiapikey # required if using API key instead of username/password",
+  "openmediavault": "widget:\n  type: openmediavault\n  url: http://omv.host.or.ip\n  username: admin\n  password: pass\n  method: services.getStatus # required",
+  "autobrr": "widget:\n  type: autobrr\n  url: http://autobrr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "uptimerobot": "widget:\n  type: uptimerobot\n  url: https://api.uptimerobot.com\n  key: uptimerobotapitoken",
+  "uptime-kuma": "widget:\n  type: uptimekuma\n  url: http://uptimekuma.host.or.ip:port\n  slug: statuspageslug",
+  "octoprint": "widget:\n  type: octoprint\n  url: http://octoprint.host.or.ip:port\n  key: youroctoprintapikey",
+  "gotify": "widget:\n  type: gotify\n  url: http://gotify.host.or.ip\n  key: clientoken",
+  "miniflux": "widget:\n  type: miniflux\n  url: http://miniflux.host.or.ip:port\n  key: minifluxapikey",
+  "medusa": "widget:\n  type: medusa\n  url: http://medusa.host.or.ip:port\n  key: medusaapikeyapikeyapikeyapikeyapikey",
+  "changedetectionio": "widget:\n  type: changedetectionio\n  url: http://changedetection.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey",
+  "mealie": "widget:\n  type: mealie\n  url: http://mealie-frontend.host.or.ip\n  key: mealieapitoken\n  version: 2 # only required if version > 1, defaults to 1",
+  "gitlab": "widget:\n  type: gitlab\n  url: http://gitlab.host.or.ip:port\n  key: personal-access-token\n  user_id: 123456",
+  "beszel": "widget:\n  type: beszel\n  url: http://beszel.host.or.ip\n  username: username # email\n  password: password\n  systemId: systemId # optional\n  version: 2 # optional, default is 1",
+  "moonraker": "widget:\n  type: moonraker\n  url: http://moonraker.host.or.ip:port",
+  "dockhand": "widget:\n  type: dockhand\n  url: http://localhost:3001\n  environment: local # optional: name or id; aggregates all when omitted\n  username: your-user # required for local auth\n  password: your-pass # required for local auth",
+  "azuredevops": "widget:\n  type: azuredevops\n  organization: myOrganization\n  project: myProject\n  definitionId: pipelineDefinitionId # required for pipelines\n  branchName: branchName # optional for pipelines, leave empty for all\n  userEmail: email # required for pull requests\n  repositoryId: prRepositoryId # required for pull requests\n  key: personalaccesstoken",
+  "whatsupdocker": "widget:\n  type: whatsupdocker\n  url: http://whatsupdocker:port\n  username: username # optional\n  password: password # optional",
+  "emby": "widget:\n  type: emby\n  url: http://emby.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "glances": "widget:\n  type: glances\n  url: http://glances.host.or.ip:port\n  username: user # optional if auth enabled in Glances\n  password: pass # optional if auth enabled in Glances\n  version: 4 # required only if running glances v4 or higher, defaults to 3\n  metric: cpu\n  diskUnits: bytes # optional, bytes (default) or bbytes. Only applies to disk\n  refreshInterval: 5000 # optional - in milliseconds, defaults to 1000 or more, depending on the metric\n  pointsLimit: 15 # optional, defaults to 15",
+  "omada": "widget:\n  type: omada\n  url: http://omada.host.or.ip:port\n  username: username\n  password: password\n  site: sitename",
+  "bazarr": "widget:\n  type: bazarr\n  url: http://bazarr.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "firefly": "widget:\n  type: firefly\n  url: https://firefly.host.or.ip\n  key: personalaccesstoken.personalaccesstoken.personalaccesstoken",
+  "unifi-drive": "widget:\n  type: unifi_drive\n  url: https://unifi.host.or.ip\n  username: your_username\n  password: your_password",
+  "jellyfin": "widget:\n  type: jellyfin\n  url: http://jellyfin.host.or.ip:port\n  key: apikeyapikeyapikeyapikeyapikey\n  version: 2 # optional, default is 1\n  enableBlocks: true # optional, defaults to false\n  enableNowPlaying: true # optional, defaults to true\n  enableUser: true # optional, defaults to false\n  enableMediaControl: false # optional, defaults to true\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "lubelogger": "widget:\n  type: lubelogger\n  url: https://lubelogger.host.or.ip\n  username: lubeloggerusername\n  password: lubeloggerpassword\n  vehicleID: 1 # optional, changes to single-vehicle version",
+  "caddy": "widget:\n  type: caddy\n  url: http://caddy.host.or.ip:adminport # default admin port is 2019",
+  "checkmk": "widget:\n  type: checkmk\n  url: http://checkmk.host.or.ip:port\n  site: your-site-name-cla-by-default\n  username: username\n  password: password",
+  "qnap": "widget:\n  type: qnap\n  url: http://qnap.host.or.ip:port\n  username: user\n  password: pass",
+  "ombi": "widget:\n  type: ombi\n  url: http://ombi.host.or.ip\n  key: apikeyapikeyapikeyapikeyapikey",
+  "komodo": "widget:\n  type: komodo\n  url: http://komodo.hostname.or.ip:port\n  key: K-xxxxxx...\n  secret: S-xxxxxx...\n  showSummary: true # optional, default: false. Takes precedence over showStacks\n  showStacks: true # optional, default: false",
+  "mailcow": "widget:\n  type: mailcow\n  url: https://mailcow.host.or.ip\n  key: mailcowapikey",
+  "portainer": "widget:\n  type: portainer\n  url: https://portainer.host.or.ip:9443\n  env: 1\n  kubernetes: true # optional, defaults to false\n  key: ptr_accesskeyaccesskeyaccesskeyaccesskey",
+  "netdata": "widget:\n  type: netdata\n  url: http://netdata.host.or.ip",
+  "myspeed": "widget:\n  type: myspeed\n  url: http://myspeed.host.or.ip:port\n  password: password # only required if password is set",
+  "suwayomi": "widget:\n  type: suwayomi\n  url: http://suwayomi.host.or.ip\n  username: username #optional\n  password: password #optional\n  category: 0 #optional, defaults to all categories",
+  "tubearchivist": "widget:\n  type: tubearchivist\n  url: http://tubearchivist.host.or.ip\n  key: tubearchivistapikey",
+  "gluetun": "widget:\n  type: gluetun\n  url: http://gluetun.host.or.ip:port\n  key: gluetunkey # Not required if /v1/publicip/ip endpoint is configured with `auth = none`\n  version: 2 # optional, default is 1",
+  "homeassistant": "widget:\n  type: homeassistant\n  url: http://homeassistant.host.or.ip:port\n  key: access_token\n  custom:\n    - state: sensor.total_power\n    - state: sensor.total_energy_today\n      label: energy today\n    - template: \"{{ states.switch|selectattr('state','equalto','on')|list|length }}\"\n      label: switches on\n    - state: weather.forecast_home\n      label: wind speed\n      value: \"{attributes.wind_speed} {attributes.wind_speed_unit}\"",
+  "pangolin": "widget:\n  type: pangolin\n  url: https://api.pangolin.net\n  key: your-api-key\n  org: your-org-id",
+  "speedtest-tracker": "widget:\n  type: speedtest\n  url: http://speedtest.host.or.ip\n  version: 1 # optional, default is 1\n  key: speedtestapikey # required for version 2\n  bitratePrecision: 3 # optional, default is 0",
+  "nextdns": "widget:\n  type: nextdns\n  profile: profileid\n  key: yourapikeyhere",
+  "freshrss": "widget:\n  type: freshrss\n  url: http://freshrss.host.or.ip:port\n  username: username\n  password: password",
+  "tracearr": "widget:\n  type: tracearr\n  url: http://tracearr.host.or.ip:3000\n  key: apikeyapikeyapikeyapikeyapikey\n  view: both # optional, \"summary\", \"details\", or \"both\", defaults to \"details\"\n  enableUser: true # optional, defaults to false\n  showEpisodeNumber: true # optional, defaults to false\n  expandOneStreamToTwoRows: false # optional, defaults to true",
+  "paperlessngx": "widget:\n  type: paperlessngx\n  url: http://paperlessngx.host.or.ip:port\n  username: username\n  password: password",
+  "torrsyncarr": "widget:\n  type: torrsyncarr\n  url: http://192.168.1.132:8099\n  fields:\n    - movies\n    - series\n    - anime\n    - cartoons\n    - import"
 };
 
 const WIDGET_BOOLEANS = {
-  jellyfin: [
+  "jellyfin": [
     "enableBlocks",
     "enableMediaControl",
     "enableNowPlaying",
     "enableUser",
     "expandOneStreamToTwoRows",
-    "showEpisodeNumber",
+    "showEpisodeNumber"
   ],
-  dispatcharr: ["enableActiveStreams"],
-  truenas: ["enablePools"],
-  tautulli: ["enableUser", "expandOneStreamToTwoRows", "showEpisodeNumber"],
-  komodo: ["showStacks", "showSummary"],
-  sonarr: ["enableQueue"],
-  stocks: ["showUSMarketStatus"],
-  radarr: ["enableQueue"],
-  iframe: ["allowPolicy", "allowScrolling", "allowfullscreen"],
-  frigate: ["enableRecentEvents"],
-  deluge: ["enableLeechProgress"],
-  vikunja: ["enableTaskList"],
-  tracearr: ["enableUser", "expandOneStreamToTwoRows", "showEpisodeNumber"],
-  qbittorrent: ["enableLeechProgress", "enableLeechSize"],
-  emby: [
+  "dispatcharr": [
+    "enableActiveStreams"
+  ],
+  "truenas": [
+    "enablePools"
+  ],
+  "tautulli": [
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "komodo": [
+    "showStacks",
+    "showSummary"
+  ],
+  "sonarr": [
+    "enableQueue"
+  ],
+  "stocks": [
+    "showUSMarketStatus"
+  ],
+  "radarr": [
+    "enableQueue"
+  ],
+  "iframe": [
+    "allowPolicy",
+    "allowScrolling",
+    "allowfullscreen"
+  ],
+  "frigate": [
+    "enableRecentEvents"
+  ],
+  "deluge": [
+    "enableLeechProgress"
+  ],
+  "vikunja": [
+    "enableTaskList"
+  ],
+  "tracearr": [
+    "enableUser",
+    "expandOneStreamToTwoRows",
+    "showEpisodeNumber"
+  ],
+  "qbittorrent": [
+    "enableLeechProgress",
+    "enableLeechSize"
+  ],
+  "emby": [
     "enableBlocks",
     "enableMediaControl",
     "enableNowPlaying",
     "enableUser",
     "expandOneStreamToTwoRows",
-    "showEpisodeNumber",
+    "showEpisodeNumber"
   ],
-  glances: ["hideErrors"],
-  calendar: ["showTime"],
-  ical: ["showTime"],
-  torrsyncarr: ["enableWaitingCount"],
+  "glances": [
+    "hideErrors"
+  ],
+  "calendar": [
+    "showTime"
+  ],
+  "ical": [
+    "showTime"
+  ],
+  "torrsyncarr": [
+    "enableWaitingCount"
+  ]
 };
 
 const WIDGET_TRANSLATIONS = {
-  enableBlocks: "Показывать библиотеки блоками",
-  enableMediaControl: "Интерактивный пульт управления медиа",
-  enableNowPlaying: "Показывать воспроизведение сейчас",
-  enableUser: "Показывать имя пользователя",
-  expandOneStreamToTwoRows: "Отображать поток в две строки",
-  showEpisodeNumber: "Показывать сезон и номер серии",
-  enableActiveStreams: "Показывать активные потоки",
-  enablePools: "Отображать дисковые пулы подробно",
-  showStacks: "Показывать стеки контейнеров",
-  showSummary: "Показывать общую сводку",
-  enableQueue: "Отображать очередь загрузок",
-  showUSMarketStatus: "Показывать статус рынка США",
-  allowPolicy: "Разрешить политики безопасности (allow-policy)",
-  allowScrolling: "Разрешить прокрутку внутри фрейма",
-  allowfullscreen: "Разрешить полноэкранный режим фрейма",
-  enableRecentEvents: "Показывать недавние события frigate",
-  enableLeechProgress: "Показывать прогресс скачивающих (личей)",
-  enableLeechSize: "Показывать размер загрузок скачивающих (личей)",
-  enableTaskList: "Показывать список задач",
-  hideErrors: "Скрывать ошибки подключения",
-  showTime: "Показывать время для сегодняшних событий",
-  enableWaitingCount: "Показывать количество медиа на импорт",
+  "enableBlocks": "Показывать библиотеки блоками",
+  "enableMediaControl": "Интерактивный пульт управления медиа",
+  "enableNowPlaying": "Показывать воспроизведение сейчас",
+  "enableUser": "Показывать имя пользователя",
+  "expandOneStreamToTwoRows": "Отображать поток в две строки",
+  "showEpisodeNumber": "Показывать сезон и номер серии",
+  "enableActiveStreams": "Показывать активные потоки",
+  "enablePools": "Отображать дисковые пулы подробно",
+  "showStacks": "Показывать стеки контейнеров",
+  "showSummary": "Показывать общую сводку",
+  "enableQueue": "Отображать очередь загрузок",
+  "showUSMarketStatus": "Показывать статус рынка США",
+  "allowPolicy": "Разрешить политики безопасности (allow-policy)",
+  "allowScrolling": "Разрешить прокрутку внутри фрейма",
+  "allowfullscreen": "Разрешить полноэкранный режим фрейма",
+  "enableRecentEvents": "Показывать недавние события frigate",
+  "enableLeechProgress": "Показывать прогресс скачивающих (личей)",
+  "enableLeechSize": "Показывать размер загрузок скачивающих (личей)",
+  "enableTaskList": "Показывать список задач",
+  "hideErrors": "Скрывать ошибки подключения",
+  "showTime": "Показывать время для сегодняшних событий",
+  "enableWaitingCount": "Показывать количество медиа на импорт"
 };
-
-async function threeXuiSourcesFetcher(url) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-  return response.json();
-}
-
-function ThreeXuiWidgetSettings({ widget, onWidgetChange }) {
-  const widgetSource =
-    threeXuiSourceFromWidget(widget) || threeXuiDefaultSource;
-  const selectedMetrics = threeXuiMetricKeysFromWidget(widget);
-  const {
-    data,
-    error: sourcesError,
-    mutate,
-  } = useSWR("/api/config/three-x-ui", threeXuiSourcesFetcher, {
-    revalidateOnFocus: false,
-  });
-  const [source, setSource] = useState(widgetSource);
-  const [panelUrl, setPanelUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setSource(widgetSource);
-  }, [widgetSource]);
-
-  useEffect(() => {
-    const configured = (data?.sources ?? []).find(
-      (candidate) => candidate.id === source,
-    );
-    setPanelUrl(configured?.url ?? "");
-    setToken("");
-    setMessage("");
-    setError("");
-  }, [data?.sources, source]);
-
-  const updateWidget = (nextSource, metricKeys = selectedMetrics) => {
-    onWidgetChange(
-      buildThreeXuiWidget(nextSource, metricKeys, data?.internalBaseUrl),
-    );
-  };
-
-  useEffect(() => {
-    if (!data?.internalBaseUrl || !threeXuiSourcePattern.test(source)) {
-      return;
-    }
-    const expectedWidget = buildThreeXuiWidget(
-      source,
-      selectedMetrics,
-      data.internalBaseUrl,
-    );
-    if (widget?.url !== expectedWidget.url) {
-      onWidgetChange(expectedWidget);
-    }
-  }, [
-    data?.internalBaseUrl,
-    onWidgetChange,
-    selectedMetrics,
-    source,
-    widget?.url,
-  ]);
-
-  const toggleMetric = (key, checked) => {
-    const next = checked
-      ? [...new Set([...selectedMetrics, key])]
-      : selectedMetrics.filter((candidate) => candidate !== key);
-    if (next.length === 0) {
-      setError("Выберите хотя бы один показатель");
-      return;
-    }
-    setError("");
-    updateWidget(source, next);
-  };
-
-  const saveConnection = async () => {
-    const normalizedSource = source.trim();
-    if (!threeXuiSourcePattern.test(normalizedSource)) {
-      setError(
-        "Имя подключения: латинские буквы, цифры, точка, дефис или подчёркивание",
-      );
-      return;
-    }
-    if (!panelUrl.trim()) {
-      setError("Укажите URL панели 3x-ui");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setMessage("");
-    try {
-      const response = await editorWriteFetch("/api/config/three-x-ui", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: normalizedSource,
-          token,
-          url: panelUrl.trim(),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const saved = await response.json();
-      setSource(saved.id);
-      setPanelUrl(saved.url);
-      setToken("");
-      updateWidget(saved.id);
-      await mutate();
-      setMessage("Подключение проверено и сохранено");
-    } catch (saveError) {
-      setError(saveError.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const hasStoredToken = (data?.sources ?? []).some(
-    (candidate) => candidate.id === source && candidate.hasToken,
-  );
-
-  return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-      <section className="rounded-xl border border-theme-300/50 bg-theme-50/50 p-3 dark:border-white/10 dark:bg-black/10">
-        <div className="mb-3">
-          <div className="text-xs font-semibold text-theme-800 dark:text-theme-100">
-            Подключение к 3x-ui
-          </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-theme-500 dark:text-theme-400">
-            Адрес и токен хранятся отдельно от services.yaml и не попадают в
-            настройки виджета.
-          </p>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-3">
-          <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-            Подключение
-            <input
-              type="text"
-              list="three-x-ui-source-options"
-              value={source}
-              onChange={(event) => {
-                const nextSource = event.target.value;
-                setSource(nextSource);
-                if (threeXuiSourcePattern.test(nextSource)) {
-                  updateWidget(nextSource);
-                }
-              }}
-              placeholder="main"
-              className="mt-1 h-8 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 text-[13px] text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-            />
-            <datalist id="three-x-ui-source-options">
-              {(data?.sources ?? []).map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.url}
-                </option>
-              ))}
-            </datalist>
-          </label>
-
-          <label className="block text-[11px] text-theme-600 dark:text-theme-300 sm:col-span-2">
-            URL панели со скрытым путём
-            <input
-              type="url"
-              value={panelUrl}
-              onChange={(event) => setPanelUrl(event.target.value)}
-              placeholder="https://3x.example.com/secret-path"
-              className="mt-1 h-8 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 text-[13px] text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-            />
-          </label>
-        </div>
-
-        <label className="mt-2 block text-[11px] text-theme-600 dark:text-theme-300">
-          API-токен
-          <input
-            type="password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            placeholder={
-              hasStoredToken
-                ? "Уже сохранён — оставьте пустым, чтобы не менять"
-                : "Bearer API token из Settings 3x-ui"
-            }
-            autoComplete="new-password"
-            className="mt-1 h-8 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 text-[13px] text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-          />
-        </label>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            {(message || error || sourcesError) && (
-              <div
-                className={classNames(
-                  "rounded-md px-2.5 py-1.5 text-[11px]",
-                  error || sourcesError
-                    ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
-                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-                )}
-              >
-                {error || sourcesError?.message || message}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={saveConnection}
-            disabled={saving}
-            className="rounded-md bg-theme-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-theme-800 disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900 dark:hover:bg-white"
-          >
-            {saving ? "Проверка…" : "Проверить и сохранить"}
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-theme-300/50 bg-theme-50/50 p-3 dark:border-white/10 dark:bg-black/10">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold text-theme-800 dark:text-theme-100">
-              Данные виджета
-            </div>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-theme-500 dark:text-theme-400">
-              Отметьте показатели, которые нужно показать на одной карточке.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => updateWidget(source, defaultThreeXuiMetricKeys())}
-            className="shrink-0 rounded-md border border-theme-300/60 px-2 py-1 text-[10px] font-medium text-theme-600 hover:bg-theme-200/50 dark:border-white/15 dark:text-theme-300 dark:hover:bg-white/10"
-          >
-            По умолчанию
-          </button>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          {threeXuiMetricDefinitions.map((metric) => (
-            <label
-              key={metric.key}
-              className={classNames(
-                "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px] transition-colors",
-                selectedMetrics.includes(metric.key)
-                  ? "border-theme-500/50 bg-theme-200/60 text-theme-900 dark:border-white/25 dark:bg-white/10 dark:text-theme-100"
-                  : "border-theme-300/30 bg-transparent text-theme-600 hover:bg-theme-100/70 dark:border-white/10 dark:text-theme-300 dark:hover:bg-white/5",
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={selectedMetrics.includes(metric.key)}
-                onChange={(event) =>
-                  toggleMetric(metric.key, event.target.checked)
-                }
-                className="h-4 w-4 rounded border-theme-300 text-theme-600 focus:ring-theme-500 dark:border-white/20"
-              />
-              <span>{metric.label}</span>
-            </label>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
 
 function WidgetTemplateSelector({ extraYaml, onChange }) {
   let parsed = null;
@@ -7172,170 +5313,167 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
   const widget = parsed?.widget;
 
   const allWidgetTypes = [
-    "3xui",
-    "adguard-home",
-    "apcups",
-    "arcane",
-    "argocd",
-    "atsumeru",
-    "audiobookshelf",
-    "authentik",
-    "autobrr",
-    "azuredevops",
-    "backrest",
-    "bazarr",
-    "beszel",
-    "booklore",
-    "caddy",
-    "calendar",
-    "calibre-web",
-    "changedetectionio",
-    "channelsdvrserver",
-    "checkmk",
-    "cloudflared",
-    "coin-market-cap",
-    "crowdsec",
-    "customapi",
-    "deluge",
-    "develancacheui",
-    "diskstation",
-    "dispatcharr",
-    "dockhand",
-    "downloadstation",
-    "emby",
-    "esphome",
-    "evcc",
-    "filebrowser",
-    "fileflows",
-    "firefly",
-    "flood",
-    "freshrss",
-    "frigate",
-    "fritzbox",
-    "gamedig",
-    "gatus",
-    "ghostfolio",
-    "gitea",
-    "gitlab",
-    "glances",
-    "gluetun",
-    "gotify",
-    "grafana",
-    "hdhomerun",
-    "headscale",
-    "healthchecks",
-    "homeassistant",
-    "homebox",
-    "homebridge",
-    "iframe",
-    "immich",
-    "jackett",
-    "jdownloader",
-    "jellyfin",
-    "jellystat",
-    "karakeep",
-    "kavita",
-    "komga",
-    "komodo",
-    "kopia",
-    "lidarr",
-    "linkwarden",
-    "lubelogger",
-    "mailcow",
-    "mastodon",
-    "mealie",
-    "medusa",
-    "mikrotik",
-    "minecraft",
-    "miniflux",
-    "mjpeg",
-    "moonraker",
-    "mylar",
-    "myspeed",
-    "navidrome",
-    "netalertx",
-    "netdata",
-    "nextcloud",
-    "nextdns",
-    "nginx-proxy-manager",
-    "ntfy",
-    "nzbget",
-    "octoprint",
-    "omada",
-    "ombi",
-    "opendtu",
-    "openmediavault",
-    "openwrt",
-    "opnsense",
-    "pangolin",
-    "paperlessngx",
-    "peanut",
-    "pfsense",
-    "photoprism",
-    "pihole",
-    "plantit",
-    "plex",
-    "plex-tautulli",
-    "portainer",
-    "prometheus",
-    "prometheusmetric",
-    "prowlarr",
-    "proxmox",
-    "proxmoxbackupserver",
-    "pterodactyl",
-    "pyload",
-    "qbittorrent",
-    "qnap",
-    "radarr",
-    "readarr",
-    "romm",
-    "rutorrent",
-    "sabnzbd",
-    "scrutiny",
-    "seerr",
-    "slskd",
-    "sonarr",
-    "sparkyfitness",
-    "speedtest-tracker",
-    "spoolman",
-    "stash",
-    "stocks",
-    "suwayomi",
-    "swagdashboard",
-    "syncthing-relay-server",
-    "tailscale",
-    "tandoor",
-    "tdarr",
-    "technitium",
-    "torrsyncarr",
-    "tracearr",
-    "traefik",
-    "transmission",
-    "trilium",
-    "truenas",
-    "tubearchivist",
-    "unifi-controller",
-    "unifi-drive",
-    "unmanic",
-    "unraid",
-    "uptime-kuma",
-    "uptimerobot",
-    "urbackup",
-    "vikunja",
-    "wallos",
-    "watchtower",
-    "wgeasy",
-    "whatsupdocker",
-    "xteve",
-    "yourspotify",
-    "zabbix",
-  ];
+  "adguard-home",
+  "apcups",
+  "arcane",
+  "argocd",
+  "atsumeru",
+  "audiobookshelf",
+  "authentik",
+  "autobrr",
+  "azuredevops",
+  "backrest",
+  "bazarr",
+  "beszel",
+  "booklore",
+  "caddy",
+  "calendar",
+  "calibre-web",
+  "changedetectionio",
+  "channelsdvrserver",
+  "checkmk",
+  "cloudflared",
+  "coin-market-cap",
+  "crowdsec",
+  "customapi",
+  "deluge",
+  "develancacheui",
+  "diskstation",
+  "dispatcharr",
+  "dockhand",
+  "downloadstation",
+  "emby",
+  "esphome",
+  "evcc",
+  "filebrowser",
+  "fileflows",
+  "firefly",
+  "flood",
+  "freshrss",
+  "frigate",
+  "fritzbox",
+  "gamedig",
+  "gatus",
+  "ghostfolio",
+  "gitea",
+  "gitlab",
+  "glances",
+  "gluetun",
+  "gotify",
+  "grafana",
+  "hdhomerun",
+  "headscale",
+  "healthchecks",
+  "homeassistant",
+  "homebox",
+  "homebridge",
+  "iframe",
+  "immich",
+  "jackett",
+  "jdownloader",
+  "jellyfin",
+  "jellystat",
+  "karakeep",
+  "kavita",
+  "komga",
+  "komodo",
+  "kopia",
+  "lidarr",
+  "linkwarden",
+  "lubelogger",
+  "mailcow",
+  "mastodon",
+  "mealie",
+  "medusa",
+  "mikrotik",
+  "minecraft",
+  "miniflux",
+  "mjpeg",
+  "moonraker",
+  "mylar",
+  "myspeed",
+  "navidrome",
+  "netalertx",
+  "netdata",
+  "nextcloud",
+  "nextdns",
+  "nginx-proxy-manager",
+  "ntfy",
+  "nzbget",
+  "octoprint",
+  "omada",
+  "ombi",
+  "opendtu",
+  "openmediavault",
+  "openwrt",
+  "opnsense",
+  "pangolin",
+  "paperlessngx",
+  "peanut",
+  "pfsense",
+  "photoprism",
+  "pihole",
+  "plantit",
+  "plex",
+  "plex-tautulli",
+  "portainer",
+  "prometheus",
+  "prometheusmetric",
+  "prowlarr",
+  "proxmox",
+  "proxmoxbackupserver",
+  "pterodactyl",
+  "pyload",
+  "qbittorrent",
+  "qnap",
+  "radarr",
+  "readarr",
+  "romm",
+  "rutorrent",
+  "sabnzbd",
+  "scrutiny",
+  "seerr",
+  "slskd",
+  "sonarr",
+  "sparkyfitness",
+  "speedtest-tracker",
+  "spoolman",
+  "stash",
+  "stocks",
+  "suwayomi",
+  "swagdashboard",
+  "syncthing-relay-server",
+  "tailscale",
+  "tandoor",
+  "tdarr",
+  "technitium",
+  "torrsyncarr",
+  "tracearr",
+  "traefik",
+  "transmission",
+  "trilium",
+  "truenas",
+  "tubearchivist",
+  "unifi-controller",
+  "unifi-drive",
+  "unmanic",
+  "unraid",
+  "uptime-kuma",
+  "uptimerobot",
+  "urbackup",
+  "vikunja",
+  "wallos",
+  "watchtower",
+  "wgeasy",
+  "whatsupdocker",
+  "xteve",
+  "yourspotify",
+  "zabbix"
+];
 
   let currentType = "";
   if (widget) {
-    if (isThreeXuiWidget(widget)) {
-      currentType = "3xui";
-    } else if (allWidgetTypes.includes(widget.type)) {
+    if (allWidgetTypes.includes(widget.type)) {
       currentType = widget.type;
     } else {
       currentType = "custom";
@@ -7372,9 +5510,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     }
 
     try {
-      const nextYaml = Object.keys(obj).length
-        ? yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false })
-        : "";
+      const nextYaml = Object.keys(obj).length ? yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }) : "";
       onChange(nextYaml);
     } catch {
       // ignore
@@ -7387,24 +5523,8 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
     if (!obj.widget) obj.widget = {};
     obj.widget[key] = checked;
     try {
-      const nextYaml = yaml.dump(obj, {
-        lineWidth: -1,
-        noRefs: true,
-        sortKeys: false,
-      });
+      const nextYaml = yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false });
       onChange(nextYaml);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleThreeXuiWidgetChange = (nextWidget) => {
-    if (!parsed) return;
-    const obj = { ...parsed, widget: nextWidget };
-    try {
-      onChange(
-        yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }),
-      );
     } catch {
       // ignore
     }
@@ -7450,18 +5570,8 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
         )}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "16px",
-          flexWrap: "wrap",
-          width: "100%",
-        }}
-      >
-        <div
-          style={{ flex: "1 1 300px", minWidth: "250px" }}
-          className="flex flex-col justify-start"
-        >
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", width: "100%" }}>
+        <div style={{ flex: "1 1 300px", minWidth: "250px" }} className="flex flex-col justify-start">
           <label className="block min-w-0 text-xs text-theme-600 dark:text-theme-300">
             Выберите тип виджета для вставки шаблона:
             <select
@@ -7473,7 +5583,7 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
               <option value="">Без виджета / очистить</option>
               {allWidgetTypes.map((type) => (
                 <option key={type} value={type}>
-                  {type === "3xui" ? "3x-ui" : type}
+                  {type}
                 </option>
               ))}
               <option value="custom">Другой (кастомный шаблон)</option>
@@ -7481,105 +5591,52 @@ function WidgetTemplateSelector({ extraYaml, onChange }) {
           </label>
         </div>
 
-        {currentType !== "3xui" && (
-          <div
-            style={{ flex: "1 1 300px", minWidth: "250px" }}
-            className="flex flex-col justify-start"
-          >
-            {booleans.length > 0 && parsed !== null ? (
-              <div className="flex flex-col gap-2">
-                <span className="text-[11px] font-semibold text-theme-500 uppercase tracking-wide">
-                  Дополнительные настройки ({currentType}):
-                </span>
-                <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
-                  {booleans.map(({ key, value }) => {
-                    const labelRussian = WIDGET_TRANSLATIONS[key] || key;
-                    return (
-                      <label
-                        key={key}
-                        className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200 hover:text-theme-950 dark:hover:text-white transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={value}
-                          onChange={(e) => handleToggle(key, e.target.checked)}
-                          className="h-4 w-4 rounded border-theme-300 text-theme-600 focus:ring-theme-500 cursor-pointer"
-                        />
-                        <span
-                          className="truncate"
-                          title={`${key}: ${labelRussian}`}
-                        >
-                          {labelRussian}{" "}
-                          <span className="text-[10px] text-theme-400 dark:text-theme-500 font-normal">
-                            ({key})
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
+        <div style={{ flex: "1 1 300px", minWidth: "250px" }} className="flex flex-col justify-start">
+          {booleans.length > 0 && parsed !== null ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-semibold text-theme-500 uppercase tracking-wide">
+                Дополнительные настройки ({currentType}):
+              </span>
+              <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                {booleans.map(({ key, value }) => {
+                  const labelRussian = WIDGET_TRANSLATIONS[key] || key;
+                  return (
+                    <label key={key} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-theme-700 dark:text-theme-200 hover:text-theme-950 dark:hover:text-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={value}
+                        onChange={(e) => handleToggle(key, e.target.checked)}
+                        className="h-4 w-4 rounded border-theme-300 text-theme-600 focus:ring-theme-500 cursor-pointer"
+                      />
+                      <span className="truncate" title={`${key}: ${labelRussian}`}>
+                        {labelRussian} <span className="text-[10px] text-theme-400 dark:text-theme-500 font-normal">({key})</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            ) : (
-              currentType &&
-              currentType !== "custom" &&
-              parsed !== null && (
-                <div className="text-xs text-theme-400 dark:text-theme-500 italic mt-5">
-                  У виджета {currentType} нет дополнительных настроек.
-                </div>
-              )
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            currentType && currentType !== "custom" && parsed !== null && (
+              <div className="text-xs text-theme-400 dark:text-theme-500 italic mt-5">
+                У виджета {currentType} нет дополнительных настроек.
+              </div>
+            )
+          )}
+        </div>
       </div>
-      {currentType === "3xui" && parsed !== null && (
-        <ThreeXuiWidgetSettings
-          widget={widget}
-          onWidgetChange={handleThreeXuiWidgetChange}
-        />
-      )}
     </div>
   );
 }
-function BackgroundModal({
-  settings,
-  settingsTabs = [],
-  anchorRef,
-  onClose,
-  onSaved,
-}) {
+function BackgroundModal({ settings, anchorRef, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const initialBackground =
-    typeof settings?.background === "object" && settings.background !== null
-      ? settings.background
-      : {
-          image:
-            typeof settings?.background === "string" ? settings.background : "",
-        };
-  const [backgroundValue, setBackgroundValue] = useState(
-    initialBackground.image ?? "",
-  );
-  const [backgroundBlur, setBackgroundBlur] = useState(
-    initialBackground.blur ?? "",
-  );
-  const [backgroundBrightness, setBackgroundBrightness] = useState(
-    initialBackground.brightness ?? 100,
-  );
-  const [backgroundSaturate, setBackgroundSaturate] = useState(
-    initialBackground.saturate ?? 100,
-  );
-  const [backgroundOpacity, setBackgroundOpacity] = useState(
-    initialBackground.opacity ?? 100,
-  );
+  const [backgroundValue, setBackgroundValue] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
-  const originalCustomJs =
-    settingsTabs.find((tab) => tab.fileName === "custom.js")?.content ?? "";
-  const originalCustomCss =
-    settingsTabs.find((tab) => tab.fileName === "custom.css")?.content ?? "";
-  const [customJs, setCustomJs] = useState(originalCustomJs);
-  const [customCss, setCustomCss] = useState(originalCustomCss);
+  const currentBackground =
+    typeof settings?.background === "string" ? settings.background : settings?.background?.image;
 
   async function saveUploadedFile(nextFile) {
     if (!nextFile) return;
@@ -7607,19 +5664,9 @@ function BackgroundModal({
         throw new Error(await response.text());
       }
 
-      const nextData = await response.json();
-      const uploadedBackground = nextData?.settings?.background;
-      const uploadedPath =
-        typeof uploadedBackground === "string"
-          ? uploadedBackground
-          : uploadedBackground?.image;
-      if (uploadedPath) {
-        setBackgroundValue(uploadedPath);
-      }
-      await mutate("/api/config/editor", nextData, false);
-      onSaved(
-        "Изображение загружено. Настройте фильтры и сохраните оформление",
-      );
+      await refreshConfigData(mutate, ["/api/config/editor"]);
+      onSaved("Фон сохранён");
+      window.location.reload();
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -7627,7 +5674,7 @@ function BackgroundModal({
     }
   }
 
-  async function saveAppearance() {
+  async function saveBackgroundPath() {
     const nextBackground = backgroundValue.trim();
     if (!nextBackground) {
       setError("Укажите путь или URL фона");
@@ -7636,59 +5683,21 @@ function BackgroundModal({
 
     setSaving(true);
     setError("");
+    setSelectedFileName("");
 
     try {
-      const hasFilters =
-        backgroundBlur ||
-        Number(backgroundBrightness) !== 100 ||
-        Number(backgroundSaturate) !== 100 ||
-        Number(backgroundOpacity) !== 100;
-      const background = hasFilters
-        ? {
-            image: nextBackground,
-            ...(backgroundBlur ? { blur: backgroundBlur } : {}),
-            ...(Number(backgroundBrightness) !== 100
-              ? { brightness: Number(backgroundBrightness) }
-              : {}),
-            ...(Number(backgroundSaturate) !== 100
-              ? { saturate: Number(backgroundSaturate) }
-              : {}),
-            ...(Number(backgroundOpacity) !== 100
-              ? { opacity: Number(backgroundOpacity) }
-              : {}),
-          }
-        : nextBackground;
-      const settingsResponse = await editorWriteFetch("/api/config/editor", {
-        method: "PUT",
+      const response = await editorWriteFetch("/api/config/editor", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file: "settings",
-          data: {
-            ...settings,
-            background,
-          },
-        }),
+        body: JSON.stringify({ backgroundPath: nextBackground }),
       });
-      if (!settingsResponse.ok) {
-        throw new Error(await settingsResponse.text());
+
+      if (!response.ok) {
+        throw new Error(await response.text());
       }
 
-      for (const [fileName, content, originalContent] of [
-        ["custom.js", customJs, originalCustomJs],
-        ["custom.css", customCss, originalCustomCss],
-      ]) {
-        if (content === originalContent) continue;
-        const response = await editorWriteFetch("/api/config/editor", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName, content }),
-        });
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-      }
       await refreshConfigData(mutate, ["/api/config/editor"]);
-      onSaved("Фон, затемнение и визуальные эффекты сохранены");
+      onSaved("Фон сохранён");
       window.location.reload();
     } catch (saveError) {
       setError(saveError.message);
@@ -7710,147 +5719,70 @@ function BackgroundModal({
   return (
     <EditorWindow
       storageKey="homepage-browser-editor-window-background"
-      title="Фон и атмосфера"
+      title="Фон"
       onClose={onClose}
-      defaultWidth={980}
-      defaultHeight={820}
-      minWidth={720}
-      minHeight={620}
+      defaultWidth={460}
+      defaultHeight={340}
+      minWidth={420}
+      minHeight={260}
       anchorRef={anchorRef}
     >
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-        <section className="grid gap-4 rounded-xl border border-theme-300/40 bg-theme-50/20 p-4 dark:border-white/10 dark:bg-white/5 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <div
-            className="min-h-48 rounded-xl border border-white/10 bg-zinc-900 bg-cover bg-center shadow-inner"
-            style={{
-              backgroundImage: backgroundValue
-                ? `linear-gradient(rgba(0,0,0,${1 - Number(backgroundOpacity) / 100}), rgba(0,0,0,${1 - Number(backgroundOpacity) / 100})), url("${backgroundValue.replace(/"/g, "%22")}")`
-                : undefined,
-              filter: `brightness(${backgroundBrightness}%) saturate(${backgroundSaturate}%)`,
+      <label className="mb-3 block text-xs text-theme-600 dark:text-theme-300">
+        Путь или URL фона
+        <div className="mt-1 flex items-center gap-3">
+          <input
+            type="text"
+            value={backgroundValue}
+            onChange={(event) => setBackgroundValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveBackgroundPath();
+              }
             }}
-          >
-            {!backgroundValue && (
-              <div className="flex h-full min-h-48 items-center justify-center text-xs text-theme-400">
-                Предпросмотр фона
-              </div>
-            )}
-          </div>
-          <div className="space-y-3">
-            <label className="block text-xs text-theme-600 dark:text-theme-300">
-              Путь или URL фонового изображения
-              <input
-                type="text"
-                value={backgroundValue}
-                onChange={(event) => setBackgroundValue(event.target.value)}
-                placeholder="/api/config/background"
-                disabled={saving}
-                className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
-              />
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={saving}
-              className="rounded-md border border-theme-400/60 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-60"
-            >
-              {selectedFileName
-                ? `Загрузить другое · ${selectedFileName}`
-                : "Загрузить изображение"}
-            </button>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="text-[11px] text-theme-600 dark:text-theme-300">
-                Размытие
-                <select
-                  value={backgroundBlur}
-                  onChange={(event) => setBackgroundBlur(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-xs dark:border-white/10 dark:bg-theme-900/90"
-                >
-                  <option value="">Нет</option>
-                  {["sm", "md", "lg", "xl", "2xl", "3xl"].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-[11px] text-theme-600 dark:text-theme-300">
-                Яркость · {backgroundBrightness}%
-                <input
-                  type="range"
-                  min="40"
-                  max="160"
-                  step="5"
-                  value={backgroundBrightness}
-                  onChange={(event) =>
-                    setBackgroundBrightness(event.target.value)
-                  }
-                  className="mt-3 h-1 w-full cursor-pointer accent-theme-200"
-                />
-              </label>
-              <label className="text-[11px] text-theme-600 dark:text-theme-300">
-                Насыщенность · {backgroundSaturate}%
-                <input
-                  type="range"
-                  min="0"
-                  max="200"
-                  step="10"
-                  value={backgroundSaturate}
-                  onChange={(event) =>
-                    setBackgroundSaturate(event.target.value)
-                  }
-                  className="mt-3 h-1 w-full cursor-pointer accent-theme-200"
-                />
-              </label>
-            </div>
-            <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-              Видимость изображения · {backgroundOpacity}%
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={backgroundOpacity}
-                onChange={(event) => setBackgroundOpacity(event.target.value)}
-                className="mt-2 h-1 w-full cursor-pointer accent-theme-200"
-              />
-            </label>
-          </div>
-        </section>
-
-        <TopBarSettingsEditor
-          customJs={customJs}
-          customCss={customCss}
-          onChangeCustomJs={setCustomJs}
-          onChangeCustomCss={setCustomCss}
-          mode="background"
-        />
-
-        {error && (
-          <div className="rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-            {error}
-          </div>
-        )}
-        <div className="sticky bottom-0 flex justify-end border-t border-white/10 bg-zinc-950/95 py-3">
+            placeholder={currentBackground || "/images/background.jpg"}
+            disabled={saving}
+            className="w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-2 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
+          />
           <button
             type="button"
-            onClick={saveAppearance}
+            onClick={saveBackgroundPath}
             disabled={saving}
-            className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-200 disabled:opacity-60"
+            className="shrink-0 rounded-md border border-theme-400/60 px-3 py-2 text-sm disabled:opacity-60"
           >
-            {saving ? "Сохранение..." : "Сохранить оформление"}
+            Применить
           </button>
         </div>
+      </label>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={saving}
+          className="rounded-md bg-theme-700 px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-theme-200 dark:text-theme-900"
+        >
+          Выбрать
+        </button>
+        <div className="min-w-0 flex-1 text-right text-sm text-theme-700 dark:text-theme-200">
+          {saving ? (selectedFileName ? `Загрузка ${selectedFileName}...` : "Загрузка...") : selectedFileName || " "}
+        </div>
       </div>
+      {error && (
+        <div className="mt-4 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+          {error}
+        </div>
+      )}
     </EditorWindow>
   );
 }
+
 
 let selfhstIconsCache = null;
 
@@ -7903,8 +5835,8 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
   const iconRepos = settings?.iconRepositories || [
     {
       name: "Dashboard Icons (walkxcode)",
-      url: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/",
-    },
+      url: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/"
+    }
   ];
 
   const systemRepos = [
@@ -7912,36 +5844,31 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       name: "Dashboard Icons (walkxcode / homarr)",
       url: "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/",
       prefix: "нет",
-      isSystem: true,
+      isSystem: true
     },
     {
       name: "Simple Icons",
       url: "https://gcore.jsdelivr.net/npm/simple-icons/icons/",
       prefix: "si-",
-      isSystem: true,
+      isSystem: true
     },
     {
       name: "Material Design Icons",
       url: "https://gcore.jsdelivr.net/npm/@mdi/svg/svg/",
       prefix: "mdi-",
-      isSystem: true,
+      isSystem: true
     },
     {
       name: "selfh.st/icons",
       url: "https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/",
       prefix: "sh-",
-      isSystem: true,
-    },
+      isSystem: true
+    }
   ];
 
   const customRepos = settings?.iconRepositories || [];
-  const filteredSystemRepos = systemRepos.filter(
-    (sys) =>
-      !customRepos.some(
-        (cust) =>
-          cust.url.trim().replace(/\/+$/, "") ===
-          sys.url.trim().replace(/\/+$/, ""),
-      ),
+  const filteredSystemRepos = systemRepos.filter(sys => 
+    !customRepos.some(cust => cust.url.trim().replace(/\/+$/, "") === sys.url.trim().replace(/\/+$/, ""))
   );
   const displayedRepos = [...filteredSystemRepos, ...customRepos];
 
@@ -7954,8 +5881,8 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
           file: "settings",
           data: {
             ...settings,
-            iconRepositories: nextRepos,
-          },
+            iconRepositories: nextRepos
+          }
         }),
       });
       if (response.ok) {
@@ -7969,11 +5896,10 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
   }
 
   async function deleteIcon(name) {
-    if (!window.confirm(`Вы уверены, что хотите удалить иконку ${name}?`))
-      return;
+    if (!window.confirm(`Вы уверены, что хотите удалить иконку ${name}?`)) return;
     try {
       const res = await fetch(`/api/config/icon/${name}`, {
-        method: "DELETE",
+        method: "DELETE"
       });
       if (res.ok) {
         onSaved("Иконка удалена");
@@ -8001,11 +5927,6 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
   async function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
-      setError("Размер изображения не должен превышать 10 МБ");
-      e.target.value = "";
-      return;
-    }
     setLoading(true);
     setError("");
     try {
@@ -8019,7 +5940,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       const res = await fetch("/api/config/icon/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, dataUrl }),
+        body: JSON.stringify({ name: file.name, dataUrl })
       });
 
       if (res.ok) {
@@ -8046,13 +5967,9 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
   function suggestIconDownloadName(value) {
     try {
       const rawValue = String(value ?? "").trim();
-      const normalizedValue = /^[a-z][a-z0-9+.-]*:/i.test(rawValue)
-        ? rawValue
-        : `https://${rawValue}`;
+      const normalizedValue = /^[a-z][a-z0-9+.-]*:/i.test(rawValue) ? rawValue : `https://${rawValue}`;
       const url = new URL(normalizedValue);
-      const baseName = decodeURIComponent(
-        url.pathname.split("/").filter(Boolean).pop() || "",
-      );
+      const baseName = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
 
       if (/\.(?:gif|ico|jpe?g|png|svg|webp)$/i.test(baseName)) {
         return baseName;
@@ -8081,7 +5998,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       const res = await fetch("/api/config/icon/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: downloadUrl, name: downloadName }),
+        body: JSON.stringify({ url: downloadUrl, name: downloadName })
       });
       if (res.ok) {
         const data = await res.json();
@@ -8107,39 +6024,28 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
 
   function parseGithubRepo(url) {
     const cleanUrl = url.trim().replace(/\/+$/, "");
-    let match = cleanUrl.match(
-      /raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)(?:\/(.*))?/,
-    );
+    let match = cleanUrl.match(/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)(?:\/(.*))?/);
     if (match) {
-      return {
-        user: match[1],
-        repo: match[2],
-        version: match[3],
-        path: match[4] ? "/" + match[4] : "",
-      };
+      return { user: match[1], repo: match[2], version: match[3], path: match[4] ? "/" + match[4] : "" };
     }
     match = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (match) {
       const repoName = match[2].replace(/\.git$/, "");
-      const treeMatch = cleanUrl.match(
-        /github\.com\/[^\/]+\/[^\/]+\/tree\/([^\/]+)(?:\/(.*))?/,
-      );
-      return {
-        user: match[1],
-        repo: repoName,
-        version: treeMatch ? treeMatch[1] : "main",
-        path: treeMatch && treeMatch[2] ? "/" + treeMatch[2] : "",
+      const treeMatch = cleanUrl.match(/github\.com\/[^\/]+\/[^\/]+\/tree\/([^\/]+)(?:\/(.*))?/);
+      return { 
+        user: match[1], 
+        repo: repoName, 
+        version: treeMatch ? treeMatch[1] : "main", 
+        path: treeMatch && treeMatch[2] ? "/" + treeMatch[2] : "" 
       };
     }
-    match = cleanUrl.match(
-      /cdn\.jsdelivr\.net\/gh\/([^\/]+)\/([^\/@]+)(?:@([^\/]+))?(?:\/(.*))?/,
-    );
+    match = cleanUrl.match(/cdn\.jsdelivr\.net\/gh\/([^\/]+)\/([^\/@]+)(?:@([^\/]+))?(?:\/(.*))?/);
     if (match) {
-      return {
-        user: match[1],
-        repo: match[2],
-        version: match[3] || "main",
-        path: match[4] ? "/" + match[4] : "",
+      return { 
+        user: match[1], 
+        repo: match[2], 
+        version: match[3] || "main", 
+        path: match[4] ? "/" + match[4] : "" 
       };
     }
     return null;
@@ -8169,12 +6075,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
 
     const fallbackExtensionForRepo = (repo) => {
       const url = String(repo.url || "").toLowerCase();
-      if (
-        url.includes("/svg") ||
-        repo.prefix === "si-" ||
-        repo.prefix === "mdi-" ||
-        repo.prefix === "sh-"
-      ) {
+      if (url.includes("/svg") || repo.prefix === "si-" || repo.prefix === "mdi-" || repo.prefix === "sh-") {
         return ".svg";
       }
 
@@ -8195,19 +6096,10 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               needsContentsFallback = Boolean(treeData.truncated);
               const matches = treeData.tree
                 .filter((entry) => entry.type === "blob")
-                .filter((entry) =>
-                  pathPrefixes.some(
-                    (pathPrefix) =>
-                      !pathPrefix || entry.path.startsWith(pathPrefix),
-                  ),
-                )
+                .filter((entry) => pathPrefixes.some((pathPrefix) => !pathPrefix || entry.path.startsWith(pathPrefix)))
                 .filter((entry) => isSupportedIconFile(entry.path))
                 .filter((entry) => iconNameMatchesQuery(entry.path, term))
-                .sort(
-                  (left, right) =>
-                    iconSearchScore(left.path, term) -
-                    iconSearchScore(right.path, term),
-                );
+                .sort((left, right) => iconSearchScore(left.path, term) - iconSearchScore(right.path, term));
 
               matches.forEach((entry) => {
                 addResult({
@@ -8228,22 +6120,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                 const files = await res.json();
                 if (Array.isArray(files)) {
                   const matches = files
-                    .filter(
-                      (file) =>
-                        file.type === "file" &&
-                        isSupportedIconFile(file.name) &&
-                        iconNameMatchesQuery(file.name, term),
-                    )
-                    .sort(
-                      (left, right) =>
-                        iconSearchScore(left.name, term) -
-                        iconSearchScore(right.name, term),
-                    );
+                    .filter((file) => file.type === "file" && isSupportedIconFile(file.name) && iconNameMatchesQuery(file.name, term))
+                    .sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term));
 
                   matches.forEach((file) => {
-                    const rawUrl =
-                      file.download_url ||
-                      rawGithubUrl(parsed, `${pathPrefix}${file.name}`);
+                    const rawUrl = file.download_url || rawGithubUrl(parsed, `${pathPrefix}${file.name}`);
                     addResult({
                       name: file.name,
                       url: rawUrl,
@@ -8261,27 +6142,20 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     }
 
     if (results.length === 0) {
-      searchRepos.forEach((repo) => {
-        const ext = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i.test(term)
-          ? ""
-          : fallbackExtensionForRepo(repo);
+      searchRepos.forEach(repo => {
+        const ext = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i.test(term) ? "" : fallbackExtensionForRepo(repo);
         const fileName = `${term}${ext}`;
         addResult({
           name: fileName,
           url: `${repo.url}${fileName}`,
           repo: repo.name,
-          isFallback: true,
+          isFallback: true
         });
       });
     }
 
     setRepoSearchResults(
-      results.sort(
-        (left, right) =>
-          iconSearchScore(left.name, term) -
-            iconSearchScore(right.name, term) ||
-          left.name.localeCompare(right.name),
-      ),
+      results.sort((left, right) => iconSearchScore(left.name, term) - iconSearchScore(right.name, term) || left.name.localeCompare(right.name)),
     );
     setSearchingRepo(false);
   }
@@ -8303,18 +6177,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
 
     try {
       const promises = [
-        fetch(
-          `https://api.iconify.design/search?query=${query}&prefix=simple-icons&limit=64`,
-        ).then((r) => (r.ok ? r.json() : null)),
-        fetch(
-          `https://api.iconify.design/search?query=${query}&prefix=mdi&limit=64`,
-        ).then((r) => (r.ok ? r.json() : null)),
+        fetch(`https://api.iconify.design/search?query=${query}&prefix=simple-icons&limit=64`).then(r => r.ok ? r.json() : null),
+        fetch(`https://api.iconify.design/search?query=${query}&prefix=mdi&limit=64`).then(r => r.ok ? r.json() : null),
         (async () => {
           if (selfhstIconsCache) return selfhstIconsCache;
           try {
-            const res = await fetch(
-              `https://api.github.com/repos/selfhst/icons/contents/svg?ref=main`,
-            );
+            const res = await fetch(`https://api.github.com/repos/selfhst/icons/contents/svg?ref=main`);
             if (res.ok) {
               const data = await res.json();
               selfhstIconsCache = data;
@@ -8324,43 +6192,41 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
             console.error("Failed fetching selfhst/icons directory:", e);
           }
           return null;
-        })(),
+        })()
       ];
 
       const [siData, mdiData, shFiles] = await Promise.all(promises);
 
       if (siData && siData.icons) {
-        siData.icons.forEach((name) => {
+        siData.icons.forEach(name => {
           const cleanName = name.replace("simple-icons:", "");
           results.push({
             name: `si-${cleanName}`,
             url: `https://gcore.jsdelivr.net/npm/simple-icons@latest/icons/${cleanName}.svg`,
-            type: "si",
+            type: "si"
           });
         });
       }
 
       if (mdiData && mdiData.icons) {
-        mdiData.icons.forEach((name) => {
+        mdiData.icons.forEach(name => {
           const cleanName = name.replace("mdi:", "");
           results.push({
             name: `mdi-${cleanName}`,
             url: `https://gcore.jsdelivr.net/npm/@mdi/svg@latest/svg/${cleanName}.svg`,
-            type: "mdi",
+            type: "mdi"
           });
         });
       }
 
       if (Array.isArray(shFiles)) {
-        const matches = shFiles.filter(
-          (f) => f.type === "file" && f.name.toLowerCase().includes(query),
-        );
-        matches.forEach((m) => {
+        const matches = shFiles.filter(f => f.type === "file" && f.name.toLowerCase().includes(query));
+        matches.forEach(m => {
           const cleanName = m.name.replace(".svg", "");
           results.push({
             name: `sh-${cleanName}`,
             url: `https://gcore.jsdelivr.net/gh/selfhst/icons@main/svg/${m.name}`,
-            type: "sh",
+            type: "sh"
           });
         });
       }
@@ -8380,7 +6246,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       const res = await fetch("/api/config/icon/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: item.url, name: item.name }),
+        body: JSON.stringify({ url: item.url, name: item.name })
       });
       if (res.ok) {
         const data = await res.json();
@@ -8426,9 +6292,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       }
 
       const skipped = result.skipped ? `, пропущено ${result.skipped}` : "";
-      onSaved(
-        `Локализовано: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`,
-      );
+      onSaved(`Локализовано: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`);
       loadIcons();
     } catch (err) {
       setError("Ошибка локализации");
@@ -8437,9 +6301,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
     }
   }
 
-  const filteredLocalIcons = icons.filter((name) =>
-    name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredLocalIcons = icons.filter(name => name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <EditorWindow
@@ -8450,61 +6312,41 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
       defaultHeight={480}
       minWidth={450}
       minHeight={350}
-      wrapperClassName="!z-[520]"
+      wrapperClassName="!z-[70]"
     >
       <div className="flex border-b border-theme-300/30 dark:border-white/5 pb-2 mb-3 gap-3 text-[11px] font-semibold uppercase tracking-wider">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
-          className={
-            activeTab === "list"
-              ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1"
-              : "text-theme-400 dark:text-theme-500 pb-1"
-          }
+          className={activeTab === "list" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
         >
           Локальные ({icons.length})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("upload")}
-          className={
-            activeTab === "upload"
-              ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1"
-              : "text-theme-400 dark:text-theme-500 pb-1"
-          }
+          className={activeTab === "upload" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
         >
           Загрузить файл
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("url")}
-          className={
-            activeTab === "url"
-              ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1"
-              : "text-theme-400 dark:text-theme-500 pb-1"
-          }
+          className={activeTab === "url" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
         >
           Скачать по URL
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("repos")}
-          className={
-            activeTab === "repos"
-              ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1"
-              : "text-theme-400 dark:text-theme-500 pb-1"
-          }
+          className={activeTab === "repos" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
         >
           Репозитории
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("libs")}
-          className={
-            activeTab === "libs"
-              ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1"
-              : "text-theme-400 dark:text-theme-500 pb-1"
-          }
+          className={activeTab === "libs" ? "text-theme-950 dark:text-white border-b-2 border-theme-600 pb-1" : "text-theme-400 dark:text-theme-500 pb-1"}
         >
           Библиотеки (MDI / SI / SH)
         </button>
@@ -8517,7 +6359,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
                 placeholder="Поиск локальных иконок..."
                 className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
@@ -8538,11 +6380,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {filteredLocalIcons.map((name) => {
+                  {filteredLocalIcons.map(name => {
                     const iconPath = `/api/config/icon/${name}`;
                     const localIconName = `/api/config/icon/${name}`;
                     return (
-                      <div
+                      <div 
                         key={name}
                         onClick={() => {
                           if (iconSelectorCallback) {
@@ -8553,8 +6395,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                         }}
                         className={classNames(
                           "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
-                          iconSelectorCallback &&
-                            "cursor-pointer hover:border-theme-500 dark:hover:border-white/40",
+                          iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
                         )}
                       >
                         <button
@@ -8567,34 +6408,12 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                           title="Удалить"
                           aria-label={`Удалить иконку ${name}`}
                         >
-                          <svg
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            aria-hidden="true"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2.5"
-                              d="M6 6l12 12M18 6L6 18"
-                            />
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 6l12 12M18 6L6 18" />
                           </svg>
                         </button>
-                        <img
-                          src={iconPath}
-                          alt={name}
-                          className="h-10 w-10 object-contain"
-                          onError={(e) => {
-                            e.target.src =
-                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E";
-                          }}
-                        />
-                        <span
-                          className="text-[10px] break-all text-center select-all font-mono"
-                          title={name}
-                        >
+                        <img src={iconPath} alt={name} className="h-10 w-10 object-contain" onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} />
+                        <span className="text-[10px] break-all text-center select-all font-mono" title={name}>
                           {name}
                         </span>
                         {iconSelectorCallback ? (
@@ -8618,11 +6437,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               )}
             </div>
             <div className="text-[10px] text-theme-400 dark:text-theme-500">
-              Используйте имя{" "}
-              <code className="bg-theme-100 dark:bg-white/5 px-1 py-0.5 rounded select-all font-mono">
-                /api/config/icon/название_файла
-              </code>{" "}
-              в поле &quot;Иконка&quot;.
+              Используйте имя <code className="bg-theme-100 dark:bg-white/5 px-1 py-0.5 rounded select-all font-mono">/api/config/icon/название_файла</code> в поле &quot;Иконка&quot;.
             </div>
           </div>
         )}
@@ -8637,25 +6452,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               className="hidden"
             />
             <div className="text-center">
-              <svg
-                className="w-10 h-10 mx-auto text-theme-400 dark:text-theme-500 mb-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
+              <svg className="w-10 h-10 mx-auto text-theme-400 dark:text-theme-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <p className="text-xs font-semibold">
-                Выберите файл изображения иконки
-              </p>
-              <p className="text-[10px] text-theme-400 dark:text-theme-500 mt-1">
-                Поддерживаются PNG, SVG, JPG, WebP и др.
-              </p>
+              <p className="text-xs font-semibold">Выберите файл изображения иконки</p>
+              <p className="text-[10px] text-theme-400 dark:text-theme-500 mt-1">Поддерживаются PNG, SVG, JPG, WebP и др.</p>
             </div>
             <button
               type="button"
@@ -8671,13 +6472,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
         {activeTab === "url" && (
           <div className="flex-1 flex flex-col space-y-3 p-4 border border-theme-300/20 dark:border-white/5 rounded-md bg-theme-50/10 dark:bg-black/5">
             <div className="flex flex-col space-y-1">
-              <label className="text-[10px] font-semibold">
-                Ссылка на удаленную иконку (URL)
-              </label>
+              <label className="text-[10px] font-semibold">Ссылка на удаленную иконку (URL)</label>
               <input
                 type="text"
                 value={downloadUrl}
-                onChange={(e) => {
+                onChange={e => {
                   setDownloadUrl(e.target.value);
                   const suggestedName = suggestIconDownloadName(e.target.value);
                   if (suggestedName && !downloadName) {
@@ -8690,13 +6489,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
             </div>
 
             <div className="flex flex-col space-y-1">
-              <label className="text-[10px] font-semibold">
-                Имя сохраняемого файла
-              </label>
+              <label className="text-[10px] font-semibold">Имя сохраняемого файла</label>
               <input
                 type="text"
                 value={downloadName}
-                onChange={(e) => setDownloadName(e.target.value)}
+                onChange={e => setDownloadName(e.target.value)}
                 placeholder="my-logo.png"
                 className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
@@ -8719,10 +6516,8 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               <input
                 type="text"
                 value={repoSearchQuery}
-                onChange={(e) => setRepoSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRepoSearch();
-                }}
+                onChange={e => setRepoSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleRepoSearch(); }}
                 placeholder="Поиск иконки в репозитории (например: proxmox)"
                 className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
@@ -8751,23 +6546,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                       }}
                       className={classNames(
                         "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
-                        iconSelectorCallback &&
-                          "cursor-pointer hover:border-theme-500 dark:hover:border-white/40",
+                        iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
                       )}
                     >
-                      <img
-                        src={item.url}
-                        alt={item.name}
-                        className="h-10 w-10 object-contain"
-                        onError={(e) => {
-                          e.target.src =
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E";
-                        }}
-                      />
-                      <span
-                        className="text-[10px] break-all text-center select-all font-mono"
-                        title={item.name}
-                      >
+                      <img src={item.url} alt={item.name} className="h-10 w-10 object-contain" onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} />
+                      <span className="text-[10px] break-all text-center select-all font-mono" title={item.name}>
                         {item.name}
                       </span>
                       <span className="text-[9px] text-theme-400 dark:text-theme-500 text-center truncate w-full">
@@ -8805,35 +6588,23 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10 flex flex-col">
-                <span className="text-xs font-semibold mb-2">
-                  Подключенные репозитории:
-                </span>
+                <span className="text-xs font-semibold mb-2">Подключенные репозитории:</span>
                 <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
                   {displayedRepos.map((repo, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-center p-2 rounded border border-theme-300/10 dark:border-white/5 bg-theme-50/50 dark:bg-white/5"
-                    >
+                    <div key={idx} className="flex justify-between items-center p-2 rounded border border-theme-300/10 dark:border-white/5 bg-theme-50/50 dark:bg-white/5">
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold truncate">
-                            {repo.name}
-                          </span>
+                          <span className="text-xs font-semibold truncate">{repo.name}</span>
                           {repo.isSystem && (
                             <span className="text-[9px] bg-theme-200 dark:bg-white/10 px-1.5 py-0.2 rounded font-medium opacity-85">
                               Системный
                             </span>
                           )}
                         </div>
-                        <span className="text-[9px] text-theme-400 dark:text-theme-500 truncate">
-                          {repo.url}
-                        </span>
+                        <span className="text-[9px] text-theme-400 dark:text-theme-500 truncate">{repo.url}</span>
                         {repo.prefix && (
                           <span className="text-[9px] text-theme-400 dark:text-theme-500 font-mono">
-                            Префикс:{" "}
-                            <code className="bg-theme-100 dark:bg-white/5 px-0.5 rounded">
-                              {repo.prefix}
-                            </code>
+                            Префикс: <code className="bg-theme-100 dark:bg-white/5 px-0.5 rounded">{repo.prefix}</code>
                           </span>
                         )}
                       </div>
@@ -8842,9 +6613,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                           <button
                             type="button"
                             onClick={() => {
-                              const customIdx = customRepos.findIndex(
-                                (r) => r.url === repo.url,
-                              );
+                              const customIdx = customRepos.findIndex(r => r.url === repo.url);
                               if (customIdx !== -1) {
                                 setEditingRepoIdx(customIdx);
                                 setRepoName(repo.name);
@@ -8858,9 +6627,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                           <button
                             type="button"
                             onClick={() => {
-                              const next = customRepos.filter(
-                                (r) => r.url !== repo.url,
-                              );
+                              const next = customRepos.filter(r => r.url !== repo.url);
                               saveRepos(next);
                             }}
                             className="text-rose-500 hover:text-rose-600 text-xs font-semibold px-2 py-1"
@@ -8875,22 +6642,20 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
 
                 <div className="mt-3 border-t border-theme-300/20 dark:border-white/5 pt-2 flex flex-col space-y-2">
                   <span className="text-xs font-semibold">
-                    {editingRepoIdx !== null
-                      ? "Редактировать репозиторий:"
-                      : "Подключить новый репозиторий:"}
+                    {editingRepoIdx !== null ? "Редактировать репозиторий:" : "Подключить новый репозиторий:"}
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
                       type="text"
                       value={repoName}
-                      onChange={(e) => setRepoName(e.target.value)}
+                      onChange={e => setRepoName(e.target.value)}
                       placeholder="Название"
                       className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                     />
                     <input
                       type="text"
                       value={repoUrl}
-                      onChange={(e) => setRepoUrl(e.target.value)}
+                      onChange={e => setRepoUrl(e.target.value)}
                       placeholder="Базовый URL (с / в конце)"
                       className="rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                     />
@@ -8902,17 +6667,11 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                         if (!repoName || !repoUrl) return;
                         if (editingRepoIdx !== null) {
                           const next = [...iconRepos];
-                          next[editingRepoIdx] = {
-                            name: repoName,
-                            url: repoUrl,
-                          };
+                          next[editingRepoIdx] = { name: repoName, url: repoUrl };
                           saveRepos(next);
                           setEditingRepoIdx(null);
                         } else {
-                          const next = [
-                            ...iconRepos,
-                            { name: repoName, url: repoUrl },
-                          ];
+                          const next = [...iconRepos, { name: repoName, url: repoUrl }];
                           saveRepos(next);
                         }
                         setRepoName("");
@@ -8920,9 +6679,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                       }}
                       className="flex-1 rounded bg-theme-200 dark:bg-white/10 hover:bg-theme-350 dark:hover:bg-white/20 py-1.5 text-xs font-semibold transition-colors"
                     >
-                      {editingRepoIdx !== null
-                        ? "Сохранить изменения"
-                        : "Добавить репозиторий"}
+                      {editingRepoIdx !== null ? "Сохранить изменения" : "Добавить репозиторий"}
                     </button>
                     {editingRepoIdx !== null && (
                       <button
@@ -8950,10 +6707,8 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
               <input
                 type="text"
                 value={libSearchQuery}
-                onChange={(e) => setLibSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleLibSearch();
-                }}
+                onChange={e => setLibSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleLibSearch(); }}
                 placeholder="Поиск в MDI, Simple Icons, Selfh.st (например: home, plex, immich)"
                 className="flex-1 rounded-md border border-theme-300/50 bg-theme-50/90 px-3 py-1.5 text-xs text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
               />
@@ -8970,23 +6725,19 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
             <div className="flex-1 overflow-y-auto border border-theme-300/20 dark:border-white/5 rounded-md p-3 bg-theme-50/20 dark:bg-black/10">
               {libSearchResults.length === 0 ? (
                 <div className="text-center text-xs text-theme-400 dark:text-theme-500 italic py-8">
-                  Введите запрос для поиска иконок в библиотеках MDI, Simple
-                  Icons и selfh.st.
+                  Введите запрос для поиска иконок в библиотеках MDI, Simple Icons и selfh.st.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                   {libSearchResults.map((item, idx) => {
                     const itemColor = itemColors[idx] || "";
-                    const displayColor =
-                      itemColor || (theme === "dark" ? "#ffffff" : "#000000");
+                    const displayColor = itemColor || (theme === "dark" ? "#ffffff" : "#000000");
                     return (
                       <div
                         key={idx}
                         onClick={() => {
                           if (iconSelectorCallback) {
-                            const finalName = itemColor
-                              ? `${item.name}-${itemColor}`
-                              : item.name;
+                            const finalName = itemColor ? `${item.name}-${itemColor}` : item.name;
                             iconSelectorCallback(finalName);
                             setIconSelectorCallback(null);
                             onClose();
@@ -8994,8 +6745,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                         }}
                         className={classNames(
                           "flex flex-col items-center p-2 rounded border border-theme-300/30 dark:border-white/5 bg-theme-50/50 dark:bg-white/5 space-y-2 group relative",
-                          iconSelectorCallback &&
-                            "cursor-pointer hover:border-theme-500 dark:hover:border-white/40",
+                          iconSelectorCallback && "cursor-pointer hover:border-theme-500 dark:hover:border-white/40"
                         )}
                       >
                         {itemColor ? (
@@ -9009,42 +6759,27 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                             }}
                           />
                         ) : (
-                          <img
-                            src={item.url}
-                            alt={item.name}
-                            className={classNames(
-                              "h-10 w-10 object-contain",
-                              item.type !== "sh" && "dark:invert",
-                            )}
-                            onError={(e) => {
-                              e.target.src =
-                                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E";
-                            }}
+                          <img 
+                            src={item.url} 
+                            alt={item.name} 
+                            className={classNames("h-10 w-10 object-contain", item.type !== "sh" && "dark:invert")}
+                            onError={(e) => { e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ccc' d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E"; }} 
                           />
                         )}
-                        <span
-                          className="text-[10px] break-all text-center select-all font-mono"
-                          title={item.name}
-                        >
+                        <span className="text-[10px] break-all text-center select-all font-mono" title={item.name}>
                           {item.name}
                         </span>
                         {(item.type === "si" || item.type === "mdi") && (
-                          <div
-                            className="flex items-center gap-1 mt-1 text-[10px]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
+                          <div className="flex items-center gap-1 mt-1 text-[10px]" onClick={e => e.stopPropagation()}>
                             <label className="flex items-center gap-1 cursor-pointer select-none">
                               <input
                                 type="checkbox"
                                 checked={!!itemColor}
-                                onChange={(e) => {
+                                onChange={e => {
                                   if (e.target.checked) {
-                                    setItemColors((prev) => ({
-                                      ...prev,
-                                      [idx]: "#3eadff",
-                                    }));
+                                    setItemColors(prev => ({ ...prev, [idx]: "#3eadff" }));
                                   } else {
-                                    setItemColors((prev) => {
+                                    setItemColors(prev => {
                                       const copy = { ...prev };
                                       delete copy[idx];
                                       return copy;
@@ -9059,12 +6794,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                               <input
                                 type="color"
                                 value={itemColor}
-                                onChange={(e) =>
-                                  setItemColors((prev) => ({
-                                    ...prev,
-                                    [idx]: e.target.value,
-                                  }))
-                                }
+                                onChange={e => setItemColors(prev => ({ ...prev, [idx]: e.target.value }))}
                                 className="w-5 h-4 p-0 border border-theme-300/40 bg-transparent rounded cursor-pointer shrink-0"
                               />
                             )}
@@ -9075,9 +6805,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const finalName = itemColor
-                                ? `${item.name}-${itemColor}`
-                                : item.name;
+                              const finalName = itemColor ? `${item.name}-${itemColor}` : item.name;
                               iconSelectorCallback(finalName);
                               setIconSelectorCallback(null);
                               onClose();
@@ -9106,6 +6834,7 @@ function IconsManagerModal({ onClose, onSaved, settings }) {
   );
 }
 
+
 function PageStylingEditor({ settingsContent, onChange }) {
   const editor = useConfigEditor();
   const config = useMemo(() => {
@@ -9118,18 +6847,11 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
   const pageStyles = config.pageStyles ?? {};
   const pageIcons = pageStyles.icons ?? {};
-  const serviceStatusOffsetX = normalizeServiceStatusOffset(
-    pageStyles.serviceStatusOffsetX,
-  );
-  const serviceStatusOffsetY = normalizeServiceStatusOffset(
-    pageStyles.serviceStatusOffsetY,
-  );
+  const serviceStatusOffsetX = normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetX);
+  const serviceStatusOffsetY = normalizeServiceStatusOffset(pageStyles.serviceStatusOffsetY);
 
   const tabsList = useMemo(() => {
-    return getOrderedTabsForLayout(
-      config.layout ?? {},
-      config.__browserEditorTabOrder ?? [],
-    );
+    return getOrderedTabsForLayout(config.layout ?? {}, config.__browserEditorTabOrder ?? []);
   }, [config]);
 
   const updateStyle = (key, value) => {
@@ -9145,9 +6867,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
     if (key === "serviceStatusOffsetX" || key === "serviceStatusOffsetY") {
       applyServiceStatusOffsets(nextPageStyles);
     }
-    onChange(
-      yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }),
-    );
+    onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
   };
 
   const updateIcon = (tabName, iconVal) => {
@@ -9162,9 +6882,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
       nextIcons[tabName] = iconVal;
     }
     nextConfig.pageStyles.icons = nextIcons;
-    onChange(
-      yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }),
-    );
+    onChange(yaml.dump(nextConfig, { lineWidth: -1, noRefs: true, sortKeys: false }));
   };
 
   const getBorderPreview = (styleVal) => {
@@ -9172,9 +6890,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
       case "none":
         return (
           <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
-            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white">
-              Active
-            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white">Active</span>
             <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
           </div>
         );
@@ -9182,9 +6898,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
         return (
           <div className="mt-2 flex flex-col items-center justify-center rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
             <div className="flex gap-1.5 w-full justify-center">
-              <span className="text-[10px] px-2 pb-0.5 border-b-2 border-theme-600 dark:border-white/50 text-theme-950 dark:text-white font-semibold">
-                Active
-              </span>
+              <span className="text-[10px] px-2 pb-0.5 border-b-2 border-theme-600 dark:border-white/50 text-theme-950 dark:text-white font-semibold">Active</span>
               <span className="text-[10px] px-2 pb-0.5 opacity-60">Tab</span>
             </div>
             <div className="w-full border-t border-theme-300/30 dark:border-white/5 mt-0.5"></div>
@@ -9205,30 +6919,22 @@ function PageStylingEditor({ settingsContent, onChange }) {
       case "outline":
         return (
           <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-theme-300/60 dark:border-white/20 w-full">
-            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">
-              Active
-            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-theme-300/30 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">Active</span>
             <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
           </div>
         );
       case "pill":
         return (
           <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-theme-300/40 dark:bg-white/15 text-theme-950 dark:text-white font-semibold">
-              Active
-            </span>
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-theme-300/40 dark:bg-white/15 text-theme-950 dark:text-white font-semibold">Active</span>
             <span className="text-[10px] px-2 py-0.5 opacity-60">Tab</span>
           </div>
         );
       case "card":
         return (
           <div className="mt-2 flex items-center justify-center gap-1.5 rounded bg-theme-100/10 dark:bg-black/20 p-2 border border-transparent w-full">
-            <span className="text-[10px] px-2 py-0.5 rounded border border-theme-400/50 bg-theme-300/20 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">
-              Active
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded border border-transparent opacity-60">
-              Tab
-            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded border border-theme-400/50 bg-theme-300/20 dark:bg-white/10 text-theme-950 dark:text-white font-semibold">Active</span>
+            <span className="text-[10px] px-2 py-0.5 rounded border border-transparent opacity-60">Tab</span>
           </div>
         );
       default:
@@ -9281,16 +6987,11 @@ function PageStylingEditor({ settingsContent, onChange }) {
   }, [serviceStatusOffsetX, serviceStatusOffsetY]);
 
   return (
-    <div
-      data-editor-window-autofit-scroll
-      className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2"
-    >
+    <div data-editor-window-autofit-scroll className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-2">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5">
-          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-            Стиль вкладок страниц
-          </h3>
-
+          <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Стиль вкладок страниц</h3>
+          
           <label className="block text-xs text-theme-600 dark:text-theme-300">
             Шрифт
             <select
@@ -9299,9 +7000,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
               className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
             >
               {fonts.map(([val, label]) => (
-                <option key={val} value={val}>
-                  {label}
-                </option>
+                <option key={val} value={val}>{label}</option>
               ))}
             </select>
           </label>
@@ -9314,9 +7013,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
               className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
             >
               {fontSizes.map(([val, label]) => (
-                <option key={val} value={val}>
-                  {label}
-                </option>
+                <option key={val} value={val}>{label}</option>
               ))}
             </select>
           </label>
@@ -9329,9 +7026,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
               className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
             >
               {alignments.map(([val, label]) => (
-                <option key={val} value={val}>
-                  {label}
-                </option>
+                <option key={val} value={val}>{label}</option>
               ))}
             </select>
           </label>
@@ -9340,9 +7035,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
             <input
               type="checkbox"
               checked={pageStyles.hideTabBackground ?? false}
-              onChange={(e) =>
-                updateStyle("hideTabBackground", e.target.checked)
-              }
+              onChange={(e) => updateStyle("hideTabBackground", e.target.checked)}
               className="rounded border-theme-300 bg-theme-50/90 text-theme-600 dark:border-white/10 dark:bg-theme-900/90"
             />
             Скрыть фон вкладок (сделать прозрачными)
@@ -9362,7 +7055,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
                       "rounded-lg border p-3 flex flex-col justify-between text-left text-xs font-medium cursor-pointer transition-all",
                       isSelected
                         ? "border-theme-600 bg-theme-500/10 text-theme-950 shadow-sm dark:border-white/50 dark:bg-white/10 dark:text-white"
-                        : "border-theme-300/40 bg-theme-50/10 text-theme-650 hover:bg-theme-50/40 dark:border-white/5 dark:bg-theme-900/10 dark:text-theme-300 dark:hover:bg-theme-900/30",
+                        : "border-theme-300/40 bg-theme-50/10 text-theme-650 hover:bg-theme-50/40 dark:border-white/5 dark:bg-theme-900/10 dark:text-theme-300 dark:hover:bg-theme-900/30"
                     )}
                   >
                     <span>{label}</span>
@@ -9406,25 +7099,16 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
         <div className="space-y-4">
           <div className="space-y-4 rounded-md border border-theme-300/50 p-4 dark:border-white/10 bg-theme-50/10 dark:bg-white/5 flex flex-col min-h-[300px]">
-            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-              Иконки страниц (вкладок)
-            </h3>
+            <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Иконки страниц (вкладок)</h3>
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[400px]">
               {tabsList.length === 0 ? (
-                <p className="text-xs text-theme-500 dark:text-theme-400">
-                  Нет вкладок. Создайте их в разметке групп.
-                </p>
+                <p className="text-xs text-theme-500 dark:text-theme-400">Нет вкладок. Создайте их в разметке групп.</p>
               ) : (
                 tabsList.map((tabName) => {
                   const iconVal = pageIcons[tabName] ?? "";
                   return (
-                    <div
-                      key={tabName}
-                      className="flex flex-col gap-1.5 p-2 rounded-md border border-theme-300/10 dark:border-white/5 bg-theme-50/40 dark:bg-white/5"
-                    >
-                      <span className="text-xs font-semibold text-theme-800 dark:text-theme-200">
-                        {tabName}
-                      </span>
+                    <div key={tabName} className="flex flex-col gap-1.5 p-2 rounded-md border border-theme-300/10 dark:border-white/5 bg-theme-50/40 dark:bg-white/5">
+                      <span className="text-xs font-semibold text-theme-800 dark:text-theme-200">{tabName}</span>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -9456,12 +7140,8 @@ function PageStylingEditor({ settingsContent, onChange }) {
 
           <div className="rounded-md border border-theme-300/50 bg-theme-50/10 p-4 dark:border-white/10 dark:bg-white/5">
             <div className="mb-3">
-              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">
-                Позиция статуса карточек
-              </h3>
-              <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">
-                Сдвиг надписей Running / Exited на карточках с мониторингом
-              </p>
+              <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100">Позиция статуса карточек</h3>
+              <p className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Сдвиг надписей Running / Exited на карточках с мониторингом</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -9474,12 +7154,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
                     max={SERVICE_STATUS_OFFSET_MAX}
                     step="1"
                     value={serviceStatusOffsetX}
-                    onChange={(event) =>
-                      updateStyle(
-                        "serviceStatusOffsetX",
-                        normalizeServiceStatusOffset(event.target.value),
-                      )
-                    }
+                    onChange={(event) => updateStyle("serviceStatusOffsetX", normalizeServiceStatusOffset(event.target.value))}
                     className="h-2 min-w-0 flex-1 cursor-pointer accent-theme-700 dark:accent-theme-200"
                   />
                   <span className="w-12 rounded border border-theme-300/40 bg-theme-50/80 px-1.5 py-0.5 text-center text-[10px] text-theme-800 dark:border-white/10 dark:bg-theme-900/80 dark:text-theme-100">
@@ -9497,12 +7172,7 @@ function PageStylingEditor({ settingsContent, onChange }) {
                     max={SERVICE_STATUS_OFFSET_MAX}
                     step="1"
                     value={serviceStatusOffsetY}
-                    onChange={(event) =>
-                      updateStyle(
-                        "serviceStatusOffsetY",
-                        normalizeServiceStatusOffset(event.target.value),
-                      )
-                    }
+                    onChange={(event) => updateStyle("serviceStatusOffsetY", normalizeServiceStatusOffset(event.target.value))}
                     className="h-2 min-w-0 flex-1 cursor-pointer accent-theme-700 dark:accent-theme-200"
                   />
                   <span className="w-12 rounded border border-theme-300/40 bg-theme-50/80 px-1.5 py-0.5 text-center text-[10px] text-theme-800 dark:border-white/10 dark:bg-theme-900/80 dark:text-theme-100">
@@ -9531,12 +7201,7 @@ const cleanBackgroundObject = (conf) => {
   }
 };
 
-function SettingsVisualEditor({
-  content,
-  onChange,
-  widgetsContent,
-  onWidgetsChange,
-}) {
+function SettingsVisualEditor({ content, onChange, widgetsContent, onWidgetsChange }) {
   const [parsedConfig, setParsedConfig] = useState({});
   const [yamlError, setYamlError] = useState("");
   const [lastValidConfig, setLastValidConfig] = useState({});
@@ -9559,22 +7224,12 @@ function SettingsVisualEditor({
     onChange(yaml.dump(next, { lineWidth: -1, noRefs: true, sortKeys: false }));
   };
 
-  const isBgObject =
-    typeof lastValidConfig.background === "object" &&
-    lastValidConfig.background !== null;
-  const bgImageVal = isBgObject
-    ? (lastValidConfig.background.image ?? "")
-    : (lastValidConfig.background ?? "");
-  const bgBlurVal = isBgObject ? (lastValidConfig.background.blur ?? "") : "";
-  const bgOpacityVal = isBgObject
-    ? (lastValidConfig.background.opacity ?? "")
-    : "";
-  const bgBrightnessVal = isBgObject
-    ? (lastValidConfig.background.brightness ?? "")
-    : "";
-  const bgSaturateVal = isBgObject
-    ? (lastValidConfig.background.saturate ?? "")
-    : "";
+  const isBgObject = typeof lastValidConfig.background === "object" && lastValidConfig.background !== null;
+  const bgImageVal = isBgObject ? lastValidConfig.background.image ?? "" : lastValidConfig.background ?? "";
+  const bgBlurVal = isBgObject ? lastValidConfig.background.blur ?? "" : "";
+  const bgOpacityVal = isBgObject ? lastValidConfig.background.opacity ?? "" : "";
+  const bgBrightnessVal = isBgObject ? lastValidConfig.background.brightness ?? "" : "";
+  const bgSaturateVal = isBgObject ? lastValidConfig.background.saturate ?? "" : "";
   const weatherProviders = lastValidConfig.providers ?? {};
   const pwaSettings = lastValidConfig.pwa ?? {};
   const pwaEnabled = pwaSettings.enabled ?? false;
@@ -9592,22 +7247,14 @@ function SettingsVisualEditor({
   }
 
   const weatherWidgetIndex = widgetsList.findIndex(
-    (w) =>
-      w &&
-      typeof w === "object" &&
-      (w.weather !== undefined ||
-        w.openweathermap !== undefined ||
-        w.weatherapi !== undefined),
+    w => w && typeof w === "object" && (w.weather !== undefined || w.openweathermap !== undefined || w.weatherapi !== undefined)
   );
   // Weather config logic moved to WeatherWidgetModal
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden">
       {/* Left panel: Visual controls */}
-      <div
-        data-editor-window-autofit-scroll
-        className="lg:col-span-7 flex flex-col min-h-0 border border-theme-300/30 rounded-xl dark:border-white/10 bg-theme-50/10 dark:bg-white/5 p-4 overflow-y-auto"
-      >
+      <div data-editor-window-autofit-scroll className="lg:col-span-7 flex flex-col min-h-0 border border-theme-300/30 rounded-xl dark:border-white/10 bg-theme-50/10 dark:bg-white/5 p-4 overflow-y-auto">
         <h3 className="text-sm font-semibold text-theme-900 dark:text-theme-100 mb-4 flex items-center gap-2">
           ⚙️ Панель настроек дашборда
           {yamlError && (
@@ -9618,28 +7265,17 @@ function SettingsVisualEditor({
         </h3>
 
         {/* Visual Fields Form */}
-        <div
-          className={
-            yamlError ? "opacity-60 pointer-events-none space-y-6" : "space-y-6"
-          }
-        >
+        <div className={yamlError ? "opacity-60 pointer-events-none space-y-6" : "space-y-6"}>
           {/* General Section */}
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">
-              Общие параметры
-            </h4>
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Общие параметры</h4>
 
             <label className="block text-xs text-theme-600 dark:text-theme-300">
               Заголовок дашборда (title)
               <input
                 type="text"
                 value={lastValidConfig.title ?? ""}
-                onChange={(e) =>
-                  updateConfig((conf) => {
-                    conf.title = e.target.value;
-                    return conf;
-                  })
-                }
+                onChange={(e) => updateConfig(conf => { conf.title = e.target.value; return conf; })}
                 className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 placeholder="Homepage"
               />
@@ -9650,12 +7286,7 @@ function SettingsVisualEditor({
               <input
                 type="text"
                 value={lastValidConfig.description ?? ""}
-                onChange={(e) =>
-                  updateConfig((conf) => {
-                    conf.description = e.target.value;
-                    return conf;
-                  })
-                }
+                onChange={(e) => updateConfig(conf => { conf.description = e.target.value; return conf; })}
                 className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 placeholder="Dashboard description"
               />
@@ -9667,12 +7298,7 @@ function SettingsVisualEditor({
                 <input
                   type="text"
                   value={lastValidConfig.language ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      conf.language = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => { conf.language = e.target.value; return conf; })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                   placeholder="ru, en"
                 />
@@ -9682,12 +7308,7 @@ function SettingsVisualEditor({
                 <input
                   type="text"
                   value={lastValidConfig.locale ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      conf.locale = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => { conf.locale = e.target.value; return conf; })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                   placeholder="ru-RU, en-US"
                 />
@@ -9700,12 +7321,7 @@ function SettingsVisualEditor({
                 <input
                   type="text"
                   value={lastValidConfig.startUrl ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      conf.startUrl = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => { conf.startUrl = e.target.value; return conf; })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                   placeholder="/"
                 />
@@ -9715,12 +7331,7 @@ function SettingsVisualEditor({
                 <input
                   type="text"
                   value={lastValidConfig.favicon ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      conf.favicon = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => { conf.favicon = e.target.value; return conf; })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                   placeholder="/favicon.ico"
                 />
@@ -9732,22 +7343,18 @@ function SettingsVisualEditor({
 
           {/* Theme & Design Section */}
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">
-              Тема и Оформление
-            </h4>
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Тема и Оформление</h4>
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block text-xs text-theme-600 dark:text-theme-300">
                 Тема (theme)
                 <select
                   value={lastValidConfig.theme ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      if (e.target.value === "") delete conf.theme;
-                      else conf.theme = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.theme;
+                    else conf.theme = e.target.value;
+                    return conf;
+                  })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">По умолчанию (системная)</option>
@@ -9759,13 +7366,11 @@ function SettingsVisualEditor({
                 Цвет акцента (color)
                 <select
                   value={lastValidConfig.color ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      if (e.target.value === "") delete conf.color;
-                      else conf.color = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.color;
+                    else conf.color = e.target.value;
+                    return conf;
+                  })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">По умолчанию</option>
@@ -9795,13 +7400,11 @@ function SettingsVisualEditor({
                 Размытие карточек (cardBlur)
                 <select
                   value={lastValidConfig.cardBlur ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      if (e.target.value === "") delete conf.cardBlur;
-                      else conf.cardBlur = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.cardBlur;
+                    else conf.cardBlur = e.target.value;
+                    return conf;
+                  })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">Без размытия</option>
@@ -9816,13 +7419,11 @@ function SettingsVisualEditor({
                 Стиль заголовков (headerStyle)
                 <select
                   value={lastValidConfig.headerStyle ?? ""}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      if (e.target.value === "") delete conf.headerStyle;
-                      else conf.headerStyle = e.target.value;
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => {
+                    if (e.target.value === "") delete conf.headerStyle;
+                    else conf.headerStyle = e.target.value;
+                    return conf;
+                  })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1.5 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 >
                   <option value="">По умолчанию</option>
@@ -9835,30 +7436,21 @@ function SettingsVisualEditor({
             {/* Background options */}
             <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-theme-700 dark:text-theme-200">
-                  Фоновое изображение
-                </span>
+                <span className="text-xs font-semibold text-theme-700 dark:text-theme-200">Фоновое изображение</span>
                 <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isBgObject}
                     onChange={(e) => {
                       const useObj = e.target.checked;
-                      updateConfig((conf) => {
+                      updateConfig(conf => {
                         if (useObj) {
                           const oldBg = conf.background;
                           conf.background = {
-                            image:
-                              typeof oldBg === "string"
-                                ? oldBg
-                                : (oldBg?.image ?? ""),
+                            image: typeof oldBg === "string" ? oldBg : (oldBg?.image ?? ""),
                           };
                         } else {
-                          conf.background =
-                            typeof conf.background === "object" &&
-                            conf.background !== null
-                              ? (conf.background.image ?? "")
-                              : "";
+                          conf.background = typeof conf.background === "object" && conf.background !== null ? conf.background.image ?? "" : "";
                           if (conf.background === "") {
                             delete conf.background;
                           }
@@ -9877,23 +7469,18 @@ function SettingsVisualEditor({
                 <input
                   type="text"
                   value={bgImageVal}
-                  onChange={(e) =>
-                    updateConfig((conf) => {
-                      const val = e.target.value;
-                      if (
-                        typeof conf.background === "object" &&
-                        conf.background !== null
-                      ) {
-                        conf.background.image = val;
-                      } else {
-                        conf.background = val;
-                      }
-                      if (conf.background === "") {
-                        delete conf.background;
-                      }
-                      return conf;
-                    })
-                  }
+                  onChange={(e) => updateConfig(conf => {
+                    const val = e.target.value;
+                    if (typeof conf.background === "object" && conf.background !== null) {
+                      conf.background.image = val;
+                    } else {
+                      conf.background = val;
+                    }
+                    if (conf.background === "") {
+                      delete conf.background;
+                    }
+                    return conf;
+                  })}
                   className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                   placeholder="/api/config/background"
                 />
@@ -9906,17 +7493,14 @@ function SettingsVisualEditor({
                       Размытие фона (blur)
                       <select
                         value={bgBlurVal}
-                        onChange={(e) =>
-                          updateConfig((conf) => {
-                            conf.background = conf.background || {};
-                            if (e.target.value === "")
-                              delete conf.background.blur;
-                            else conf.background.blur = e.target.value;
-
-                            cleanBackgroundObject(conf);
-                            return conf;
-                          })
-                        }
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.blur;
+                          else conf.background.blur = e.target.value;
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
                         className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                       >
                         <option value="">Без размытия</option>
@@ -9933,21 +7517,14 @@ function SettingsVisualEditor({
                       Яркость фона
                       <select
                         value={bgBrightnessVal}
-                        onChange={(e) =>
-                          updateConfig((conf) => {
-                            conf.background = conf.background || {};
-                            if (e.target.value === "")
-                              delete conf.background.brightness;
-                            else
-                              conf.background.brightness = parseInt(
-                                e.target.value,
-                                10,
-                              );
-
-                            cleanBackgroundObject(conf);
-                            return conf;
-                          })
-                        }
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.brightness;
+                          else conf.background.brightness = parseInt(e.target.value, 10);
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
                         className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                       >
                         <option value="">Обычная (100%)</option>
@@ -9967,21 +7544,14 @@ function SettingsVisualEditor({
                       Насыщенность
                       <select
                         value={bgSaturateVal}
-                        onChange={(e) =>
-                          updateConfig((conf) => {
-                            conf.background = conf.background || {};
-                            if (e.target.value === "")
-                              delete conf.background.saturate;
-                            else
-                              conf.background.saturate = parseInt(
-                                e.target.value,
-                                10,
-                              );
-
-                            cleanBackgroundObject(conf);
-                            return conf;
-                          })
-                        }
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          if (e.target.value === "") delete conf.background.saturate;
+                          else conf.background.saturate = parseInt(e.target.value, 10);
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
                         className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                       >
                         <option value="">Обычная (100%)</option>
@@ -9995,25 +7565,22 @@ function SettingsVisualEditor({
 
                   <div className="pt-2">
                     <label className="block text-[11px] text-theme-600 dark:text-theme-300">
-                      Видимость фонового рисунка:{" "}
-                      {bgOpacityVal !== "" ? `${bgOpacityVal}%` : "100%"}
+                      Видимость фонового рисунка: {bgOpacityVal !== "" ? `${bgOpacityVal}%` : "100%"}
                       <input
                         type="range"
                         min="0"
                         max="100"
                         step="5"
                         value={bgOpacityVal !== "" ? bgOpacityVal : 100}
-                        onChange={(e) =>
-                          updateConfig((conf) => {
-                            conf.background = conf.background || {};
-                            const val = parseInt(e.target.value, 10);
-                            if (val === 100) delete conf.background.opacity;
-                            else conf.background.opacity = val;
-
-                            cleanBackgroundObject(conf);
-                            return conf;
-                          })
-                        }
+                        onChange={(e) => updateConfig(conf => {
+                          conf.background = conf.background || {};
+                          const val = parseInt(e.target.value, 10);
+                          if (val === 100) delete conf.background.opacity;
+                          else conf.background.opacity = val;
+                          
+                          cleanBackgroundObject(conf);
+                          return conf;
+                        })}
                         className="w-full h-1 bg-theme-200 rounded-lg appearance-none cursor-pointer dark:bg-theme-700 mt-2"
                       />
                     </label>
@@ -10027,14 +7594,10 @@ function SettingsVisualEditor({
 
           {/* API Keys Providers */}
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">
-              Интеграции и API поставщиков
-            </h4>
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Интеграции и API поставщиков</h4>
 
             <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
-              <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200 block">
-                Погода (Weather API и Виджет)
-              </span>
+              <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200 block">Погода (Weather API и Виджет)</span>
 
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <label className="block text-[11px] text-theme-600 dark:text-theme-300">
@@ -10042,15 +7605,13 @@ function SettingsVisualEditor({
                   <input
                     type="text"
                     value={weatherProviders.openweathermap ?? ""}
-                    onChange={(e) =>
-                      updateConfig((conf) => {
-                        conf.providers = conf.providers || {};
-                        const val = e.target.value;
-                        if (val === "") delete conf.providers.openweathermap;
-                        else conf.providers.openweathermap = val;
-                        return conf;
-                      })
-                    }
+                    onChange={(e) => updateConfig(conf => {
+                      conf.providers = conf.providers || {};
+                      const val = e.target.value;
+                      if (val === "") delete conf.providers.openweathermap;
+                      else conf.providers.openweathermap = val;
+                      return conf;
+                    })}
                     className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                     placeholder="openweathermapapikey"
                   />
@@ -10060,15 +7621,13 @@ function SettingsVisualEditor({
                   <input
                     type="text"
                     value={weatherProviders.weatherapi ?? ""}
-                    onChange={(e) =>
-                      updateConfig((conf) => {
-                        conf.providers = conf.providers || {};
-                        const val = e.target.value;
-                        if (val === "") delete conf.providers.weatherapi;
-                        else conf.providers.weatherapi = val;
-                        return conf;
-                      })
-                    }
+                    onChange={(e) => updateConfig(conf => {
+                      conf.providers = conf.providers || {};
+                      const val = e.target.value;
+                      if (val === "") delete conf.providers.weatherapi;
+                      else conf.providers.weatherapi = val;
+                      return conf;
+                    })}
                     className="mt-1 w-full rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-xs text-theme-900 dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                     placeholder="weatherapiapikey"
                   />
@@ -10083,22 +7642,18 @@ function SettingsVisualEditor({
 
           {/* PWA Section */}
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">
-              Приложение (PWA)
-            </h4>
+            <h4 className="text-xs font-bold text-theme-800 dark:text-theme-200 uppercase tracking-wider">Приложение (PWA)</h4>
 
             <div className="space-y-3 rounded-md border border-theme-300/20 dark:border-white/5 bg-theme-50/5 p-3">
               <div className="flex justify-between items-center">
-                <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200">
-                  Progressive Web App (PWA)
-                </span>
+                <span className="text-[11px] font-semibold text-theme-700 dark:text-theme-200">Progressive Web App (PWA)</span>
                 <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={pwaEnabled}
                     onChange={(e) => {
                       const enabled = e.target.checked;
-                      updateConfig((conf) => {
+                      updateConfig(conf => {
                         conf.pwa = conf.pwa || {};
                         conf.pwa.enabled = enabled;
                         return conf;
@@ -10112,14 +7667,8 @@ function SettingsVisualEditor({
 
               {pwaEnabled && (
                 <div className="text-[10px] leading-normal text-amber-600 dark:text-amber-400/90 border border-amber-300/20 bg-amber-500/5 p-2.5 rounded-md mt-2">
-                  <p className="font-semibold mb-1">
-                    ℹ️ Ограничение браузера по безопасности:
-                  </p>
-                  Кнопка установки PWA появится в браузере только если ваш сайт
-                  работает по безопасному протоколу <strong>HTTPS</strong> или
-                  открыт по адресу <strong>localhost / 127.0.0.1</strong>. При
-                  доступе по обычному IP-адресу (например, http://192.168.1.73)
-                  браузер блокирует работу PWA.
+                  <p className="font-semibold mb-1">ℹ️ Ограничение браузера по безопасности:</p>
+                  Кнопка установки PWA появится в браузере только если ваш сайт работает по безопасному протоколу <strong>HTTPS</strong> или открыт по адресу <strong>localhost / 127.0.0.1</strong>. При доступе по обычному IP-адресу (например, http://192.168.1.73) браузер блокирует работу PWA.
                 </div>
               )}
             </div>
@@ -10149,26 +7698,21 @@ function SettingsVisualEditor({
   );
 }
 
-function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
+function ConfiguratorUpdatePanel({ onSaved }) {
   const [updateInfo, setUpdateInfo] = useState(null);
   const [status, setStatus] = useState(null);
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateFiles, setUpdateFiles] = useState([]);
-  const [activeUpdateFileName, setActiveUpdateFileName] = useState(
-    CONFIGURATOR_UPDATE_LOG_TAB,
-  );
+  const [activeUpdateFileName, setActiveUpdateFileName] = useState(CONFIGURATOR_UPDATE_LOG_TAB);
   const [error, setError] = useState("");
 
   const loadUpdateFiles = useCallback(async () => {
-    const nextData = await postEditorAction({
-      action: "get-configurator-update-files",
-    });
+    const nextData = await postEditorAction({ action: "get-configurator-update-files" });
     const nextFiles = nextData?.files ?? [];
     setUpdateFiles(nextFiles);
     setActiveUpdateFileName((currentFileName) =>
-      currentFileName === CONFIGURATOR_UPDATE_LOG_TAB ||
-      nextFiles.some((file) => file.fileName === currentFileName)
+      currentFileName === CONFIGURATOR_UPDATE_LOG_TAB || nextFiles.some((file) => file.fileName === currentFileName)
         ? currentFileName
         : CONFIGURATOR_UPDATE_LOG_TAB,
     );
@@ -10176,9 +7720,7 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
   }, []);
 
   const loadStatus = useCallback(async () => {
-    const nextStatus = await postEditorAction({
-      action: "get-configurator-update-status",
-    });
+    const nextStatus = await postEditorAction({ action: "get-configurator-update-status" });
     setStatus(nextStatus);
     if (!["running", "restarting"].includes(nextStatus?.state)) {
       loadUpdateFiles().catch((filesError) => setError(filesError.message));
@@ -10186,28 +7728,22 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
     return nextStatus;
   }, [loadUpdateFiles]);
 
-  const checkUpdate = useCallback(
-    async (force = false) => {
-      setChecking(true);
-      setError("");
+  const checkUpdate = useCallback(async (force = false) => {
+    setChecking(true);
+    setError("");
 
-      try {
-        const nextInfo = await postEditorAction({
-          action: "check-configurator-update",
-          force,
-        });
-        setUpdateInfo(nextInfo);
-        loadUpdateFiles().catch((filesError) => setError(filesError.message));
-        return nextInfo;
-      } catch (checkError) {
-        setError(checkError.message);
-        return null;
-      } finally {
-        setChecking(false);
-      }
-    },
-    [loadUpdateFiles],
-  );
+    try {
+      const nextInfo = await postEditorAction({ action: "check-configurator-update", force });
+      setUpdateInfo(nextInfo);
+      loadUpdateFiles().catch((filesError) => setError(filesError.message));
+      return nextInfo;
+    } catch (checkError) {
+      setError(checkError.message);
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, [loadUpdateFiles]);
 
   useEffect(() => {
     checkUpdate(true);
@@ -10229,16 +7765,10 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
   const running = status && ["running", "restarting"].includes(status.state);
   const updateAvailable = Boolean(updateInfo?.updateAvailable);
   const canRunUpdate = Boolean(updateInfo?.canUpdate && !running && !updating);
-  const currentVersion =
-    updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
-  const latestVersion =
-    updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
-  const targetVersion =
-    updateInfo?.targetVersion || status?.targetVersion || "неизвестно";
-  const minimumTargetVersion =
-    updateInfo?.minimumTargetVersion ||
-    status?.minimumTargetVersion ||
-    "неизвестно";
+  const currentVersion = updateInfo?.currentVersion || status?.currentVersion || "неизвестно";
+  const latestVersion = updateInfo?.latestVersion || status?.latestVersion || "неизвестно";
+  const targetVersion = updateInfo?.targetVersion || status?.targetVersion || "неизвестно";
+  const minimumTargetVersion = updateInfo?.minimumTargetVersion || status?.minimumTargetVersion || "неизвестно";
   const targetUpdateRequired = Boolean(updateInfo?.targetUpdateRequired);
   const targetUpdateCommand = updateInfo?.targetUpdateCommand || "update";
   const consoleUpdateCommand = `bash <(curl -Ls ${updateInfo?.latest?.installUrl || "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh"}) --action update`;
@@ -10250,9 +7780,7 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
     (status?.state === "idle"
       ? "Нажмите “Проверить версию” или “Обновить с GitHub”."
       : "Подробности доступны в логе ниже.");
-  const updateLogContent = (
-    status?.log?.length ? status.log : ["Лог обновления пока пуст."]
-  ).join("\n");
+  const updateLogContent = (status?.log?.length ? status.log : ["Лог обновления пока пуст."]).join("\n");
   const serviceDataFiles = useMemo(
     () => [
       {
@@ -10268,19 +7796,14 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
     [updateFiles, updateLogContent],
   );
   const activeUpdateFile =
-    serviceDataFiles.find((file) => file.fileName === activeUpdateFileName) ??
-    serviceDataFiles[0] ??
-    null;
+    serviceDataFiles.find((file) => file.fileName === activeUpdateFileName) ?? serviceDataFiles[0] ?? null;
 
   async function startUpdate() {
     setUpdating(true);
     setError("");
 
     try {
-      const nextStatus = await postEditorAction({
-        action: "run-configurator-update",
-        autoRestart: true,
-      });
+      const nextStatus = await postEditorAction({ action: "run-configurator-update", autoRestart: true });
       setStatus(nextStatus);
       loadUpdateFiles().catch((filesError) => setError(filesError.message));
       onSaved("Обновление запущено");
@@ -10296,15 +7819,9 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">
-              {studioMode
-                ? "Обновления мода Homepage"
-                : "Обновления конфигуратора"}
-            </h3>
+            <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Обновления конфигуратора</h3>
             <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
-              {studioMode
-                ? "Студия проверяет версию мода на GitHub; фоновая проверка выполняется не чаще одного раза в сутки."
-                : "Это окно принудительно проверяет GitHub `version.json`; тихая фоновая проверка выполняется не чаще одного раза в сутки."}
+              Это окно принудительно проверяет GitHub `version.json`; тихая фоновая проверка выполняется не чаще одного раза в сутки.
             </p>
           </div>
           <div
@@ -10321,38 +7838,24 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
 
         <div className="mt-4 grid gap-3 border-t border-theme-300/30 pt-3 dark:border-white/10 md:grid-cols-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">
-              Установлено
-            </div>
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">Установлено</div>
             <div className="mt-1 text-lg font-semibold">{currentVersion}</div>
           </div>
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">
-              На GitHub
-            </div>
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">На GitHub</div>
             <div className="mt-1 text-lg font-semibold">{latestVersion}</div>
           </div>
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">
-              Homepage target
-            </div>
+            <div className="text-[11px] font-semibold uppercase text-theme-500 dark:text-theme-400">Homepage target</div>
             <div className="mt-1 text-lg font-semibold">{targetVersion}</div>
-            <div className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">
-              Минимум: {minimumTargetVersion}
-            </div>
+            <div className="mt-0.5 text-[11px] text-theme-500 dark:text-theme-400">Минимум: {minimumTargetVersion}</div>
           </div>
         </div>
 
         <div className="mt-3 grid gap-2 text-xs text-theme-600 dark:text-theme-400 md:grid-cols-2">
-          <div>
-            Последняя проверка: {formatUpdateDate(updateInfo?.checkedAt)}
-          </div>
-          <div className="truncate">
-            Target: {updateInfo?.targetDir || status?.targetDir || "не найден"}
-          </div>
-          <div className="truncate md:col-span-2">
-            Источник версии: {updateInfo?.latest?.metadataUrl || "неизвестно"}
-          </div>
+          <div>Последняя проверка: {formatUpdateDate(updateInfo?.checkedAt)}</div>
+          <div className="truncate">Target: {updateInfo?.targetDir || status?.targetDir || "не найден"}</div>
+          <div className="truncate md:col-span-2">Источник версии: {updateInfo?.latest?.metadataUrl || "неизвестно"}</div>
         </div>
 
         {updateInfo?.reason && (
@@ -10367,18 +7870,13 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
             className="mt-3 rounded-md border border-red-500/70 bg-red-500/15 p-3 text-xs font-semibold text-red-900 shadow-sm dark:text-red-100"
           >
             <div>
-              ⚠️ Важно: после обновления target Homepage наш мод может полностью
-              перестать работать, пока configurator не будет адаптирован под
-              новую версию.
+              ⚠️ Важно: после обновления target Homepage наш мод может полностью перестать работать, пока configurator не будет адаптирован под новую версию.
             </div>
             <div className="mt-2 font-medium">
-              Сначала обновите target проект Homepage из консоли командой{" "}
-              <code>{targetUpdateCommand}</code>, затем вернитесь сюда и
-              повторите проверку.
+              Сначала обновите target проект Homepage из консоли командой <code>{targetUpdateCommand}</code>, затем вернитесь сюда и повторите проверку.
             </div>
             <div className="mt-2 font-medium">
-              Если после этого браузерный редактор не откроется, обновите
-              configurator из консоли:
+              Если после этого браузерный редактор не откроется, обновите configurator из консоли:
               <code className="mt-1 block overflow-x-auto whitespace-nowrap rounded border border-red-500/30 bg-red-950/10 px-2 py-1 dark:bg-red-950/30">
                 {consoleUpdateCommand}
               </code>
@@ -10401,45 +7899,26 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
             disabled={!canRunUpdate}
             className="rounded-md bg-theme-800 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-theme-100 dark:text-theme-900 dark:hover:bg-white"
           >
-            {updating || running
-              ? "Обновление..."
-              : updateAvailable
-                ? "Обновить с GitHub"
-                : "Переустановить с GitHub"}
+            {updating || running ? "Обновление..." : updateAvailable ? "Обновить с GitHub" : "Переустановить с GitHub"}
           </button>
         </div>
       </div>
 
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">
-            Статус установки
-          </h3>
-          <span
-            className={classNames(
-              "rounded-md border px-2 py-1 text-xs font-semibold",
-              updateTone.badge,
-            )}
-          >
+          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Статус установки</h3>
+          <span className={classNames("rounded-md border px-2 py-1 text-xs font-semibold", updateTone.badge)}>
             {updateStateLabel(status?.state)}
           </span>
         </div>
-        <div
-          className={classNames(
-            "mt-3 rounded-md border p-3 shadow-sm",
-            updateTone.box,
-          )}
-        >
+        <div className={classNames("mt-3 rounded-md border p-3 shadow-sm", updateTone.box)}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-bold">{updateStatusTitle}</div>
             <div className="font-mono text-xs font-bold">{updateProgress}%</div>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/45 dark:bg-black/25">
             <div
-              className={classNames(
-                "h-full rounded-full transition-[width] duration-500",
-                updateTone.bar,
-              )}
+              className={classNames("h-full rounded-full transition-[width] duration-500", updateTone.bar)}
               style={{ width: `${updateProgress}%` }}
             />
           </div>
@@ -10463,12 +7942,9 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
 
       <div className="rounded-md border border-theme-300/50 p-4 dark:border-white/10">
         <div>
-          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">
-            Служебные данные
-          </h3>
+          <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Служебные данные</h3>
           <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
-            Эти данные нужны только для диагностики проверки версии и последнего
-            запуска обновления.
+            Эти данные нужны только для диагностики проверки версии и последнего запуска обновления.
           </p>
         </div>
 
@@ -10486,9 +7962,7 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
               )}
             >
               <div className="font-semibold">{file.label}</div>
-              <div className="mt-0.5 max-w-[16rem] truncate opacity-70">
-                {file.pathLabel ?? file.fileName}
-              </div>
+              <div className="mt-0.5 max-w-[16rem] truncate opacity-70">{file.pathLabel ?? file.fileName}</div>
             </button>
           ))}
         </div>
@@ -10501,22 +7975,10 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
             <div className="mt-2">
               <CodeEditor
                 label={activeUpdateFile.pathLabel ?? activeUpdateFile.fileName}
-                language={
-                  activeUpdateFile.format === "plain"
-                    ? "plain"
-                    : detectEditorLanguage("json", activeUpdateFile.fileName)
-                }
-                value={
-                  activeUpdateFile.format === "plain"
-                    ? activeUpdateFile.content
-                    : formatUpdateDataFileContent(activeUpdateFile)
-                }
+                language={activeUpdateFile.format === "plain" ? "plain" : detectEditorLanguage("json", activeUpdateFile.fileName)}
+                value={activeUpdateFile.format === "plain" ? activeUpdateFile.content : formatUpdateDataFileContent(activeUpdateFile)}
                 onChange={() => {}}
-                minHeightClassName={
-                  activeUpdateFile.format === "plain"
-                    ? "min-h-[12rem]"
-                    : "min-h-[18rem]"
-                }
+                minHeightClassName={activeUpdateFile.format === "plain" ? "min-h-[12rem]" : "min-h-[18rem]"}
                 zoomStorageKey={
                   activeUpdateFile.format === "plain"
                     ? "homepage-browser-editor-code-zoom-update-log"
@@ -10536,72 +7998,41 @@ function ConfiguratorUpdatePanel({ onSaved, studioMode = false }) {
   );
 }
 
-function ConfiguratorUpdateModal({ onClose, onSaved, studioChrome = false }) {
-  const WindowComponent = studioChrome ? StudioModalWindow : EditorWindow;
-
+function ConfiguratorUpdateModal({ onClose, onSaved }) {
   return (
-    <WindowComponent
+    <EditorWindow
       storageKey="homepage-browser-editor-window-updates"
       title="Обновления"
-      description={
-        studioChrome
-          ? "Проверка версии и обновление мода прямо из Студии"
-          : null
-      }
       onClose={onClose}
       defaultWidth={860}
       defaultHeight={620}
       minWidth={680}
       minHeight={500}
-      studioChrome={studioChrome}
-      wrapperClassName={studioChrome ? "homepage-themed-configurator" : ""}
     >
-      <ConfiguratorUpdatePanel onSaved={onSaved} studioMode={studioChrome} />
-    </WindowComponent>
+      <ConfiguratorUpdatePanel onSaved={onSaved} />
+    </EditorWindow>
   );
 }
 
-function ConfigFilesModal({
-  tabs,
-  settings: initialSettings,
-  onClose,
-  onSaved,
-  onBackToStudio,
-}) {
+function ConfigFilesModal({ tabs, settings: initialSettings, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { settings, setSettings } = useContext(SettingsContext);
   const currentSettings = settings ?? initialSettings;
   const [activeFileName, setActiveFileName] = useState("__page_styling__");
   const configuratorAutoFitRef = useRef(null);
   const [drafts, setDrafts] = useState(() =>
-    Object.fromEntries(
-      (tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]),
-    ),
+    Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [studioPalette] = useState(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(
-        window.localStorage.getItem("homepage-dashboard-studio-style") ?? "{}",
-      );
-    } catch {
-      return {};
-    }
-  });
-  const [transparentBackdrop, setTransparentBackdrop] = useState(
-    readStoredConfiguratorTransparentBackdrop,
-  );
+  const [transparentBackdrop, setTransparentBackdrop] = useState(readStoredConfiguratorTransparentBackdrop);
   const committedSettingsRef = useRef(currentSettings);
   const committedCustomCssRef = useRef("");
   const committedCustomJsRef = useRef("");
   const radioManagedPreviewAppliedRef = useRef(false);
 
   useEffect(() => {
-    const nextDrafts = Object.fromEntries(
-      (tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]),
-    );
+    const nextDrafts = Object.fromEntries((tabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""]));
     committedCustomCssRef.current = nextDrafts["custom.css"] ?? "";
     committedCustomJsRef.current = nextDrafts["custom.js"] ?? "";
     setDrafts(nextDrafts);
@@ -10618,28 +8049,13 @@ function ConfigFilesModal({
     }
   }, [activeFileName, tabs]);
 
-  const activeTab =
-    tabs?.find((tab) => tab.fileName === activeFileName) ?? null;
-  const activeContent = activeTab
-    ? (drafts[activeTab.fileName] ?? activeTab.content ?? "")
-    : "";
-  const activeLanguage = activeTab
-    ? detectEditorLanguage(activeTab.format, activeTab.fileName)
-    : "";
-  const hasSettingsDraft = Object.prototype.hasOwnProperty.call(
-    drafts,
-    "settings.yaml",
-  );
-  const settingsDraft = hasSettingsDraft
-    ? (drafts["settings.yaml"] ?? "")
-    : null;
-  const hasCustomCssDraft = Object.prototype.hasOwnProperty.call(
-    drafts,
-    "custom.css",
-  );
-  const customCssDraft = hasCustomCssDraft
-    ? (drafts["custom.css"] ?? "")
-    : null;
+  const activeTab = tabs?.find((tab) => tab.fileName === activeFileName) ?? null;
+  const activeContent = activeTab ? drafts[activeTab.fileName] ?? activeTab.content ?? "" : "";
+  const activeLanguage = activeTab ? detectEditorLanguage(activeTab.format, activeTab.fileName) : "";
+  const hasSettingsDraft = Object.prototype.hasOwnProperty.call(drafts, "settings.yaml");
+  const settingsDraft = hasSettingsDraft ? drafts["settings.yaml"] ?? "" : null;
+  const hasCustomCssDraft = Object.prototype.hasOwnProperty.call(drafts, "custom.css");
+  const customCssDraft = hasCustomCssDraft ? drafts["custom.css"] ?? "" : null;
   const canSave =
     activeFileName === "__page_styling__" ||
     activeFileName === "__top_bar__" ||
@@ -10710,13 +8126,12 @@ function ConfigFilesModal({
   }, []);
 
   async function handleSave() {
-    const isTopBar =
-      activeFileName === "__top_bar__" || activeFileName === "__radio__";
+    const isTopBar = activeFileName === "__top_bar__" || activeFileName === "__radio__";
     const targetFileName = isTopBar
       ? null
       : activeFileName === "__page_styling__"
-        ? "settings.yaml"
-        : activeTab?.fileName;
+      ? "settings.yaml"
+      : activeTab?.fileName;
 
     if (!isTopBar && !targetFileName) {
       return;
@@ -10740,9 +8155,7 @@ function ConfigFilesModal({
         });
 
         if (!jsResponse.ok) {
-          throw new Error(
-            "Не удалось сохранить custom.js: " + (await jsResponse.text()),
-          );
+          throw new Error("Не удалось сохранить custom.js: " + (await jsResponse.text()));
         }
 
         // Save custom.css
@@ -10756,9 +8169,7 @@ function ConfigFilesModal({
         });
 
         if (!cssResponse.ok) {
-          throw new Error(
-            "Не удалось сохранить custom.css: " + (await cssResponse.text()),
-          );
+          throw new Error("Не удалось сохранить custom.css: " + (await cssResponse.text()));
         }
 
         nextData = await cssResponse.json();
@@ -10776,10 +8187,7 @@ function ConfigFilesModal({
           throw new Error(await response.text());
         }
 
-        if (
-          targetFileName === "settings.yaml" &&
-          drafts["widgets.yaml"] !== undefined
-        ) {
+        if (targetFileName === "settings.yaml" && drafts["widgets.yaml"] !== undefined) {
           const widgetsResponse = await editorWriteFetch("/api/config/editor", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -10789,10 +8197,7 @@ function ConfigFilesModal({
             }),
           });
           if (!widgetsResponse.ok) {
-            throw new Error(
-              "Не удалось сохранить widgets.yaml: " +
-                (await widgetsResponse.text()),
-            );
+            throw new Error("Не удалось сохранить widgets.yaml: " + (await widgetsResponse.text()));
           }
           nextData = await widgetsResponse.json();
         } else {
@@ -10802,9 +8207,7 @@ function ConfigFilesModal({
 
       const committedSettings =
         nextData?.settings ??
-        (!isTopBar && targetFileName === "settings.yaml"
-          ? parseSettingsDraft(drafts["settings.yaml"] ?? "")
-          : null);
+        (!isTopBar && targetFileName === "settings.yaml" ? parseSettingsDraft(drafts["settings.yaml"] ?? "") : null);
 
       if (committedSettings) {
         committedSettingsRef.current = committedSettings;
@@ -10825,21 +8228,14 @@ function ConfigFilesModal({
         committedCustomJsRef.current = drafts["custom.js"] ?? "";
       }
 
-      setDrafts(
-        Object.fromEntries(
-          (nextData?.settingsTabs ?? []).map((tab) => [
-            tab.fileName,
-            tab.content ?? "",
-          ]),
-        ),
-      );
+      setDrafts(Object.fromEntries((nextData?.settingsTabs ?? []).map((tab) => [tab.fileName, tab.content ?? ""])));
       await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
       onSaved(
         isTopBar
           ? "Настройки верхней панели сохранены"
           : activeFileName === "__page_styling__"
-            ? "Стилизация страниц сохранена"
-            : `Сохранено: ${activeTab.label}`,
+          ? "Стилизация страниц сохранена"
+          : `Сохранено: ${activeTab.label}`
       );
     } catch (saveError) {
       setError(saveError.message);
@@ -10860,27 +8256,9 @@ function ConfigFilesModal({
       dimBackdrop={!transparentBackdrop}
       autoFitContent
       autoFitTargetRef={configuratorAutoFitRef}
-      themeStyle={{
-        "--studio-accent": studioPalette.accent || "#38bdf8",
-        "--studio-bg": studioPalette.background || "#081c2b",
-        "--studio-muted": studioPalette.mutedText || "#93c5fd",
-        "--studio-panel": studioPalette.panel || "#0d2b40",
-        "--studio-text": studioPalette.text || "#e0f2fe",
-      }}
-      wrapperClassName="homepage-themed-configurator"
-      dimBackdrop={false}
       autoFitKey={`configurator:${activeFileName}:${error ? "error" : "ready"}`}
       headerActions={
         <>
-          {onBackToStudio && (
-            <button
-              type="button"
-              onClick={onBackToStudio}
-              className="rounded-md border border-theme-300/50 bg-theme-100/40 px-3 py-2 text-sm font-medium text-theme-800 transition-colors hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:hover:bg-white/10"
-            >
-              ← Студия
-            </button>
-          )}
           <label className="flex h-10 items-center gap-2 rounded-md border border-theme-300/50 bg-theme-100/40 px-3 text-xs font-medium text-theme-800 shadow-sm transition-colors hover:bg-theme-200/50 dark:border-white/10 dark:bg-white/5 dark:text-theme-100 dark:hover:bg-white/10">
             <input
               type="checkbox"
@@ -10901,232 +8279,172 @@ function ConfigFilesModal({
         </>
       }
     >
-      <div
-        ref={configuratorAutoFitRef}
-        className="flex min-h-0 min-w-0 flex-1 flex-col"
-      >
-        <div>
-          <div className="flex flex-wrap gap-2 pb-1.5 border-b border-theme-300/30 mb-4">
-            <button
-              type="button"
-              onClick={() => setActiveFileName("__page_styling__")}
-              className={classNames(
-                "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                activeFileName === "__page_styling__"
-                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
-                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
-              )}
-            >
-              <div className="truncate text-sm font-semibold leading-5">
-                Стилизация страниц
-              </div>
-              <div className="truncate opacity-70">Настройки вкладок</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFileName("__top_bar__")}
-              className={classNames(
-                "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                activeFileName === "__top_bar__"
-                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
-                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
-              )}
-            >
-              <div className="truncate text-sm font-semibold leading-5">
-                Верхняя панель
-              </div>
-              <div className="truncate opacity-70">Обои и Определение IP</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFileName("__radio__")}
-              className={classNames(
-                "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                activeFileName === "__radio__"
-                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
-                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
-              )}
-            >
-              <div className="truncate text-sm font-semibold leading-5">
-                Радио
-              </div>
-              <div className="truncate opacity-70">Настройки радио</div>
-            </button>
-            {(tabs ?? []).map((tab) => (
-              <button
-                key={tab.fileName}
-                type="button"
-                onClick={() => setActiveFileName(tab.fileName)}
-                className={classNames(
-                  "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
-                  activeFileName === tab.fileName
-                    ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
-                    : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
-                )}
-              >
-                <div className="truncate text-sm font-semibold leading-5">
-                  {tab.label}
-                </div>
-                <div className="truncate opacity-70">{tab.fileName}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
-          <div
-            style={{
-              display: activeFileName === "__page_styling__" ? "flex" : "none",
-            }}
-            className="flex-1 min-h-0 flex flex-col"
+      <div ref={configuratorAutoFitRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div>
+        <div className="flex flex-wrap gap-2 pb-1.5 border-b border-theme-300/30 mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__page_styling__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__page_styling__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
           >
-            <PageStylingEditor
-              settingsContent={drafts["settings.yaml"] ?? ""}
-              onChange={(newContent) =>
-                updateDraft("settings.yaml", newContent)
-              }
+            <div className="truncate text-sm font-semibold leading-5">Стилизация страниц</div>
+            <div className="truncate opacity-70">Настройки вкладок</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__top_bar__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__top_bar__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Верхняя панель</div>
+            <div className="truncate opacity-70">Обои и Определение IP</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFileName("__radio__")}
+            className={classNames(
+              "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+              activeFileName === "__radio__"
+                ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+            )}
+          >
+            <div className="truncate text-sm font-semibold leading-5">Радио</div>
+            <div className="truncate opacity-70">Настройки радио</div>
+          </button>
+          {(tabs ?? []).map((tab) => (
+            <button
+              key={tab.fileName}
+              type="button"
+              onClick={() => setActiveFileName(tab.fileName)}
+              className={classNames(
+                "min-w-[9rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors",
+                activeFileName === tab.fileName
+                  ? "border-theme-500/70 bg-theme-200/70 text-theme-950 shadow-sm dark:border-white/30 dark:bg-white/15 dark:text-theme-50"
+                  : "border-theme-300/50 bg-transparent text-theme-800 hover:bg-theme-100/60 dark:border-white/10 dark:text-theme-200 dark:hover:bg-white/10",
+              )}
+            >
+              <div className="truncate text-sm font-semibold leading-5">{tab.label}</div>
+              <div className="truncate opacity-70">{tab.fileName}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
+        <div style={{ display: activeFileName === "__page_styling__" ? "flex" : "none" }} className="flex-1 min-h-0 flex flex-col">
+          <PageStylingEditor
+            settingsContent={drafts["settings.yaml"] ?? ""}
+            onChange={(newContent) => updateDraft("settings.yaml", newContent)}
+          />
+        </div>
+        {activeFileName === "__top_bar__" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <TopBarSettingsEditor
+              customJs={drafts["custom.js"] ?? ""}
+              customCss={drafts["custom.css"] ?? ""}
+              mode="topbar"
+              onChangeCustomJs={(newJs) => updateDraft("custom.js", newJs, { previewRadioManaged: true })}
+              onChangeCustomCss={(newCss) => updateDraft("custom.css", newCss)}
             />
           </div>
-          {activeFileName === "__top_bar__" && (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <TopBarSettingsEditor
-                customJs={drafts["custom.js"] ?? ""}
-                customCss={drafts["custom.css"] ?? ""}
-                mode="topbar"
-                onChangeCustomJs={(newJs) =>
-                  updateDraft("custom.js", newJs, { previewRadioManaged: true })
-                }
-                onChangeCustomCss={(newCss) =>
-                  updateDraft("custom.css", newCss)
-                }
-              />
-            </div>
-          )}
-          {activeFileName === "__radio__" && (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <TopBarSettingsEditor
-                customJs={drafts["custom.js"] ?? ""}
-                customCss={drafts["custom.css"] ?? ""}
-                mode="radio"
-                onChangeCustomJs={(newJs) =>
-                  updateDraft("custom.js", newJs, { previewRadioManaged: true })
-                }
-                onChangeCustomCss={(newCss) =>
-                  updateDraft("custom.css", newCss)
-                }
-              />
-            </div>
-          )}
-          {(tabs ?? []).map((tab) => {
-            const active = activeFileName === tab.fileName;
-            const isSettingsYaml = tab.fileName === "settings.yaml";
-            return (
-              <div
-                key={tab.fileName}
-                style={{ display: active ? "flex" : "none" }}
-                className="flex-1 min-h-0 flex flex-col"
-              >
-                {isSettingsYaml ? (
-                  <SettingsVisualEditor
-                    content={drafts["settings.yaml"] ?? ""}
-                    onChange={(value) => updateDraft("settings.yaml", value)}
-                    widgetsContent={drafts["widgets.yaml"] ?? ""}
-                    onWidgetsChange={(value) =>
-                      updateDraft("widgets.yaml", value)
-                    }
+        )}
+        {activeFileName === "__radio__" && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <TopBarSettingsEditor
+              customJs={drafts["custom.js"] ?? ""}
+              customCss={drafts["custom.css"] ?? ""}
+              mode="radio"
+              onChangeCustomJs={(newJs) => updateDraft("custom.js", newJs, { previewRadioManaged: true })}
+              onChangeCustomCss={(newCss) => updateDraft("custom.css", newCss)}
+            />
+          </div>
+        )}
+        {(tabs ?? []).map((tab) => {
+          const active = activeFileName === tab.fileName;
+          const isSettingsYaml = tab.fileName === "settings.yaml";
+          return (
+            <div
+              key={tab.fileName}
+              style={{ display: active ? "flex" : "none" }}
+              className="flex-1 min-h-0 flex flex-col"
+            >
+              {isSettingsYaml ? (
+                <SettingsVisualEditor
+                  content={drafts["settings.yaml"] ?? ""}
+                  onChange={(value) => updateDraft("settings.yaml", value)}
+                  widgetsContent={drafts["widgets.yaml"] ?? ""}
+                  onWidgetsChange={(value) => updateDraft("widgets.yaml", value)}
+                />
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col" style={{ paddingRight: "5px" }}>
+                  <CodeEditor
+                    label="Содержимое файла"
+                    language={detectEditorLanguage(tab.format, tab.fileName)}
+                    value={drafts[tab.fileName] ?? ""}
+                    onChange={(value) => updateDraft(tab.fileName, value)}
+                    minHeightClassName="min-h-0"
+                    fillAvailableHeight
+                    zoomStorageKey="homepage-browser-editor-code-zoom-settings"
+                    placeholder={tab.fileName}
                   />
-                ) : (
-                  <div
-                    className="flex min-h-0 flex-1 flex-col"
-                    style={{ paddingRight: "5px" }}
-                  >
-                    <CodeEditor
-                      label="Содержимое файла"
-                      language={detectEditorLanguage(tab.format, tab.fileName)}
-                      value={drafts[tab.fileName] ?? ""}
-                      onChange={(value) => updateDraft(tab.fileName, value)}
-                      minHeightClassName="min-h-0"
-                      fillAvailableHeight
-                      zoomStorageKey="homepage-browser-editor-code-zoom-settings"
-                      placeholder={tab.fileName}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {(!tabs || tabs.length === 0) &&
-            activeFileName !== "__page_styling__" &&
-            activeFileName !== "__top_bar__" &&
-            activeFileName !== "__radio__" && (
-              <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
-                В config-папке пока нет дополнительных файлов для
-                редактирования.
-              </div>
-            )}
-
-          {error && (
-            <div className="mt-4 shrink-0 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-              {error}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })}
+        {(!tabs || tabs.length === 0) && activeFileName !== "__page_styling__" && activeFileName !== "__top_bar__" && activeFileName !== "__radio__" && (
+          <div className="rounded-md border border-theme-300/50 p-4 text-sm text-theme-700 dark:border-white/10 dark:text-theme-200">
+            В config-папке пока нет дополнительных файлов для редактирования.
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 shrink-0 rounded-md bg-rose-100 p-3 text-sm text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+            {error}
+          </div>
+        )}
+
+      </div>
       </div>
     </EditorWindow>
   );
 }
 
-function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
+function GroupModal({ modal, data, onClose, onSaved }) {
   const { mutate } = useSWRConfig();
   const { setSettings } = useContext(SettingsContext);
-  const WindowComponent = studioChrome ? StudioModalWindow : EditorWindow;
   const [groupType, setGroupType] = useState(modal.type ?? "");
-  const [name, setName] = useState(
-    modal.mode === "edit" ? modal.groupName : "",
-  );
+  const [name, setName] = useState(modal.mode === "edit" ? modal.groupName : "");
   const [form, setForm] = useState(() => groupLayoutToForm(modal.layout));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const title =
-    modal.mode === "edit"
-      ? groupType === "services"
-        ? "группу сервисов"
-        : "группу закладок"
-      : "группу";
+  const title = modal.mode === "edit" ? (groupType === "services" ? "группу сервисов" : "группу закладок") : "группу";
   const isVertical = form.style.trim() !== "row";
   const currentColumns = form.columns.trim();
   const alignRowHeights = form.alignRowHeights !== "false";
   const headerHidden = form.header === "false";
-  const existingTabs = useMemo(
-    () => collectLayoutTabs(data.settings?.layout ?? {}),
-    [data.settings],
-  );
+  const existingTabs = useMemo(() => collectLayoutTabs(data.settings?.layout ?? {}), [data.settings]);
   const groupModalMinHeight =
-    groupType === "services"
-      ? modal.mode === "new"
-        ? 720
-        : 660
-      : modal.mode === "new"
-        ? 680
-        : 620;
-  const matchedExistingTab = existingTabs.find((tab) =>
-    namesEqual(tab, form.tab),
-  );
-  const [showCustomPageInput, setShowCustomPageInput] = useState(() =>
-    Boolean(form.tab.trim() && !matchedExistingTab),
-  );
-  const pageSelectValue = showCustomPageInput
-    ? "__custom__"
-    : matchedExistingTab
-      ? matchedExistingTab
-      : "";
+    groupType === "services" ? (modal.mode === "new" ? 720 : 660) : (modal.mode === "new" ? 680 : 620);
+  const matchedExistingTab = existingTabs.find((tab) => namesEqual(tab, form.tab));
+  const [showCustomPageInput, setShowCustomPageInput] = useState(() => Boolean(form.tab.trim() && !matchedExistingTab));
+  const pageSelectValue = showCustomPageInput ? "__custom__" : matchedExistingTab ? matchedExistingTab : "";
 
   const quickLayoutButtonClass = (active = false) =>
     classNames(
       "rounded-md border px-3 py-2 text-sm transition-colors",
       "border-theme-400/60 hover:bg-theme-200/40 dark:border-white/20 dark:hover:bg-white/10",
-      active &&
-        "bg-theme-200/70 text-theme-900 dark:bg-white/15 dark:text-theme-100",
+      active && "bg-theme-200/70 text-theme-900 dark:bg-white/15 dark:text-theme-100",
     );
 
   async function putConfig(file, nextData) {
@@ -11151,11 +8469,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
         throw new Error("Имя группы обязательно");
       }
 
-      if (
-        mode !== "delete" &&
-        groupType !== "services" &&
-        groupType !== "bookmarks"
-      ) {
+      if (mode !== "delete" && groupType !== "services" && groupType !== "bookmarks") {
         throw new Error("Выберите тип группы");
       }
 
@@ -11165,38 +8479,13 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
 
       if (mode === "delete") {
         nextGroups = deleteRawGroup(data[groupType], modal.groupName);
-        nextSettings = updateSettingsLayout(
-          data.settings,
-          groupType,
-          modal.groupName,
-          modal.groupName,
-          {},
-          "delete",
-        );
+        nextSettings = updateSettingsLayout(data.settings, groupType, modal.groupName, modal.groupName, {}, "delete");
       } else if (modal.mode === "new") {
         nextGroups = addRawGroup(data[groupType], trimmedName, groupType);
-        nextSettings = updateSettingsLayout(
-          data.settings,
-          groupType,
-          trimmedName,
-          trimmedName,
-          nextLayout,
-          "save",
-        );
+        nextSettings = updateSettingsLayout(data.settings, groupType, trimmedName, trimmedName, nextLayout, "save");
       } else {
-        nextGroups = renameRawGroup(
-          data[groupType],
-          modal.groupName,
-          trimmedName,
-        );
-        nextSettings = updateSettingsLayout(
-          data.settings,
-          groupType,
-          modal.groupName,
-          trimmedName,
-          nextLayout,
-          "save",
-        );
+        nextGroups = renameRawGroup(data[groupType], modal.groupName, trimmedName);
+        nextSettings = updateSettingsLayout(data.settings, groupType, modal.groupName, trimmedName, nextLayout, "save");
       }
 
       await putConfig(groupType, nextGroups);
@@ -11213,7 +8502,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
   }
 
   return (
-    <WindowComponent
+    <EditorWindow
       storageKey={`homepage-browser-editor-window-group-${modal.mode === "edit" ? "edit" : "new"}`}
       title={modal.mode === "edit" ? `Изменить ${title}` : `Добавить ${title}`}
       onClose={onClose}
@@ -11221,23 +8510,12 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
       defaultHeight={780}
       minWidth={660}
       minHeight={groupModalMinHeight}
-      studioChrome={studioChrome}
-      description={
-        studioChrome
-          ? modal.mode === "edit"
-            ? "Измените секцию и её расположение на дашборде"
-            : "Создайте секцию и сразу задайте её расположение на дашборде"
-          : null
-      }
-      wrapperClassName={studioChrome ? "homepage-themed-configurator" : ""}
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="space-y-3">
           {modal.mode === "new" && (
             <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-              <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">
-                Тип группы
-              </div>
+              <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Тип группы</div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -11260,9 +8538,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
           )}
           <Field label="Имя группы" value={name} onChange={setName} />
           <div className="rounded-md border border-theme-300/50 p-3 dark:border-white/10">
-            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">
-              Быстрая разметка
-            </div>
+            <div className="mb-2 text-xs font-semibold text-theme-700 dark:text-theme-200">Быстрая разметка</div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -11303,12 +8579,8 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
                       style: "row",
                     }))
                   }
-                  aria-pressed={
-                    !isVertical && currentColumns === String(columns)
-                  }
-                  className={quickLayoutButtonClass(
-                    !isVertical && currentColumns === String(columns),
-                  )}
+                  aria-pressed={!isVertical && currentColumns === String(columns)}
+                  className={quickLayoutButtonClass(!isVertical && currentColumns === String(columns))}
                 >
                   {columns} колонки
                 </button>
@@ -11348,23 +8620,17 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
             <Field
               label="Стиль"
               value={form.style}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, style: value }))
-              }
+              onChange={(value) => setForm((current) => ({ ...current, style: value }))}
             />
             <Field
               label="Колонки"
               value={form.columns}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, columns: value }))
-              }
+              onChange={(value) => setForm((current) => ({ ...current, columns: value }))}
             />
             <Field
               label="Заголовок"
               value={form.header}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, header: value }))
-              }
+              onChange={(value) => setForm((current) => ({ ...current, header: value }))}
             />
             <label className="block min-w-0 text-xs text-theme-600 dark:text-theme-300">
               Страница
@@ -11397,12 +8663,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
                 <input
                   type="text"
                   value={form.tab}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      tab: event.target.value,
-                    }))
-                  }
+                  onChange={(event) => setForm((current) => ({ ...current, tab: event.target.value }))}
                   placeholder="Введите новую страницу"
                   className="mt-2 w-full min-w-0 rounded-md border border-theme-300/50 bg-theme-50/90 px-2 py-1 text-sm text-theme-900 shadow-sm dark:border-white/10 dark:bg-theme-900/90 dark:text-theme-100"
                 />
@@ -11415,9 +8676,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
               name="icon"
               label="Иконка"
               value={form.icon}
-              onChange={(value) =>
-                setForm((current) => ({ ...current, icon: value }))
-              }
+              onChange={(value) => setForm((current) => ({ ...current, icon: value }))}
             />
             <Field
               label="Свернута изначально"
@@ -11431,45 +8690,34 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
             />
           </div>
           <p className="text-xs text-theme-600 dark:text-theme-300">
-            Стиль: пусто или row. Заголовок и Свернута изначально: true или
-            false.
+            Стиль: пусто или row. Заголовок и Свернута изначально: true или false.
           </p>
           <div className="mt-3 border-t border-theme-300/30 pt-3">
-            <p className="mb-2 text-xs font-medium text-theme-600 dark:text-theme-300">
-              Стиль заголовка
-            </p>
+            <p className="mb-2 text-xs font-medium text-theme-600 dark:text-theme-300">Стиль заголовка</p>
             <div className="grid gap-3 md:grid-cols-2">
               <Field
                 name="titleColor"
                 label="Цвет заголовка"
                 value={form.titleColor}
-                onChange={(value) =>
-                  setForm((current) => ({ ...current, titleColor: value }))
-                }
+                onChange={(value) => setForm((current) => ({ ...current, titleColor: value }))}
               />
               <Field
                 name="titleAlign"
                 label="Выравнивание заголовка"
                 value={form.titleAlign}
-                onChange={(value) =>
-                  setForm((current) => ({ ...current, titleAlign: value }))
-                }
+                onChange={(value) => setForm((current) => ({ ...current, titleAlign: value }))}
               />
               <Field
                 name="titleSize"
                 label="Размер шрифта заголовка"
                 value={form.titleSize}
-                onChange={(value) =>
-                  setForm((current) => ({ ...current, titleSize: value }))
-                }
+                onChange={(value) => setForm((current) => ({ ...current, titleSize: value }))}
               />
               <Field
                 name="titleFont"
                 label="Шрифт заголовка"
                 value={form.titleFont}
-                onChange={(value) =>
-                  setForm((current) => ({ ...current, titleFont: value }))
-                }
+                onChange={(value) => setForm((current) => ({ ...current, titleFont: value }))}
               />
             </div>
           </div>
@@ -11504,7 +8752,7 @@ function GroupModal({ modal, data, onClose, onSaved, studioChrome = false }) {
           </button>
         </div>
       </div>
-    </WindowComponent>
+    </EditorWindow>
   );
 }
 
@@ -11543,9 +8791,7 @@ function clearPageAutoOpen() {
 }
 
 function readDragPayload(event, preferredType = JSON_DRAG_TYPE) {
-  const raw =
-    event.dataTransfer.getData(preferredType) ||
-    event.dataTransfer.getData(JSON_DRAG_TYPE);
+  const raw = event.dataTransfer.getData(preferredType) || event.dataTransfer.getData(JSON_DRAG_TYPE);
   if (!raw) return null;
 
   try {
@@ -11592,10 +8838,7 @@ function readItemDragPayload(event, fallbackPayload = null) {
   const genericPayload = typedPayload ?? readDragPayload(event);
   const fallback = fallbackPayload ?? activeDragPayload;
 
-  if (
-    genericPayload?.type === "services" ||
-    genericPayload?.type === "bookmarks"
-  ) {
+  if (genericPayload?.type === "services" || genericPayload?.type === "bookmarks") {
     return genericPayload;
   }
 
@@ -11624,17 +8867,12 @@ function readTopWidgetDragPayload(event, fallbackPayload = null) {
 
 function isGroupDragOver(event, fallbackPayload = null) {
   return (
-    hasDragType(event, GROUP_DRAG_TYPE) ||
-    fallbackPayload?.scope === "group" ||
-    activeDragPayload?.scope === "group"
+    hasDragType(event, GROUP_DRAG_TYPE) || fallbackPayload?.scope === "group" || activeDragPayload?.scope === "group"
   );
 }
 
 function isExplicitGroupDropTarget(event) {
-  return (
-    event.target instanceof Element &&
-    event.target.closest("[data-editor-group-drop-target='true']")
-  );
+  return event.target instanceof Element && event.target.closest("[data-editor-group-drop-target='true']");
 }
 
 function getGroupDropTargetElement(event) {
@@ -11642,9 +8880,7 @@ function getGroupDropTargetElement(event) {
     return null;
   }
 
-  return event.target.closest(
-    "[data-editor-group-name][data-editor-group-type]",
-  );
+  return event.target.closest("[data-editor-group-name][data-editor-group-type]");
 }
 
 function groupDropPlacementForElement(event, element) {
@@ -11658,8 +8894,7 @@ export function EditorPageTab({ tab }) {
   const { settings } = useContext(SettingsContext);
   const encodedTab = encodeTabName(tab);
   const matchesTab = activeTab
-    ? decodeURIComponent(activeTab) ===
-      String(tab).replace(/\s+/g, "-").toLowerCase()
+    ? decodeURIComponent(activeTab) === String(tab).replace(/\s+/g, "-").toLowerCase()
     : false;
 
   const pageStyles = settings?.pageStyles ?? {};
@@ -11676,10 +8911,7 @@ export function EditorPageTab({ tab }) {
   }, [encodedTab, setActiveTab]);
 
   const iconEl = iconName ? (
-    <span
-      className="mr-2 inline-flex items-center shrink-0 w-4 h-4"
-      style={{ color: matchesTab ? activeColor || borderColor : inactiveColor }}
-    >
+    <span className="mr-2 inline-flex items-center shrink-0 w-4 h-4" style={{ color: matchesTab ? (activeColor || borderColor) : inactiveColor }}>
       <ResolvedIcon icon={iconName} />
     </span>
   ) : null;
@@ -11708,9 +8940,7 @@ export function EditorPageTab({ tab }) {
   if (borderStyle === "underline") {
     buttonClasses = classNames(
       "w-full rounded-none m-1 pb-1 transition-all tab-style-underline",
-      matchesTab
-        ? "border-b-2"
-        : "hover:border-b-2 hover:border-theme-300/30 dark:hover:border-white/10",
+      matchesTab ? "border-b-2" : "hover:border-b-2 hover:border-theme-300/30 dark:hover:border-white/10",
     );
     if (matchesTab && (borderColor || activeColor)) {
       buttonStyle.borderBottomColor = borderColor || activeColor;
@@ -11728,21 +8958,12 @@ export function EditorPageTab({ tab }) {
   } else if (borderStyle === "pill") {
     buttonClasses = classNames(
       "w-full rounded-full m-1 transition-all tab-style-pill",
-      matchesTab
-        ? ""
-        : pageStyles.hideTabBackground
-          ? "hover:opacity-85"
-          : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+      matchesTab ? "" : (pageStyles.hideTabBackground ? "hover:opacity-85" : "hover:bg-theme-100/20 dark:hover:bg-white/5"),
     );
     if (matchesTab && !pageStyles.hideTabBackground) {
-      const tintColor =
-        borderColor &&
-        borderColor.startsWith("#") &&
-        (borderColor.length === 7 || borderColor.length === 4)
-          ? (borderColor.length === 4
-              ? borderColor + borderColor.substring(1)
-              : borderColor) + "26"
-          : "rgba(59, 130, 246, 0.15)";
+      const tintColor = borderColor && borderColor.startsWith('#') && (borderColor.length === 7 || borderColor.length === 4)
+        ? (borderColor.length === 4 ? borderColor + borderColor.substring(1) : borderColor) + "26"
+        : "rgba(59, 130, 246, 0.15)";
       buttonStyle.backgroundColor = tintColor;
       buttonStyle["--pill-bg-color"] = tintColor;
     }
@@ -11750,9 +8971,7 @@ export function EditorPageTab({ tab }) {
     buttonClasses = classNames(
       "w-full rounded-md m-1 border transition-all tab-style-card",
       matchesTab
-        ? pageStyles.hideTabBackground
-          ? "bg-transparent font-semibold"
-          : "bg-theme-100/10 dark:bg-white/5"
+        ? (pageStyles.hideTabBackground ? "bg-transparent font-semibold" : "bg-theme-100/10 dark:bg-white/5")
         : "border-transparent hover:bg-theme-100/20 dark:hover:bg-white/5",
     );
     if (matchesTab && borderColor) {
@@ -11764,12 +8983,8 @@ export function EditorPageTab({ tab }) {
     buttonClasses = classNames(
       "w-full rounded-md m-1 transition-all",
       matchesTab
-        ? pageStyles.hideTabBackground
-          ? "bg-transparent font-semibold"
-          : "bg-theme-300/20 dark:bg-white/10"
-        : pageStyles.hideTabBackground
-          ? "hover:opacity-85"
-          : "hover:bg-theme-100/20 dark:hover:bg-white/5",
+        ? (pageStyles.hideTabBackground ? "bg-transparent font-semibold" : "bg-theme-300/20 dark:bg-white/10")
+        : (pageStyles.hideTabBackground ? "hover:opacity-85" : "hover:bg-theme-100/20 dark:hover:bg-white/5"),
     );
   }
 
@@ -11777,9 +8992,7 @@ export function EditorPageTab({ tab }) {
     buttonClasses = classNames(
       buttonClasses,
       "border border-theme-400/70 text-theme-800 transition-colors hover:border-theme-500/80 hover:text-theme-900 dark:border-white/25 dark:text-theme-100 dark:hover:border-white/40",
-      pageStyles.hideTabBackground
-        ? "bg-transparent hover:bg-theme-200/10 dark:hover:bg-white/5"
-        : "bg-theme-100/10 hover:bg-theme-200/40 dark:bg-white/5 dark:hover:bg-white/10",
+      pageStyles.hideTabBackground ? "bg-transparent hover:bg-theme-200/10 dark:hover:bg-white/5" : "bg-theme-100/10 hover:bg-theme-200/40 dark:bg-white/5 dark:hover:bg-white/10"
     );
   }
 
@@ -11870,13 +9083,7 @@ export function EditorPageTab({ tab }) {
           event.preventDefault();
           event.stopPropagation();
           activateTab();
-          moveGroup(
-            draggedGroup.type,
-            draggedGroup.groupName,
-            null,
-            "root",
-            tab,
-          );
+          moveGroup(draggedGroup.type, draggedGroup.groupName, null, "root", tab);
           clearDragPayload();
           setDraggedGroup(null);
           return;
@@ -11909,10 +9116,7 @@ export function EditorPageTab({ tab }) {
           activateTab();
         }}
       >
-        <span
-          className="flex items-center justify-center w-full h-full"
-          style={textStyle}
-        >
+        <span className="flex items-center justify-center w-full h-full" style={textStyle}>
           {iconEl}
           <span style={textStyle}>{tab}</span>
         </span>
@@ -11923,30 +9127,19 @@ export function EditorPageTab({ tab }) {
 
 function useServiceRowHeightBalancer() {
   useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof ResizeObserver === "undefined"
-    ) {
+    if (typeof window === "undefined" || typeof ResizeObserver === "undefined") {
       return undefined;
     }
 
     let frame = null;
 
-    const groupElements = () =>
-      Array.from(
-        document.querySelectorAll("[data-editor-service-group='true']"),
-      );
+    const groupElements = () => Array.from(document.querySelectorAll("[data-editor-service-group='true']"));
 
-    const directListForGroup = (group) =>
-      group.querySelector(":scope ul[data-editor-service-list]");
+    const directListForGroup = (group) => group.querySelector(":scope ul[data-editor-service-list]");
 
     const directCardsForGroup = (group) => {
       const list = directListForGroup(group);
-      return list
-        ? Array.from(
-            list.querySelectorAll(":scope > li.service > .service-card"),
-          )
-        : [];
+      return list ? Array.from(list.querySelectorAll(":scope > li.service > .service-card")) : [];
     };
 
     const clearHeights = () => {
@@ -11968,10 +9161,7 @@ function useServiceRowHeightBalancer() {
         .forEach((group) => {
           const parent = group.parentElement;
           if (!parent) return;
-          groupsByParent.set(parent, [
-            ...(groupsByParent.get(parent) ?? []),
-            group,
-          ]);
+          groupsByParent.set(parent, [...(groupsByParent.get(parent) ?? []), group]);
         });
 
       groupsByParent.forEach((groups) => {
@@ -11979,11 +9169,7 @@ function useServiceRowHeightBalancer() {
 
         groups
           .map((group) => ({ group, rect: group.getBoundingClientRect() }))
-          .sort((a, b) =>
-            Math.abs(a.rect.top - b.rect.top) > 3
-              ? a.rect.top - b.rect.top
-              : a.rect.left - b.rect.left,
-          )
+          .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 3 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left))
           .forEach((entry) => {
             const currentRow = rows[rows.length - 1];
             if (!currentRow || Math.abs(currentRow.top - entry.rect.top) > 3) {
@@ -11998,23 +9184,14 @@ function useServiceRowHeightBalancer() {
           .filter((row) => row.groups.length > 1)
           .forEach((row) => {
             const cardsByGroup = row.groups.map(directCardsForGroup);
-            const maxCards = Math.max(
-              ...cardsByGroup.map((cards) => cards.length),
-              0,
-            );
+            const maxCards = Math.max(...cardsByGroup.map((cards) => cards.length), 0);
 
             for (let index = 0; index < maxCards; index += 1) {
-              const cardsInPosition = cardsByGroup
-                .map((cards) => cards[index])
-                .filter(Boolean);
+              const cardsInPosition = cardsByGroup.map((cards) => cards[index]).filter(Boolean);
               if (cardsInPosition.length < 2) continue;
 
               const maxHeight = Math.ceil(
-                Math.max(
-                  ...cardsInPosition.map(
-                    (card) => card.getBoundingClientRect().height,
-                  ),
-                ),
+                Math.max(...cardsInPosition.map((card) => card.getBoundingClientRect().height)),
               );
               cardsInPosition.forEach((card) => {
                 card.style.height = `${maxHeight}px`;
@@ -12053,8 +9230,7 @@ function useServiceRowHeightBalancer() {
 }
 
 export function useEditableGroupHeader(type, groupName, layout) {
-  const { draggedGroup, editMode, moveGroup, openGroup, setDraggedGroup } =
-    useConfigEditor();
+  const { draggedGroup, editMode, moveGroup, openGroup, setDraggedGroup } = useConfigEditor();
 
   if (!editMode) {
     return {};
@@ -12151,14 +9327,7 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
 }
 
 export function RootGroupDropZone({ children }) {
-  const {
-    activePageName,
-    draggedGroup,
-    editMode,
-    editorUiScale,
-    moveGroup,
-    setDraggedGroup,
-  } = useConfigEditor();
+  const { activePageName, draggedGroup, editMode, editorUiScale, moveGroup, setDraggedGroup } = useConfigEditor();
   const topDropZoneScaleStyle = useMemo(
     () => ({
       transform: `scale(${editorUiScale})`,
@@ -12192,10 +9361,8 @@ export function RootGroupDropZone({ children }) {
   const dropGroupNearTarget = useCallback(
     (event, targetElement) => {
       const dragged = readGroupDragPayload(event, draggedGroup);
-      const targetGroupName =
-        targetElement?.getAttribute("data-editor-group-name") ?? "";
-      const targetType =
-        targetElement?.getAttribute("data-editor-group-type") ?? "";
+      const targetGroupName = targetElement?.getAttribute("data-editor-group-name") ?? "";
+      const targetType = targetElement?.getAttribute("data-editor-group-type") ?? "";
 
       if (
         !dragged ||
@@ -12208,12 +9375,7 @@ export function RootGroupDropZone({ children }) {
 
       event.preventDefault();
       event.stopPropagation();
-      moveGroup(
-        dragged.type,
-        dragged.groupName,
-        targetGroupName,
-        groupDropPlacementForElement(event, targetElement),
-      );
+      moveGroup(dragged.type, dragged.groupName, targetGroupName, groupDropPlacementForElement(event, targetElement));
       clearDragPayload();
       setDraggedGroup(null);
       return true;
@@ -12301,10 +9463,7 @@ export function RootGroupDropZone({ children }) {
           >
             Отпустите здесь, чтобы переместить группу в корень
           </div>
-          <div
-            className="pointer-events-none fixed bottom-4 left-1/2 z-[50] rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90"
-            style={bottomDropHintScaleStyle}
-          >
+          <div className="pointer-events-none fixed bottom-4 left-1/2 z-[50] rounded-md border border-dashed border-theme-400/50 bg-theme-50/80 px-3 py-2 text-xs text-theme-700/90 shadow-md backdrop-blur-sm dark:border-white/20 dark:bg-theme-900/70 dark:text-theme-100/90" style={bottomDropHintScaleStyle}>
             Перетащите в пустое место, чтобы переместить группу в корень
           </div>
         </>
@@ -12313,18 +9472,9 @@ export function RootGroupDropZone({ children }) {
   );
 }
 
-export function useEditableItem(
-  type,
-  groupName,
-  itemName,
-  item,
-  itemIndex = null,
-) {
+export function useEditableItem(type, groupName, itemName, item, itemIndex = null) {
   const { editMode, moveItem, openItem } = useConfigEditor();
-  const itemMatcher = useMemo(
-    () => createItemMatcher(type, itemName, item),
-    [item, itemName, type],
-  );
+  const itemMatcher = useMemo(() => createItemMatcher(type, itemName, item), [item, itemName, type]);
 
   return {
     editMode,
@@ -12333,11 +9483,7 @@ export function useEditableItem(
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            writeDragPayload(
-              event,
-              { type, groupName, itemName, itemMatcher, itemIndex },
-              ITEM_DRAG_TYPE,
-            );
+            writeDragPayload(event, { type, groupName, itemName, itemMatcher, itemIndex }, ITEM_DRAG_TYPE);
           },
           onDragEnd: () => {
             window.setTimeout(clearDragPayload, 0);
@@ -12381,11 +9527,7 @@ export function useEditableTopWidget(widget, widgetIndex) {
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            writeDragPayload(
-              event,
-              { scope: "top-widget", widgetIndex },
-              TOP_WIDGET_DRAG_TYPE,
-            );
+            writeDragPayload(event, { scope: "top-widget", widgetIndex }, TOP_WIDGET_DRAG_TYPE);
           },
           onDragEnd: () => {
             window.setTimeout(clearDragPayload, 0);
@@ -12418,13 +9560,7 @@ export function useEditableTopWidget(widget, widgetIndex) {
   };
 }
 
-export function EditorAddTile({
-  type,
-  groupName,
-  label,
-  className,
-  wrapperClassName,
-}) {
+export function EditorAddTile({ type, groupName, label, className, wrapperClassName }) {
   const { editMode, moveItem, openNewItem } = useConfigEditor();
 
   if (!editMode) {
@@ -12498,7 +9634,6 @@ export function ConfigEditorProvider({ children }) {
   const { activeTab } = useContext(TabContext);
   const [draggedGroup, setDraggedGroup] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [studioOpen, setStudioOpen] = useState(false);
   const [editorUiScale, setEditorUiScale] = useState(readStoredEditorUiScale);
   const [editButtonVisible, setEditButtonVisible] = useState(false);
   const [modal, setModal] = useState(null);
@@ -12508,11 +9643,7 @@ export function ConfigEditorProvider({ children }) {
   const [iconsSaving, setIconsSaving] = useState(false);
   const editButtonHideTimeoutRef = useRef(null);
   const backgroundButtonRef = useRef(null);
-  const { data } = useSWR(
-    enabled && (editMode || studioOpen || modal || iconsManagerOpen)
-      ? "/api/config/editor"
-      : null,
-  );
+  const { data } = useSWR(enabled && (editMode || modal || iconsManagerOpen) ? "/api/config/editor" : null);
   useServiceRowHeightBalancer();
 
   const editorBottomLeftScaleStyle = useMemo(
@@ -12531,10 +9662,7 @@ export function ConfigEditorProvider({ children }) {
 
   useEffect(() => {
     applyServiceStatusOffsets(settings?.pageStyles ?? {});
-  }, [
-    settings?.pageStyles?.serviceStatusOffsetX,
-    settings?.pageStyles?.serviceStatusOffsetY,
-  ]);
+  }, [settings?.pageStyles?.serviceStatusOffsetX, settings?.pageStyles?.serviceStatusOffsetY]);
 
   function handleSaved(message) {
     setNotice(message);
@@ -12546,20 +9674,12 @@ export function ConfigEditorProvider({ children }) {
       return;
     }
 
-    const lastCheckedAt = Number(
-      localStorage.getItem(CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY) || "0",
-    );
-    if (
-      Number.isFinite(lastCheckedAt) &&
-      Date.now() - lastCheckedAt < CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS
-    ) {
+    const lastCheckedAt = Number(localStorage.getItem(CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY) || "0");
+    if (Number.isFinite(lastCheckedAt) && Date.now() - lastCheckedAt < CONFIGURATOR_UPDATE_CHECK_INTERVAL_MS) {
       return;
     }
 
-    localStorage.setItem(
-      CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY,
-      String(Date.now()),
-    );
+    localStorage.setItem(CONFIGURATOR_UPDATE_CHECK_STORAGE_KEY, String(Date.now()));
     let cancelled = false;
 
     postEditorAction({ action: "check-configurator-update", force: false })
@@ -12568,9 +9688,7 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        setNotice(
-          `Доступно обновление configurator: ${updateInfo.currentVersion} -> ${updateInfo.latestVersion}`,
-        );
+        setNotice(`Доступно обновление configurator: ${updateInfo.currentVersion} -> ${updateInfo.latestVersion}`);
         window.setTimeout(() => setNotice(""), 6000);
       })
       .catch(() => {
@@ -12611,48 +9729,29 @@ export function ConfigEditorProvider({ children }) {
       }
 
       const skipped = result.skipped ? `, пропущено ${result.skipped}` : "";
-      handleSaved(
-        `Иконки: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`,
-      );
+      handleSaved(`Иконки: скачано ${result.downloaded}, обновлено ${result.updated}${skipped}`);
     } finally {
       setIconsSaving(false);
     }
   }, [iconsSaving, mutate]);
 
   const activePageName = useMemo(() => {
-    const normalizedActiveTab =
-      typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
+    const normalizedActiveTab = typeof activeTab === "string" ? decodeURIComponent(activeTab) : "";
     if (!normalizedActiveTab) {
       return null;
     }
 
-    const orderedTabs = getOrderedTabsForLayout(
-      data?.settings?.layout ?? {},
-      data?.settings?.__browserEditorTabOrder ?? [],
-    );
-    return (
-      orderedTabs.find((tab) =>
-        namesEqual(encodeTabName(tab), normalizedActiveTab),
-      ) ?? null
-    );
+    const orderedTabs = getOrderedTabsForLayout(data?.settings?.layout ?? {}, data?.settings?.__browserEditorTabOrder ?? []);
+    return orderedTabs.find((tab) => namesEqual(encodeTabName(tab), normalizedActiveTab)) ?? null;
   }, [activeTab, data]);
 
   const moveTab = useCallback(
     async (sourceTab, targetTab) => {
-      if (
-        !data ||
-        !sourceTab ||
-        !targetTab ||
-        namesEqual(sourceTab, targetTab)
-      ) {
+      if (!data || !sourceTab || !targetTab || namesEqual(sourceTab, targetTab)) {
         return;
       }
 
-      const nextResult = moveSettingsLayoutTab(
-        data.settings,
-        sourceTab,
-        targetTab,
-      );
+      const nextResult = moveSettingsLayoutTab(data.settings, sourceTab, targetTab);
       if (!nextResult.moved) {
         return;
       }
@@ -12682,61 +9781,25 @@ export function ConfigEditorProvider({ children }) {
       setDraggedGroup,
       editMode,
       moveTab,
-      moveGroup: async (
-        type,
-        sourceName,
-        targetName,
-        placement = "before",
-        targetTab = null,
-      ) => {
-        if (
-          !data ||
-          (placement !== "root" && namesEqual(sourceName, targetName))
-        ) {
+      moveGroup: async (type, sourceName, targetName, placement = "before", targetTab = null) => {
+        if (!data || (placement !== "root" && namesEqual(sourceName, targetName))) {
           return;
         }
 
         const rawResult =
           type === "services"
             ? moveRawServiceGroup(data[type], sourceName, targetName, placement)
-            : moveRawBookmarkGroup(
-                data[type],
-                sourceName,
-                targetName,
-                placement,
-              );
+            : moveRawBookmarkGroup(data[type], sourceName, targetName, placement);
 
         let layoutResult =
           type === "services"
-            ? moveSettingsLayoutGroup(
-                data.settings,
-                rawResult.nextGroups,
-                sourceName,
-                targetName,
-                placement,
-              )
-            : {
-                moved: true,
-                settings: reorderBookmarkLayoutToMatchGroups(
-                  data.settings,
-                  rawResult.nextGroups,
-                ),
-              };
+            ? moveSettingsLayoutGroup(data.settings, rawResult.nextGroups, sourceName, targetName, placement)
+            : { moved: true, settings: reorderBookmarkLayoutToMatchGroups(data.settings, rawResult.nextGroups) };
 
-        if (
-          layoutResult.moved &&
-          placement === "root" &&
-          typeof targetTab === "string" &&
-          targetTab.trim()
-        ) {
+        if (layoutResult.moved && placement === "root" && typeof targetTab === "string" && targetTab.trim()) {
           layoutResult = {
             ...layoutResult,
-            settings: applyGroupTabToSettings(
-              layoutResult.settings,
-              type,
-              sourceName,
-              targetTab,
-            ),
+            settings: applyGroupTabToSettings(layoutResult.settings, type, sourceName, targetTab),
           };
         }
 
@@ -12775,17 +9838,14 @@ export function ConfigEditorProvider({ children }) {
         }
 
         if (layoutResult.settings !== data.settings) {
-          const settingsResponse = await editorWriteFetch(
-            "/api/config/editor",
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                file: "settings",
-                data: layoutResult.settings,
-              }),
-            },
-          );
+          const settingsResponse = await editorWriteFetch("/api/config/editor", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              file: "settings",
+              data: layoutResult.settings,
+            }),
+          });
 
           if (!settingsResponse.ok) {
             handleSaved(await settingsResponse.text());
@@ -12819,10 +9879,7 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        if (
-          namesEqual(sourceGroupName, targetGroupName) &&
-          namesEqual(sourceName, targetName)
-        ) {
+        if (namesEqual(sourceGroupName, targetGroupName) && namesEqual(sourceName, targetName)) {
           return;
         }
 
@@ -12862,14 +9919,8 @@ export function ConfigEditorProvider({ children }) {
           return;
         }
 
-        const widgetsTab = data?.settingsTabs?.find(
-          (tab) => tab.fileName === "widgets.yaml",
-        );
-        const result = moveTopLevelYamlBlock(
-          widgetsTab?.content ?? "",
-          sourceIndex,
-          targetIndex,
-        );
+        const widgetsTab = data?.settingsTabs?.find((tab) => tab.fileName === "widgets.yaml");
+        const result = moveTopLevelYamlBlock(widgetsTab?.content ?? "", sourceIndex, targetIndex);
         if (!result.moved) {
           handleSaved("Виджет нельзя переместить");
           return;
@@ -12878,10 +9929,7 @@ export function ConfigEditorProvider({ children }) {
         const response = await editorWriteFetch("/api/config/editor", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: "widgets.yaml",
-            content: result.content,
-          }),
+          body: JSON.stringify({ fileName: "widgets.yaml", content: result.content }),
         });
 
         if (!response.ok) {
@@ -12892,23 +9940,8 @@ export function ConfigEditorProvider({ children }) {
         await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
         handleSaved("Порядок виджетов сохранён");
       },
-      openGroup: (type, groupName, layout) =>
-        setModal({
-          type,
-          groupName,
-          layout,
-          mode: "edit",
-          scope: "group",
-          studioChrome: editMode,
-        }),
-      openItem: (
-        type,
-        groupName,
-        itemName,
-        item,
-        itemMatcher = null,
-        itemIndex = null,
-      ) =>
+      openGroup: (type, groupName, layout) => setModal({ type, groupName, layout, mode: "edit", scope: "group" }),
+      openItem: (type, groupName, itemName, item, itemMatcher = null, itemIndex = null) =>
         setModal({
           type,
           groupName,
@@ -12917,11 +9950,6 @@ export function ConfigEditorProvider({ children }) {
           itemMatcher,
           itemIndex,
           mode: "edit",
-          scope:
-            editMode && type === "services"
-              ? "studio-service-widget"
-              : undefined,
-          studioChrome: editMode,
         }),
       openTopWidget: (widget, widgetIndex) =>
         setModal({
@@ -12938,40 +9966,17 @@ export function ConfigEditorProvider({ children }) {
           layout: {},
           mode: "new",
           scope: "group",
-          studioChrome: editMode,
         }),
-      openNewItem: (type, groupName) =>
-        setModal({
-          type,
-          groupName,
-          itemName: "",
-          item: {},
-          mode: "new",
-          studioChrome: editMode,
-        }),
+      openNewItem: (type, groupName) => setModal({ type, groupName, itemName: "", item: {}, mode: "new" }),
       iconSelectorCallback,
       setIconSelectorCallback,
       editorUiScale,
-      studioOpen,
       selectIcon: (callback) => {
         setIconSelectorCallback(() => callback);
         setIconsManagerOpen(true);
       },
     }),
-    [
-      activePageName,
-      data,
-      draggedGroup,
-      editMode,
-      editorUiScale,
-      moveTab,
-      mutate,
-      setDraggedGroup,
-      setSettings,
-      iconSelectorCallback,
-      iconsManagerOpen,
-      studioOpen,
-    ],
+    [activePageName, data, draggedGroup, editMode, editorUiScale, moveTab, mutate, setDraggedGroup, setSettings, iconSelectorCallback, iconsManagerOpen],
   );
 
   const showEditButton = useCallback(() => {
@@ -12992,28 +9997,6 @@ export function ConfigEditorProvider({ children }) {
     }, 120);
   }, []);
 
-  const openStudio = useCallback(() => {
-    setDraggedGroup(null);
-    setModal(null);
-    setIconsManagerOpen(false);
-    setIconSelectorCallback(null);
-    setEditMode(false);
-    setStudioOpen(true);
-  }, []);
-
-  const closeStudio = useCallback(() => {
-    setDraggedGroup(null);
-    setModal(null);
-    setIconsManagerOpen(false);
-    setIconSelectorCallback(null);
-    setStudioOpen(false);
-  }, []);
-
-  const openCanvasEditor = useCallback(() => {
-    closeStudio();
-    setEditMode(true);
-  }, [closeStudio]);
-
   useEffect(() => {
     if (!enabled) {
       return undefined;
@@ -13029,11 +10012,6 @@ export function ConfigEditorProvider({ children }) {
         return;
       }
 
-      if (studioOpen) {
-        setStudioOpen(false);
-        return;
-      }
-
       if (editMode) {
         setDraggedGroup(null);
         setEditMode(false);
@@ -13042,7 +10020,7 @@ export function ConfigEditorProvider({ children }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editMode, enabled, modal, setDraggedGroup, studioOpen]);
+  }, [editMode, enabled, modal, setDraggedGroup]);
 
   useEffect(
     () => () => {
@@ -13062,698 +10040,20 @@ export function ConfigEditorProvider({ children }) {
     setEditButtonVisible(false);
   }, [editMode, showEditButton]);
 
-  async function saveStudioServiceWidget(item, nextWidget, cardStyle = null) {
-    if (!item || item.type !== "services") {
-      throw new Error("Выберите карточку сервиса");
-    }
-
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-
-    const latestData = await latestResponse.json();
-    const matcher = createItemMatcher("services", item.name, item.config);
-    const currentConfig = findRawEntry(
-      latestData.services,
-      "services",
-      item.groupName,
-      item.name,
-      matcher,
-      item.itemIndex,
-    );
-    if (!currentConfig) {
-      throw new Error(
-        "Карточка не найдена. Обновите страницу и попробуйте снова.",
-      );
-    }
-
-    const nextConfig = { ...currentConfig };
-    const nextName = String(cardStyle?.name ?? item.name).trim();
-    if (!nextName) {
-      throw new Error("Название карточки обязательно");
-    }
-    if (
-      nextWidget &&
-      typeof nextWidget === "object" &&
-      !Array.isArray(nextWidget)
-    ) {
-      nextConfig.widget = nextWidget;
-    } else {
-      delete nextConfig.widget;
-    }
-    const editableCardFields = [
-      "abbr",
-      "cardBackground",
-      "cardBackgroundPosition",
-      "description",
-      "href",
-      "icon",
-      "id",
-      "ping",
-      "proxmoxNode",
-      "proxmoxType",
-      "proxmoxVMID",
-      "showStats",
-      "siteMonitor",
-      "target",
-      "titleAlign",
-      "titleColor",
-      "titleFont",
-      "titleSize",
-      "weight",
-    ];
-    for (const styleKey of editableCardFields) {
-      if (
-        cardStyle &&
-        Object.prototype.hasOwnProperty.call(cardStyle, styleKey)
-      ) {
-        const parsedValue = parseInputValue(cardStyle[styleKey]);
-        if (parsedValue !== undefined) {
-          nextConfig[styleKey] = parsedValue;
-        } else {
-          delete nextConfig[styleKey];
-        }
-      }
-    }
-    if (
-      cardStyle &&
-      Object.prototype.hasOwnProperty.call(cardStyle, "serviceUpdate")
-    ) {
-      if (cardStyle.serviceUpdate) {
-        nextConfig.serviceUpdate = cardStyle.serviceUpdate;
-      } else {
-        delete nextConfig.serviceUpdate;
-      }
-    }
-    validateItemConfig("services", nextConfig);
-
-    const nextServices = updateRawEntry(
-      latestData.services,
-      "services",
-      item.groupName,
-      item.name,
-      matcher,
-      item.itemIndex,
-      nextName,
-      nextConfig,
-    );
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: "services", data: nextServices }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    await refreshConfigData(mutate);
-    handleSaved(`Виджет сохранён: ${item.name}`);
-  }
-
-  async function saveStudioTopWidget(widgetIndex, draft, mode = "save") {
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-    const latestData = await latestResponse.json();
-    const widgetsTab = latestData?.settingsTabs?.find(
-      (tab) => tab.fileName === "widgets.yaml",
-    );
-    let widgets;
-    try {
-      widgets = yaml.load(widgetsTab?.content ?? "") ?? [];
-    } catch {
-      throw new Error("Не удалось прочитать widgets.yaml");
-    }
-    if (!Array.isArray(widgets)) {
-      throw new Error("widgets.yaml должен содержать список виджетов");
-    }
-
-    if (mode === "add") {
-      widgets.push({ resources: draft });
-    } else {
-      if (
-        !Number.isInteger(widgetIndex) ||
-        !widgets[widgetIndex] ||
-        !Object.prototype.hasOwnProperty.call(widgets[widgetIndex], "resources")
-      ) {
-        throw new Error(
-          "Виджет resources не найден. Обновите страницу и попробуйте снова.",
-        );
-      }
-      if (mode === "delete") {
-        widgets.splice(widgetIndex, 1);
-      } else {
-        const current = widgets[widgetIndex].resources;
-        widgets[widgetIndex] = {
-          resources: {
-            ...(current && typeof current === "object" ? current : {}),
-            ...draft,
-          },
-        };
-      }
-    }
-
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileName: "widgets.yaml",
-        content: yaml.dump(widgets, {
-          lineWidth: -1,
-          noRefs: true,
-          sortKeys: false,
-        }),
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
-    handleSaved(
-      mode === "add"
-        ? "Виджет resources добавлен"
-        : mode === "delete"
-          ? "Виджет resources удалён"
-          : "Виджет resources сохранён",
-    );
-  }
-
-  async function saveStudioNewItem(type, groupName, draft) {
-    if (!["services", "bookmarks"].includes(type)) {
-      throw new Error("Можно добавить только сервис или закладку");
-    }
-    const savedName = String(draft?.name ?? "").trim();
-    if (!savedName) {
-      throw new Error("Название карточки обязательно");
-    }
-    if (!String(groupName ?? "").trim()) {
-      throw new Error("Сначала выберите группу");
-    }
-
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-    const latestData = await latestResponse.json();
-    const existingNames = collectRawEntryNames(
-      latestData[type],
-      type,
-      groupName,
-    );
-    if (existingNames.some((name) => namesEqual(name, savedName))) {
-      throw new Error("Карточка с таким названием уже существует");
-    }
-
-    const config = formToConfig({
-      fields: draft,
-      extraYaml: "",
-    });
-    validateItemConfig(type, config);
-    const nextData = addRawEntry(
-      latestData[type],
-      type,
-      groupName,
-      savedName,
-      config,
-    );
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: type, data: nextData }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    await refreshConfigData(mutate);
-    handleSaved(`Добавлено: ${savedName}`);
-  }
-
-  async function saveStudioBookmark(item, draft, mode = "save") {
-    if (!item || item.type !== "bookmarks") {
-      throw new Error("Выберите закладку");
-    }
-
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-
-    const latestData = await latestResponse.json();
-    const matcher = createItemMatcher("bookmarks", item.name, item.config);
-    let nextBookmarks;
-    let savedName = item.name;
-
-    if (mode === "delete") {
-      nextBookmarks = deleteRawEntry(
-        latestData.bookmarks,
-        "bookmarks",
-        item.groupName,
-        item.name,
-        matcher,
-        item.itemIndex,
-      );
-    } else {
-      savedName = String(draft?.name ?? "").trim();
-      if (!savedName) {
-        throw new Error("Название закладки обязательно");
-      }
-      if (
-        !namesEqual(savedName, item.name) &&
-        collectRawEntryNames(
-          latestData.bookmarks,
-          "bookmarks",
-          item.groupName,
-        ).some((name) => namesEqual(name, savedName))
-      ) {
-        throw new Error("Закладка с таким названием уже существует");
-      }
-
-      const currentConfig = findRawEntry(
-        latestData.bookmarks,
-        "bookmarks",
-        item.groupName,
-        item.name,
-        matcher,
-        item.itemIndex,
-      );
-      if (!currentConfig) {
-        throw new Error(
-          "Закладка не найдена. Обновите страницу и попробуйте снова.",
-        );
-      }
-
-      const unknownConfig = Object.fromEntries(
-        Object.entries(currentConfig).filter(
-          ([key]) => !knownFields.bookmarks.includes(key),
-        ),
-      );
-      const submittedConfig = formToConfig({
-        fields: draft?.fields ?? {},
-        extraYaml: "",
-      });
-      const nextConfig = { ...unknownConfig, ...submittedConfig };
-      validateItemConfig("bookmarks", nextConfig);
-      nextBookmarks = updateRawEntry(
-        latestData.bookmarks,
-        "bookmarks",
-        item.groupName,
-        item.name,
-        matcher,
-        item.itemIndex,
-        savedName,
-        nextConfig,
-      );
-    }
-
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: "bookmarks", data: nextBookmarks }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    await refreshConfigData(mutate);
-    handleSaved(
-      mode === "delete"
-        ? `Закладка удалена: ${item.name}`
-        : `Закладка сохранена: ${savedName}`,
-    );
-    return { name: savedName };
-  }
-
-  async function saveStudioPage(previousName, draft, mode = "save") {
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-    const latestData = await latestResponse.json();
-    const result = updateStudioPageSettings(
-      latestData.settings,
-      latestData.services,
-      latestData.bookmarks,
-      {
-        icon: draft?.icon,
-        mode,
-        name: draft?.name,
-        previousName,
-        selectedGroupKeys: draft?.selectedGroupKeys,
-      },
-    );
-
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: "settings", data: result.settings }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    setSettings(result.settings);
-    await refreshConfigData(mutate);
-    handleSaved(
-      mode === "delete"
-        ? `Страница удалена: ${previousName}`
-        : `Страница сохранена: ${result.name}`,
-    );
-    return { name: result.name };
-  }
-
-  async function saveStudioPageStyles(draft) {
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-    const latestData = await latestResponse.json();
-    const nextSettings = updateStudioPageStyles(latestData.settings, draft);
-    const response = await editorWriteFetch("/api/config/editor", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file: "settings", data: nextSettings }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    setSettings(nextSettings);
-    await refreshConfigData(mutate);
-    handleSaved("Оформление страниц сохранено");
-  }
-
-  async function saveStudioGroup(group, draft, mode = "save") {
-    if (!group || !["services", "bookmarks"].includes(group.type)) {
-      throw new Error("Выберите группу");
-    }
-
-    const latestResponse = await fetch("/api/config/editor");
-    if (!latestResponse.ok) {
-      throw new Error(await latestResponse.text());
-    }
-    const latestData = await latestResponse.json();
-    const currentLayout =
-      getGroupLayout(
-        latestData.settings?.layout ?? {},
-        group.type,
-        group.name,
-      ) ?? {};
-    let nextGroups;
-    let nextSettings;
-    let savedName = group.name;
-
-    if (mode === "delete") {
-      nextGroups = deleteRawGroup(latestData[group.type], group.name);
-      nextSettings = updateSettingsLayout(
-        latestData.settings,
-        group.type,
-        group.name,
-        group.name,
-        {},
-        "delete",
-      );
-    } else {
-      savedName = String(draft?.name ?? "").trim();
-      if (!savedName) {
-        throw new Error("Название группы обязательно");
-      }
-
-      const groupNameExists = (groups = []) =>
-        groups.some((entry) => {
-          const name = getEntryName(entry);
-          const value = entry[name];
-          if (namesEqual(name, savedName) && !namesEqual(name, group.name)) {
-            return true;
-          }
-          return (
-            Array.isArray(value) &&
-            !isItemEntry(entry, group.type) &&
-            groupNameExists(value)
-          );
-        });
-      if (groupNameExists(latestData[group.type])) {
-        throw new Error("Группа с таким названием уже существует");
-      }
-
-      const knownLayoutKeys = new Set([
-        "alignRowHeights",
-        "columns",
-        "header",
-        "icon",
-        "initiallyCollapsed",
-        "style",
-        "tab",
-        "titleAlign",
-        "titleColor",
-        "titleFont",
-        "titleSize",
-      ]);
-      const nextLayout = Object.fromEntries(
-        Object.entries(currentLayout).filter(
-          ([key]) => !knownLayoutKeys.has(key),
-        ),
-      );
-      const fields = draft?.fields ?? {};
-      if (fields.style === "row") nextLayout.style = "row";
-      if (fields.style === "row" && fields.columns) {
-        nextLayout.columns = Number(fields.columns);
-      }
-      if (group.type === "services" && !fields.alignRowHeights) {
-        nextLayout.alignRowHeights = false;
-      }
-      if (!fields.headerVisible) nextLayout.header = false;
-      if (fields.icon?.trim()) nextLayout.icon = fields.icon.trim();
-      if (fields.initiallyCollapsed) nextLayout.initiallyCollapsed = true;
-      if (fields.tab?.trim()) nextLayout.tab = fields.tab.trim();
-      if (fields.titleAlign?.trim())
-        nextLayout.titleAlign = fields.titleAlign.trim();
-      if (fields.titleColor?.trim())
-        nextLayout.titleColor = fields.titleColor.trim();
-      if (fields.titleFont?.trim())
-        nextLayout.titleFont = fields.titleFont.trim();
-      if (fields.titleSize?.trim())
-        nextLayout.titleSize = fields.titleSize.trim();
-
-      nextGroups = renameRawGroup(
-        latestData[group.type],
-        group.name,
-        savedName,
-      );
-      nextSettings = updateSettingsLayout(
-        latestData.settings,
-        group.type,
-        group.name,
-        savedName,
-        nextLayout,
-        "save",
-      );
-    }
-
-    for (const [file, nextData] of [
-      [group.type, nextGroups],
-      ["settings", nextSettings],
-    ]) {
-      const response = await editorWriteFetch("/api/config/editor", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file, data: nextData }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-    }
-
-    setSettings(nextSettings);
-    await refreshConfigData(mutate);
-    handleSaved(
-      mode === "delete"
-        ? `Группа удалена: ${group.name}`
-        : `Группа сохранена: ${savedName}`,
-    );
-    return { name: savedName };
-  }
-
-  function chooseStudioIcon(callback) {
-    if (typeof callback !== "function") return;
-    setIconSelectorCallback(() => callback);
-    setIconsManagerOpen(true);
-  }
-
-  function pickStudioItemIcon(item) {
-    if (!item || !["services", "bookmarks"].includes(item.type)) {
-      handleSaved("Выберите карточку сервиса или закладки");
-      return;
-    }
-
-    setIconSelectorCallback(() => async (selectedIcon) => {
-      try {
-        const latestResponse = await fetch("/api/config/editor");
-        if (!latestResponse.ok) {
-          throw new Error(await latestResponse.text());
-        }
-
-        const latestData = await latestResponse.json();
-        const matcher = createItemMatcher(item.type, item.name, item.config);
-        const currentConfig = findRawEntry(
-          latestData[item.type],
-          item.type,
-          item.groupName,
-          item.name,
-          matcher,
-          item.itemIndex,
-        );
-        if (!currentConfig) {
-          throw new Error(
-            "Карточка не найдена. Обновите страницу и попробуйте снова.",
-          );
-        }
-
-        const nextConfig = {
-          ...currentConfig,
-          icon: selectedIcon,
-        };
-        validateItemConfig(item.type, nextConfig);
-        const nextItems = updateRawEntry(
-          latestData[item.type],
-          item.type,
-          item.groupName,
-          item.name,
-          matcher,
-          item.itemIndex,
-          item.name,
-          nextConfig,
-        );
-        const response = await editorWriteFetch("/api/config/editor", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file: item.type, data: nextItems }),
-        });
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        await refreshConfigData(mutate);
-        handleSaved(`Иконка сохранена: ${item.name}`);
-      } catch (iconError) {
-        handleSaved(iconError.message || "Не удалось сохранить иконку");
-      }
-    });
-    setIconsManagerOpen(true);
-  }
-
-  function pickStudioTopWidgetIcon(widget, widgetIndex) {
-    setIconSelectorCallback(() => async (selectedIcon) => {
-      try {
-        const latestResponse = await fetch("/api/config/editor");
-        if (!latestResponse.ok) {
-          throw new Error(await latestResponse.text());
-        }
-
-        const latestData = await latestResponse.json();
-        const widgetsTab = latestData?.settingsTabs?.find(
-          (tab) => tab.fileName === "widgets.yaml",
-        );
-        const widgets = yaml.load(widgetsTab?.content ?? "");
-        if (!Array.isArray(widgets) || !widgets[widgetIndex]) {
-          throw new Error(
-            "Виджет не найден. Обновите страницу и попробуйте снова.",
-          );
-        }
-
-        const [type, config] =
-          Object.entries(widgets[widgetIndex] ?? {})[0] ?? [];
-        if (!type) {
-          throw new Error("Некорректная конфигурация виджета");
-        }
-        widgets[widgetIndex] = {
-          [type]: {
-            ...(config && typeof config === "object" ? config : {}),
-            icon: selectedIcon,
-          },
-        };
-        const response = await editorWriteFetch("/api/config/editor", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: "widgets.yaml",
-            content: yaml.dump(widgets, {
-              lineWidth: -1,
-              noRefs: true,
-              sortKeys: false,
-            }),
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        await refreshConfigData(mutate, ["/api/config/editor", "/api/widgets"]);
-        handleSaved(
-          `Иконка виджета сохранена: ${widget?.label || widget?.type || type}`,
-        );
-      } catch (iconError) {
-        handleSaved(iconError.message || "Не удалось сохранить иконку");
-      }
-    });
-    setIconsManagerOpen(true);
-  }
-
   if (!enabled) {
-    return (
-      <ConfigEditorContext.Provider value={noopEditorContext}>
-        {children}
-      </ConfigEditorContext.Provider>
-    );
+    return <ConfigEditorContext.Provider value={noopEditorContext}>{children}</ConfigEditorContext.Provider>;
   }
-
-  const canvasServiceWidgetItem =
-    modal?.scope === "studio-service-widget" &&
-    modal.type === "services" &&
-    data
-      ? {
-          config:
-            findRawEntry(
-              data.services,
-              "services",
-              modal.groupName,
-              modal.itemName,
-              modal.itemMatcher,
-              modal.itemIndex,
-            ) ??
-            modal.item ??
-            {},
-          groupName: modal.groupName,
-          itemIndex: modal.itemIndex,
-          key: `canvas-service-widget:${modal.groupName}:${modal.itemName}:${modal.itemIndex ?? ""}`,
-          name: modal.itemName,
-          type: "services",
-        }
-      : null;
 
   return (
     <ConfigEditorContext.Provider value={value}>
-      <ConfiguratorControlTheme />
       {children}
       {editMode && (
-        <div
-          className="fixed bottom-20 left-5 z-[90]"
-          style={editorBottomLeftScaleStyle}
-        >
-          <EditorUiScaleControl
-            value={editorUiScale}
-            onChange={handleEditorUiScaleChange}
-          />
+        <div className="fixed bottom-20 left-5 z-[90]" style={editorBottomLeftScaleStyle}>
+          <EditorUiScaleControl value={editorUiScale} onChange={handleEditorUiScaleChange} />
         </div>
       )}
       {editMode ? (
-        <div
-          className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2"
-          style={editorBottomLeftScaleStyle}
-        >
+        <div className="fixed bottom-5 left-5 z-50 flex flex-wrap gap-2" style={editorBottomLeftScaleStyle}>
           <button
             type="button"
             onClick={() => {
@@ -13766,27 +10066,28 @@ export function ConfigEditorProvider({ children }) {
             Готово
           </button>
           <button
+            ref={backgroundButtonRef}
             type="button"
-            onClick={() => value.openNewGroup("")}
+            onClick={() => setModal({ type: "background" })}
             className={toolbarButtonClassName}
           >
-            Добавить группу
+            Фон
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              setModal({ type: "configurator-updates", studioChrome: true })
-            }
-            className={toolbarButtonClassName}
-          >
+          <button type="button" onClick={() => value.openNewGroup("")} className={toolbarButtonClassName}>
+            Новая группа
+          </button>
+          <button type="button" onClick={() => setIconsManagerOpen(true)} className={toolbarButtonClassName}>
+            Иконки
+          </button>
+          <button type="button" onClick={() => setModal({ type: "settings-tabs" })} className={toolbarButtonClassName}>
+            Конфигуратор
+          </button>
+          <button type="button" onClick={() => setModal({ type: "configurator-updates" })} className={toolbarButtonClassName}>
             Обновления
           </button>
         </div>
       ) : (
-        <div
-          className="fixed bottom-0 left-0 z-50 h-36 w-[440px]"
-          style={editorBottomLeftScaleStyle}
-        >
+        <div className="fixed bottom-0 left-0 z-50 h-36 w-36" style={editorBottomLeftScaleStyle}>
           <div
             aria-hidden="true"
             className="absolute inset-0"
@@ -13796,7 +10097,7 @@ export function ConfigEditorProvider({ children }) {
           />
           <button
             type="button"
-            onClick={openStudio}
+            onClick={() => setEditMode(true)}
             onPointerEnter={showEditButton}
             onPointerLeave={hideEditButton}
             onFocus={showEditButton}
@@ -13809,31 +10110,7 @@ export function ConfigEditorProvider({ children }) {
                 : "pointer-events-none translate-y-2 scale-[0.96] opacity-0 blur-[2px]",
             )}
           >
-            Настроить дашборд
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setDraggedGroup(null);
-              setModal(null);
-              setIconsManagerOpen(false);
-              setIconSelectorCallback(null);
-              setStudioOpen(false);
-              setEditMode(true);
-            }}
-            onPointerEnter={showEditButton}
-            onPointerLeave={hideEditButton}
-            onFocus={showEditButton}
-            onBlur={hideEditButton}
-            className={classNames(
-              toolbarButtonClassName,
-              "absolute bottom-5 left-[215px] origin-bottom-left whitespace-nowrap transition-[opacity,transform,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-              editButtonVisible
-                ? "pointer-events-auto translate-y-0 scale-100 opacity-100 blur-0"
-                : "pointer-events-none translate-y-2 scale-[0.96] opacity-0 blur-[2px]",
-            )}
-          >
-            Настроить расположение
+            Редактировать
           </button>
         </div>
       )}
@@ -13848,84 +10125,9 @@ export function ConfigEditorProvider({ children }) {
           {notice}
         </div>
       )}
-      {studioOpen && (
-        <DashboardStudio
-          data={data}
-          onClose={closeStudio}
-          onCanvasEdit={openCanvasEditor}
-          onOpenAppearance={() => setModal({ type: "background" })}
-          onOpenConfig={() => {
-            setStudioOpen(false);
-            setModal({ type: "settings-tabs", fromStudio: true });
-          }}
-          onOpenIcons={() => setIconsManagerOpen(true)}
-          onOpenItem={(type, groupName, itemName, item, itemIndex) =>
-            setModal({
-              type,
-              groupName,
-              itemName,
-              item,
-              itemMatcher: createItemMatcher(type, itemName, item),
-              itemIndex,
-              mode: "edit",
-              studioChrome: true,
-            })
-          }
-          onOpenNewGroup={(type) =>
-            setModal({
-              type,
-              groupName: "",
-              layout: {},
-              mode: "new",
-              scope: "group",
-              studioChrome: true,
-            })
-          }
-          onOpenNewItem={(type, groupName) =>
-            setModal({
-              type,
-              groupName,
-              itemName: "",
-              item: {},
-              mode: "new",
-              studioChrome: true,
-            })
-          }
-          onOpenTopWidget={(widget, widgetIndex) =>
-            setModal({
-              type: "widgets",
-              widget,
-              widgetIndex,
-              mode: "edit",
-              scope: "top-widget",
-            })
-          }
-          onOpenUpdates={() =>
-            setModal({ type: "configurator-updates", studioChrome: true })
-          }
-          onChooseIcon={chooseStudioIcon}
-          onPickItemIcon={pickStudioItemIcon}
-          onPickTopWidgetIcon={pickStudioTopWidgetIcon}
-          onSaveBookmark={saveStudioBookmark}
-          onSaveGroup={saveStudioGroup}
-          onSaveNewItem={saveStudioNewItem}
-          onSavePage={saveStudioPage}
-          onSavePageStyles={saveStudioPageStyles}
-          onSaveServiceWidget={saveStudioServiceWidget}
-          onSaveTopWidget={saveStudioTopWidget}
-          onMoveItem={value.moveItem}
-          widgetBooleanOptions={WIDGET_BOOLEANS}
-          widgetTemplates={WIDGET_TEMPLATES}
-          widgetTranslations={WIDGET_TRANSLATIONS}
-          widgetTypes={Object.keys(WIDGET_TEMPLATES).sort((left, right) =>
-            left.localeCompare(right),
-          )}
-        />
-      )}
       {modal?.type === "background" && (
         <BackgroundModal
           settings={data?.settings}
-          settingsTabs={data?.settingsTabs ?? []}
           anchorRef={backgroundButtonRef}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
@@ -13937,90 +10139,22 @@ export function ConfigEditorProvider({ children }) {
           settings={data?.settings}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
-          onBackToStudio={
-            modal.fromStudio
-              ? () => {
-                  setModal(null);
-                  setStudioOpen(true);
-                }
-              : undefined
-          }
         />
       )}
       {modal?.type === "configurator-updates" && (
-        <ConfiguratorUpdateModal
-          onClose={() => setModal(null)}
-          onSaved={handleSaved}
-          studioChrome={Boolean(modal.studioChrome)}
-        />
+        <ConfiguratorUpdateModal onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
       {modal?.scope === "group" && modal && data && (
-        <GroupModal
-          modal={modal}
-          data={data}
-          onClose={() => setModal(null)}
-          onSaved={handleSaved}
-          studioChrome={Boolean(modal.studioChrome)}
-        />
+        <GroupModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
-      {modal?.scope === "top-widget" &&
-        modal &&
-        data &&
-        (modal.widget?.type === "datetime" ? (
-          <ClockWidgetModal
-            modal={modal}
-            data={data}
-            onClose={() => setModal(null)}
-            onSaved={handleSaved}
-          />
-        ) : modal.widget?.type === "weather" ||
-          modal.widget?.type === "openweathermap" ||
-          modal.widget?.type === "weatherapi" ||
-          modal.widget?.type === "openmeteo" ? (
-          <WeatherWidgetModal
-            modal={modal}
-            data={data}
-            onClose={() => setModal(null)}
-            onSaved={handleSaved}
-          />
+      {modal?.scope === "top-widget" && modal && data && (
+        modal.widget?.type === "datetime" ? (
+          <ClockWidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+        ) : (modal.widget?.type === "weather" || modal.widget?.type === "openweathermap" || modal.widget?.type === "weatherapi" || modal.widget?.type === "openmeteo") ? (
+          <WeatherWidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
         ) : (
-          <TopWidgetModal
-            modal={modal}
-            data={data}
-            onClose={() => setModal(null)}
-            onSaved={handleSaved}
-          />
-        ))}
-      {canvasServiceWidgetItem && (
-        <StudioServiceWidgetModal
-          key={canvasServiceWidgetItem.key}
-          booleanOptions={WIDGET_BOOLEANS}
-          internalBaseUrl={data?.internalBaseUrl}
-          item={canvasServiceWidgetItem}
-          onChooseBackground={chooseStudioIcon}
-          onClose={() => setModal(null)}
-          onOpenItem={(type, groupName, itemName, item, itemIndex) =>
-            setModal({
-              type,
-              groupName,
-              itemName,
-              item,
-              itemMatcher: createItemMatcher(type, itemName, item),
-              itemIndex,
-              mode: "edit",
-              scope: "item-advanced",
-              studioChrome: true,
-            })
-          }
-          onPickIcon={() => pickStudioItemIcon(canvasServiceWidgetItem)}
-          onSave={saveStudioServiceWidget}
-          templates={WIDGET_TEMPLATES}
-          translations={WIDGET_TRANSLATIONS}
-          widgetCatalog={data?.serviceWidgetCatalog ?? []}
-          widgetTypes={Object.keys(WIDGET_TEMPLATES).sort((left, right) =>
-            left.localeCompare(right),
-          )}
-        />
+          <TopWidgetModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+        )
       )}
       {modal?.type !== "background" &&
         modal?.type !== "settings-tabs" &&
@@ -14028,17 +10162,10 @@ export function ConfigEditorProvider({ children }) {
         modal?.type !== "icons-manager" &&
         modal?.scope !== "group" &&
         modal?.scope !== "top-widget" &&
-        modal?.scope !== "studio-service-widget" &&
         modal &&
         data && (
-          <ItemModal
-            modal={modal}
-            data={data}
-            onClose={() => setModal(null)}
-            onSaved={handleSaved}
-            studioChrome={Boolean(modal.studioChrome)}
-          />
-        )}
+        <ItemModal modal={modal} data={data} onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
       {iconsManagerOpen && (
         <IconsManagerModal
           settings={data?.settings}

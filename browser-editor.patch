@@ -1,8 +1,8 @@
 diff --git a/next.config.js b/next.config.js
-index dcd133b..7426606 100644
+index ea49bf5..7426606 100644
 --- a/next.config.js
 +++ b/next.config.js
-@@ -1,13 +1,19 @@
+@@ -1,9 +1,19 @@
  const { i18n } = require("./next-i18next.config");
 
 +const allowedDevOrigins = (process.env.HOMEPAGE_ALLOWED_DEV_ORIGINS ?? "")
@@ -14,19 +14,16 @@ index dcd133b..7426606 100644
  const nextConfig = {
    reactStrictMode: true,
    output: "standalone",
--  // for serverSideTranslations
--  outputFileTracingIncludes: {
--    "/**": ["./next-i18next.config.js"],
 +  outputFileTracingRoot: __dirname,
 +  env: {
 +    HOMEPAGE_BROWSER_EDITOR: process.env.HOMEPAGE_BROWSER_EDITOR ?? "",
-   },
++  },
 +  ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
    images: {
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e..432bcd6 100644
+index 88d4d7e..af3ee26 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
@@ -98,13 +95,12 @@ index 88d4d7e..432bcd6 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bb..46e72d7 100644
+index 7ea16bb..552e78c 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,96 @@
+@@ -1,24 +1,93 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
-+import { cardBackgroundStyle } from "mods/browser-editor/lib/card-background";
  import ResolvedIcon from "components/resolvedicon";
 -import { useContext } from "react";
 +import { useContext, useEffect, useRef, useState } from "react";
@@ -119,8 +115,6 @@ index 7ea16bb..46e72d7 100644
 +
 +function titleCustomProperties(item) {
 +  const style = {};
-+  const background = cardBackgroundStyle(item.cardBackground, item.cardBackgroundPosition);
-+  if (background) { style["--homepage-configurator-card-background"] = background.backgroundImage; style["--homepage-configurator-card-background-position"] = background.backgroundPosition; }
 +  if (item.titleColor) style["--homepage-configurator-title-color"] = item.titleColor;
 +  if (item.titleSize) style["--homepage-configurator-title-size"] = item.titleSize;
 +  if (item.titleAlign) style["--homepage-configurator-title-align"] = item.titleAlign;
@@ -203,7 +197,7 @@ index 7ea16bb..46e72d7 100644
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -53,6 +125,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -53,6 +122,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -389,7 +383,7 @@ index 77ba911..79489a0 100644
    );
  }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 403f606..dc561db 100644
+index 403f606..fcdf4b3 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
 @@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
@@ -492,27 +486,23 @@ index 403f606..dc561db 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a..1ff16ae 100644
+index c23e16a..0ab5c4b 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
-@@ -1,5 +1,8 @@
+@@ -1,5 +1,6 @@
  import classNames from "classnames";
  import ResolvedIcon from "components/resolvedicon";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
-+import { cardBackgroundStyle } from "mods/browser-editor/lib/card-background";
-+import ServiceUpdateBadge from "mods/browser-editor/components/service-update";
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  import Docker from "widgets/docker/component";
-@@ -13,8 +16,20 @@ import SiteMonitor from "./site-monitor";
+@@ -13,8 +14,18 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
 
 -export default function Item({ service, groupName, useEqualHeights }) {
 +function titleCustomProperties(item) {
 +  const style = {};
-+  const background = cardBackgroundStyle(item.cardBackground, item.cardBackgroundPosition);
-+  if (background) { style["--homepage-configurator-card-background"] = background.backgroundImage; style["--homepage-configurator-card-background-position"] = background.backgroundPosition; }
 +  if (item.titleColor) style["--homepage-configurator-title-color"] = item.titleColor;
 +  if (item.titleSize) style["--homepage-configurator-title-size"] = item.titleSize;
 +  if (item.titleAlign) style["--homepage-configurator-title-align"] = item.titleAlign;
@@ -526,7 +516,7 @@ index c23e16a..1ff16ae 100644
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -33,7 +48,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -33,7 +44,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
    };
 
    return (
@@ -541,20 +531,7 @@ index c23e16a..1ff16ae 100644
        <div
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-@@ -89,6 +110,12 @@ export default function Item({ service, groupName, useEqualHeights }) {
-               statusStyle === "dot" ? "gap-0" : "gap-2 mr-2"
-             } z-10 service-tags`}
-           >
-+            {service.serviceUpdate && (
-+              <div className="shrink-0 flex items-center justify-center service-tag service-update">
-+                <ServiceUpdateBadge service={service} />
-+              </div>
-+            )}
-+
-             {service.ping && (
-               <div className="shrink-0 flex items-center justify-center service-tag service-ping">
-                 <Ping groupName={groupName} serviceName={service.name} style={statusStyle} />
-@@ -188,6 +215,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -188,6 +205,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -1108,7 +1085,7 @@ index b69ddff..c74277d 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 02adabe..7ba4f8d 100644
+index a51313e..7ba4f8d 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -1139,17 +1116,7 @@ index 02adabe..7ba4f8d 100644
  import { BiError } from "react-icons/bi";
  import useSWR, { SWRConfig } from "swr";
  import { ColorContext } from "utils/contexts/color";
-@@ -35,16 +44,72 @@ const ColorToggle = dynamic(() => import("components/toggles/color"), {
-   ssr: false,
- });
-
--const SignOut = dynamic(() => import("components/toggles/signout"), {
--  ssr: false,
--});
--
- const Version = dynamic(() => import("components/version"), {
-   ssr: false,
- });
+@@ -41,6 +50,66 @@ const Version = dynamic(() => import("components/version"), {
 
  const rightAlignedWidgets = ["weatherapi", "openweathermap", "weather", "openmeteo", "search", "datetime"];
 
@@ -1216,7 +1183,7 @@ index 02adabe..7ba4f8d 100644
  // Normalize language codes so older config values like zh-CN still point to Crowdin-provided ones
  const LANGUAGE_ALIASES = {
    "zh-cn": "zh-Hans",
-@@ -281,14 +346,8 @@ function Home({ initialSettings }) {
+@@ -277,14 +346,8 @@ function Home({ initialSettings }) {
    });
 
    const tabs = useMemo(
@@ -1233,7 +1200,7 @@ index 02adabe..7ba4f8d 100644
    );
 
    useEffect(() => {
-@@ -298,50 +357,119 @@ function Home({ initialSettings }) {
+@@ -294,50 +357,119 @@ function Home({ initialSettings }) {
      }
    });
 
@@ -1253,7 +1220,10 @@ index 02adabe..7ba4f8d 100644
 +      if (!groupName) {
 +        return undefined;
 +      }
-+
+
+-    const layoutGroups = Object.keys(settings.layout ?? {})
+-      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
+-      .filter(tabGroupFilter);
 +      return getGroupLayout(settings.layout ?? {}, type, groupName);
 +    };
 +
@@ -1277,10 +1247,7 @@ index 02adabe..7ba4f8d 100644
 +        if (bookmarkMap.has(groupName)) {
 +          return { type: "bookmarks", group: bookmarkMap.get(groupName) };
 +        }
-
--    const layoutGroups = Object.keys(settings.layout ?? {})
--      .map((groupName) => services?.find((g) => g.name === groupName) ?? bookmarks?.find((b) => b.name === groupName))
--      .filter(tabGroupFilter);
++
 +        return { type: "services", group: { name: groupName, services: [], groups: [] } };
 +      })
 +      .filter((entry) => entry && tabGroupFilter(entry.type, entry.group.name));
@@ -1369,7 +1336,7 @@ index 02adabe..7ba4f8d 100644
                    maxGroupColumns={settings.fiveColumns ? 5 : settings.maxGroupColumns}
                    disableCollapse={settings.disableCollapse}
                    useEqualHeights={settings.useEqualHeights}
-@@ -349,50 +477,23 @@ function Home({ initialSettings }) {
+@@ -345,50 +477,23 @@ function Home({ initialSettings }) {
                  />
                ) : (
                  <BookmarksGroup
@@ -1425,7 +1392,7 @@ index 02adabe..7ba4f8d 100644
      activeTab,
      services,
      bookmarks,
-@@ -403,6 +504,7 @@ function Home({ initialSettings }) {
+@@ -399,6 +504,7 @@ function Home({ initialSettings }) {
      settings.disableCollapse,
      settings.useEqualHeights,
      settings.cardBlur,
@@ -1433,7 +1400,7 @@ index 02adabe..7ba4f8d 100644
      settings.groupsInitiallyCollapsed,
      settings.bookmarksStyle,
      initialSettings.layout,
-@@ -438,16 +540,101 @@ function Home({ initialSettings }) {
+@@ -434,16 +540,101 @@ function Home({ initialSettings }) {
          <meta name="msapplication-TileColor" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="theme-color" content={themes[settings.color || "slate"][settings.theme || "dark"]} />
          <meta name="color-scheme" content="dark light"></meta>
@@ -1541,7 +1508,7 @@ index 02adabe..7ba4f8d 100644
          <QuickLaunch
            servicesAndBookmarks={servicesAndBookmarks}
            searchString={searchString}
-@@ -469,11 +656,13 @@ function Home({ initialSettings }) {
+@@ -465,11 +656,13 @@ function Home({ initialSettings }) {
              {widgets && (
                <>
                  {widgets
@@ -1559,7 +1526,7 @@ index 02adabe..7ba4f8d 100644
                        style={{ header: headerStyle, isRightAligned: false, cardBlur: settings.cardBlur }}
                      />
                    ))}
-@@ -486,11 +675,13 @@ function Home({ initialSettings }) {
+@@ -482,11 +675,13 @@ function Home({ initialSettings }) {
                    )}
                  >
                    {widgets
@@ -1577,7 +1544,7 @@ index 02adabe..7ba4f8d 100644
                          style={{ header: headerStyle, isRightAligned: true, cardBlur: settings.cardBlur }}
                        />
                      ))}
-@@ -500,13 +691,12 @@ function Home({ initialSettings }) {
+@@ -496,7 +691,7 @@ function Home({ initialSettings }) {
            </div>
          </div>
 
@@ -1586,13 +1553,7 @@ index 02adabe..7ba4f8d 100644
 
          <div id="footer" className="flex flex-col mt-auto p-8 w-full">
            <div id="style" className="flex w-full justify-end">
-             {!settings?.color && <ColorToggle />}
-             <Revalidate />
--            <SignOut />
-             {!settings.theme && <ThemeToggle />}
-           </div>
-
-@@ -514,7 +704,8 @@ function Home({ initialSettings }) {
+@@ -509,7 +704,8 @@ function Home({ initialSettings }) {
              {!settings.hideVersion && <Version disableUpdateCheck={settings.disableUpdateCheck} />}
            </div>
          </div>
@@ -1603,26 +1564,10 @@ index 02adabe..7ba4f8d 100644
    );
  }
 diff --git a/src/widgets/components.js b/src/widgets/components.js
-index dc1c87c..a1c0df5 100644
+index 322a80c..1123a2d 100644
 --- a/src/widgets/components.js
 +++ b/src/widgets/components.js
-@@ -76,7 +76,6 @@ const components = {
-   linkwarden: dynamic(() => import("./linkwarden/component")),
-   lubelogger: dynamic(() => import("./lubelogger/component")),
-   mailcow: dynamic(() => import("./mailcow/component")),
--  maintainerr: dynamic(() => import("./maintainerr/component")),
-   mastodon: dynamic(() => import("./mastodon/component")),
-   mealie: dynamic(() => import("./mealie/component")),
-   medusa: dynamic(() => import("./medusa/component")),
-@@ -134,7 +133,6 @@ const components = {
-   sparkyfitness: dynamic(() => import("./sparkyfitness/component")),
-   speedtest: dynamic(() => import("./speedtest/component")),
-   spoolman: dynamic(() => import("./spoolman/component")),
--  sportarr: dynamic(() => import("./sportarr/component")),
-   stash: dynamic(() => import("./stash/component")),
-   stocks: dynamic(() => import("./stocks/component")),
-   strelaysrv: dynamic(() => import("./strelaysrv/component")),
-@@ -147,6 +145,7 @@ const components = {
+@@ -143,6 +143,7 @@ const components = {
    technitium: dynamic(() => import("./technitium/component")),
    tdarr: dynamic(() => import("./tdarr/component")),
    tracearr: dynamic(() => import("./tracearr/component")),
@@ -1631,26 +1576,10 @@ index dc1c87c..a1c0df5 100644
    transmission: dynamic(() => import("./transmission/component")),
    trilium: dynamic(() => import("./trilium/component")),
 diff --git a/src/widgets/widgets.js b/src/widgets/widgets.js
-index aaa024f..f0bb505 100644
+index 5bc7f7f..82ff274 100644
 --- a/src/widgets/widgets.js
 +++ b/src/widgets/widgets.js
-@@ -67,7 +67,6 @@ import lidarr from "./lidarr/widget";
- import linkwarden from "./linkwarden/widget";
- import lubelogger from "./lubelogger/widget";
- import mailcow from "./mailcow/widget";
--import maintainerr from "./maintainerr/widget";
- import mastodon from "./mastodon/widget";
- import mealie from "./mealie/widget";
- import medusa from "./medusa/widget";
-@@ -124,7 +123,6 @@ import sonarr from "./sonarr/widget";
- import sparkyfitness from "./sparkyfitness/widget";
- import speedtest from "./speedtest/widget";
- import spoolman from "./spoolman/widget";
--import sportarr from "./sportarr/widget";
- import stash from "./stash/widget";
- import stocks from "./stocks/widget";
- import strelaysrv from "./strelaysrv/widget";
-@@ -137,6 +135,7 @@ import tautulli from "./tautulli/widget";
+@@ -133,6 +133,7 @@ import tautulli from "./tautulli/widget";
  import tdarr from "./tdarr/widget";
  import technitium from "./technitium/widget";
  import tracearr from "./tracearr/widget";
@@ -1658,23 +1587,7 @@ index aaa024f..f0bb505 100644
  import traefik from "./traefik/widget";
  import transmission from "./transmission/widget";
  import trilium from "./trilium/widget";
-@@ -230,7 +229,6 @@ const widgets = {
-   linkwarden,
-   lubelogger,
-   mailcow,
--  maintainerr,
-   mastodon,
-   mealie,
-   medusa,
-@@ -289,7 +287,6 @@ const widgets = {
-   sparkyfitness,
-   speedtest,
-   spoolman,
--  sportarr,
-   stash,
-   stocks,
-   strelaysrv,
-@@ -302,6 +299,7 @@ const widgets = {
+@@ -294,6 +295,7 @@ const widgets = {
    technitium,
    tdarr,
    tracearr,
