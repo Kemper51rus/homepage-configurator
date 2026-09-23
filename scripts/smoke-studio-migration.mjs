@@ -9,6 +9,7 @@ const target = join(tempRoot, "homepage");
 const studio = join(tempRoot, "homepage-studio");
 const homepageRef = process.env.HOMEPAGE_MIGRATION_TEST_REF || "v2.0.0";
 const studioRef = process.env.HOMEPAGE_STUDIO_TEST_REF || "studio-integrated-v0.6.82";
+const componentDir = process.env.STUDIO_COMPONENT_DIR || "/projects/homepage-studio";
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -34,11 +35,14 @@ try {
 
   run("node", [join(root, "install.mjs"), "--target", target], { stdio: "inherit" });
   const classicManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
-  if (classicManifest.configurator?.version !== "0.7.0") {
-    throw new Error(`Expected Classic 0.7.0, got ${classicManifest.configurator?.version ?? "unknown"}`);
+  if (classicManifest.schema !== 2) {
+    throw new Error(`Expected schema 2 Classic manifest, got ${classicManifest.schema ?? "legacy"}`);
   }
-  if (classicManifest.patch?.id !== "homepage-2.0") {
-    throw new Error(`Expected homepage-2.0 compatibility patch, got ${classicManifest.patch?.id ?? "unknown"}`);
+  if (classicManifest.core?.configurator?.version !== "0.8.0-beta.1") {
+    throw new Error(`Expected Classic 0.8.0-beta.1, got ${classicManifest.core?.configurator?.version ?? "unknown"}`);
+  }
+  if (classicManifest.core?.patch?.id !== "homepage-2.0") {
+    throw new Error(`Expected homepage-2.0 compatibility patch, got ${classicManifest.core?.patch?.id ?? "unknown"}`);
   }
 
   const removedStudioFiles = [
@@ -52,7 +56,30 @@ try {
     throw new Error(`Studio files remained after migration: ${residue.join(", ")}`);
   }
 
-  console.log(`Studio ${studioRef} -> Classic ${classicManifest.configurator.version} migration passed on Homepage ${homepageRef}.`);
+  if (!existsSync(join(componentDir, "homepage-component.json"))) {
+    throw new Error(`Studio component checkout is missing: ${componentDir}`);
+  }
+  run("node", [
+    join(root, "install.mjs"),
+    "--target",
+    target,
+    "--component",
+    "install",
+    "homepage-studio",
+    "--component-dir",
+    componentDir,
+  ], { stdio: "inherit" });
+  const componentManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
+  if (componentManifest.components?.["homepage-studio"]?.version !== "0.1.0-beta.1") {
+    throw new Error(`Expected Studio component 0.1.0-beta.1, got ${componentManifest.components?.["homepage-studio"]?.version ?? "unknown"}`);
+  }
+  for (const file of removedStudioFiles) {
+    if (!existsSync(join(target, file))) throw new Error(`Studio component did not restore ${file}`);
+  }
+
+  console.log(
+    `Integrated Studio ${studioRef} -> Classic ${classicManifest.core.configurator.version} -> component Studio ${componentManifest.components["homepage-studio"].version} migration passed on Homepage ${homepageRef}.`,
+  );
 } finally {
   rmSync(tempRoot, { force: true, recursive: true });
 }
