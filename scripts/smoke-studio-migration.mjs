@@ -38,7 +38,7 @@ try {
   if (classicManifest.schema !== 2) {
     throw new Error(`Expected schema 2 Classic manifest, got ${classicManifest.schema ?? "legacy"}`);
   }
-  if (classicManifest.core?.configurator?.version !== "0.8.0-beta.1") {
+  if (classicManifest.core?.configurator?.version !== "0.8.0-beta.2") {
     throw new Error(`Expected Classic 0.8.0-beta.1, got ${classicManifest.core?.configurator?.version ?? "unknown"}`);
   }
   if (classicManifest.core?.patch?.id !== "homepage-2.0") {
