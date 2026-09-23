@@ -176,6 +176,10 @@ try {
   assertSentinels(sentinels, "Component install");
   productionBuild("Studio");
 
+  run("node", componentArgs("update", componentManifest.id, true), { stdio: "inherit" });
+  assertComponentInstalled(componentManifest, coreOverlaySnapshot, routeFiles, "Component update");
+  assertSentinels(sentinels, "Component update");
+
   const installedBeforeFailure = readInstallManifest();
   const rollbackPaths = [...new Set([
     manifestName,
