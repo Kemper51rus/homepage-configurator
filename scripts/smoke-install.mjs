@@ -112,6 +112,9 @@ try {
   if (!core.overlayFiles?.includes("src/mods/browser-editor/lib/editor-window.js")) {
     throw new Error("Install manifest does not list editor window helper overlay file");
   }
+  if (!core.overlayFiles?.includes("src/mods/browser-editor/components/installed-card-extensions.js")) {
+    throw new Error("Install manifest does not list the card extension registry overlay file");
+  }
   if (!core.backup?.backupRoot) {
     throw new Error("Install manifest does not list backup root");
   }

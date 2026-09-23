@@ -1,5 +1,5 @@
 diff --git a/next.config.js b/next.config.js
-index dcd133b2..7426606f 100644
+index dcd133b..7426606 100644
 --- a/next.config.js
 +++ b/next.config.js
 @@ -1,13 +1,19 @@
@@ -26,7 +26,7 @@ index dcd133b2..7426606f 100644
      remotePatterns: [
        {
 diff --git a/src/components/bookmarks/group.jsx b/src/components/bookmarks/group.jsx
-index 88d4d7e8..432bcd67 100644
+index 88d4d7e..432bcd6 100644
 --- a/src/components/bookmarks/group.jsx
 +++ b/src/components/bookmarks/group.jsx
 @@ -5,6 +5,7 @@ import ErrorBoundary from "components/errorboundry";
@@ -98,12 +98,13 @@ index 88d4d7e8..432bcd67 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 7ea16bba..630c34ce 100644
+index 7ea16bb..3a3d3dc 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,24 +1,93 @@
+@@ -1,24 +1,95 @@
  import classNames from "classnames";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
++import { getCardExtraStyle } from "mods/browser-editor/components/installed-card-extensions";
  import ResolvedIcon from "components/resolvedicon";
 -import { useContext } from "react";
 +import { useContext, useEffect, useRef, useState } from "react";
@@ -197,10 +198,11 @@ index 7ea16bba..630c34ce 100644
          rel="noreferrer"
 -        target={bookmark.target ?? settings.target ?? "_blank"}
 +        target={editMode ? undefined : bookmark.target ?? settings.target ?? "_blank"}
++        style={getCardExtraStyle("bookmark", bookmark)}
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
            "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -53,6 +122,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+@@ -53,6 +124,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -217,7 +219,7 @@ index 7ea16bba..630c34ce 100644
    );
  }
 diff --git a/src/components/bookmarks/list.jsx b/src/components/bookmarks/list.jsx
-index f24794db..23c8c3bd 100644
+index f24794d..23c8c3b 100644
 --- a/src/components/bookmarks/list.jsx
 +++ b/src/components/bookmarks/list.jsx
 @@ -1,9 +1,10 @@
@@ -259,7 +261,7 @@ index f24794db..23c8c3bd 100644
    );
  }
 diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
-index 77ba9119..79489a0a 100644
+index 77ba911..79489a0 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
 @@ -4,8 +4,8 @@ import { SettingsContext } from "utils/contexts/settings";
@@ -386,7 +388,7 @@ index 77ba9119..79489a0a 100644
    );
  }
 diff --git a/src/components/services/group.jsx b/src/components/services/group.jsx
-index 403f6063..dc561db3 100644
+index 403f606..dc561db 100644
 --- a/src/components/services/group.jsx
 +++ b/src/components/services/group.jsx
 @@ -4,6 +4,7 @@ import ResolvedIcon from "components/resolvedicon";
@@ -489,17 +491,21 @@ index 403f6063..dc561db3 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index c23e16a2..ddd84827 100644
+index c23e16a..13d3a31 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
-@@ -1,5 +1,6 @@
+@@ -1,5 +1,10 @@
  import classNames from "classnames";
  import ResolvedIcon from "components/resolvedicon";
 +import { useEditableItem } from "mods/browser-editor/components/editor";
++import {
++  getCardExtraStyle,
++  renderServiceCardBadges,
++} from "mods/browser-editor/components/installed-card-extensions";
  import { useContext, useState } from "react";
  import { SettingsContext } from "utils/contexts/settings";
  import Docker from "widgets/docker/component";
-@@ -13,8 +14,18 @@ import SiteMonitor from "./site-monitor";
+@@ -13,8 +18,18 @@ import SiteMonitor from "./site-monitor";
  import Status from "./status";
  import Widget from "./widget";
  
@@ -519,7 +525,7 @@ index c23e16a2..ddd84827 100644
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -33,7 +44,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -33,8 +48,15 @@ export default function Item({ service, groupName, useEqualHeights }) {
    };
  
    return (
@@ -532,9 +538,19 @@ index c23e16a2..ddd84827 100644
 +      style={titleCustomProperties(service)}
 +    >
        <div
++        style={getCardExtraStyle("service", service)}
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-@@ -188,6 +205,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+           useEqualHeights && "h-[calc(100%-0.5rem)]",
+@@ -89,6 +111,7 @@ export default function Item({ service, groupName, useEqualHeights }) {
+               statusStyle === "dot" ? "gap-0" : "gap-2 mr-2"
+             } z-10 service-tags`}
+           >
++            {renderServiceCardBadges(service)}
+             {service.ping && (
+               <div className="shrink-0 flex items-center justify-center service-tag service-ping">
+                 <Ping groupName={groupName} serviceName={service.name} style={statusStyle} />
+@@ -188,6 +211,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -552,7 +568,7 @@ index c23e16a2..ddd84827 100644
      </li>
    );
 diff --git a/src/components/services/list.jsx b/src/components/services/list.jsx
-index 1acf94d6..531ba65d 100644
+index 1acf94d..531ba65 100644
 --- a/src/components/services/list.jsx
 +++ b/src/components/services/list.jsx
 @@ -1,25 +1,37 @@
@@ -596,7 +612,7 @@ index 1acf94d6..531ba65d 100644
    );
  }
 diff --git a/src/components/widgets/datetime/datetime.jsx b/src/components/widgets/datetime/datetime.jsx
-index f0bae0b9..a868fad8 100644
+index f0bae0b..a868fad 100644
 --- a/src/components/widgets/datetime/datetime.jsx
 +++ b/src/components/widgets/datetime/datetime.jsx
 @@ -1,5 +1,5 @@
@@ -750,7 +766,7 @@ index f0bae0b9..a868fad8 100644
          </div>
        </Raw>
 diff --git a/src/components/widgets/openweathermap/weather.jsx b/src/components/widgets/openweathermap/weather.jsx
-index 46704595..31b5d66f 100644
+index 4670459..31b5d66 100644
 --- a/src/components/widgets/openweathermap/weather.jsx
 +++ b/src/components/widgets/openweathermap/weather.jsx
 @@ -9,6 +9,7 @@ import Container from "../widget/container";
@@ -908,7 +924,7 @@ index 46704595..31b5d66f 100644
    );
  }
 diff --git a/src/components/widgets/weather/weather.jsx b/src/components/widgets/weather/weather.jsx
-index 779c718e..a4ad6948 100644
+index 779c718..a4ad694 100644
 --- a/src/components/widgets/weather/weather.jsx
 +++ b/src/components/widgets/weather/weather.jsx
 @@ -9,6 +9,7 @@ import Container from "../widget/container";
@@ -1076,7 +1092,7 @@ index 779c718e..a4ad6948 100644
    );
  }
 diff --git a/src/pages/api/config/[path].js b/src/pages/api/config/[path].js
-index b69ddff5..c74277d5 100644
+index b69ddff..c74277d 100644
 --- a/src/pages/api/config/[path].js
 +++ b/src/pages/api/config/[path].js
 @@ -26,6 +26,7 @@ export default async function handler(req, res) {
@@ -1088,7 +1104,7 @@ index b69ddff5..c74277d5 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 02adabe1..7ba4f8d6 100644
+index 02adabe..7ba4f8d 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -4,16 +4,25 @@ import BookmarksGroup from "components/bookmarks/group";
@@ -1583,7 +1599,7 @@ index 02adabe1..7ba4f8d6 100644
    );
  }
 diff --git a/src/widgets/components.js b/src/widgets/components.js
-index dc1c87c9..a1c0df5b 100644
+index dc1c87c..a1c0df5 100644
 --- a/src/widgets/components.js
 +++ b/src/widgets/components.js
 @@ -76,7 +76,6 @@ const components = {
@@ -1611,7 +1627,7 @@ index dc1c87c9..a1c0df5b 100644
    transmission: dynamic(() => import("./transmission/component")),
    trilium: dynamic(() => import("./trilium/component")),
 diff --git a/src/widgets/widgets.js b/src/widgets/widgets.js
-index aaa024f8..f0bb5054 100644
+index aaa024f..f0bb505 100644
 --- a/src/widgets/widgets.js
 +++ b/src/widgets/widgets.js
 @@ -67,7 +67,6 @@ import lidarr from "./lidarr/widget";
