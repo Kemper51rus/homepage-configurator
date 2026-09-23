@@ -118,6 +118,29 @@ test("plan rejects collisions with core and another component", () => {
   );
 });
 
+test("explicit core replacements are backed up and restored on remove", () => {
+  const { component, target } = fixture({ "src/card.js": "studio card" });
+  mkdirSync(join(target, "src"));
+  writeFileSync(join(target, "src/card.js"), "classic card");
+  const manifest = componentManifest({
+    replacesCoreFiles: ["src/card.js"],
+    persistentFiles: ["config/weather-card.yaml"],
+  });
+  const coreManifest = {
+    schema: 2,
+    core: { overlayFiles: ["src/card.js"] },
+    components: {},
+  };
+
+  const installed = applyComponentInstall(target, component, manifest, coreManifest).manifest;
+  assert.equal(readFileSync(join(target, "src/card.js"), "utf8"), "studio card");
+  assert.deepEqual(installed.components["weather-card"].replacesCoreFiles, ["src/card.js"]);
+  assert.deepEqual(installed.components["weather-card"].persistentFiles, ["config/weather-card.yaml"]);
+
+  removeComponent(target, "weather-card", installed);
+  assert.equal(readFileSync(join(target, "src/card.js"), "utf8"), "classic card");
+});
+
 test("apply rollback restores replaced files and old manifest after injected failure", () => {
   const { component, target } = fixture({ "src/one.js": "new one", "src/two.js": "new two" });
   mkdirSync(join(target, "src"));

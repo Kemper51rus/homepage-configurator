@@ -98,10 +98,10 @@ index 3030cfe1..a3ef8756 100644
                </Disclosure.Panel>
              </Transition>
 diff --git a/src/components/bookmarks/item.jsx b/src/components/bookmarks/item.jsx
-index 6d2c427b..c33fd4f5 100644
+index 51479f2a..4d1db278 100644
 --- a/src/components/bookmarks/item.jsx
 +++ b/src/components/bookmarks/item.jsx
-@@ -1,25 +1,94 @@
+@@ -1,29 +1,98 @@
  import classNames from "classnames";
 -import { useContext } from "react";
 +import { useContext, useEffect, useRef, useState } from "react";
@@ -137,6 +137,10 @@ index 6d2c427b..c33fd4f5 100644
 +    bookmark.itemIndex,
 +  );
    const { settings } = useContext(SettingsContext);
+   const cardStyle =
+     settings.cardStyle === "hairline"
+       ? "shadow-xs inset-ring inset-ring-black/5 dark:inset-ring-white/5 hover:inset-ring-black/10 dark:hover:inset-ring-white/10"
+       : "shadow-md shadow-theme-900/10 dark:shadow-theme-900/20";
 +  const wrapperRef = useRef(null);
 +  const bookmarkRef = useRef(null);
 +  const [overlayStyle, setOverlayStyle] = useState({ borderRadius: "inherit" });
@@ -200,8 +204,8 @@ index 6d2c427b..c33fd4f5 100644
 +        target={editMode ? undefined : bookmark.target ?? settings.target ?? "_blank"}
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-           "text-left cursor-pointer transition-all rounded-md font-medium text-theme-700 dark:text-theme-200 dark:hover:text-theme-300 shadow-md shadow-theme-900/10 dark:shadow-theme-900/20 bg-theme-100/20 hover:bg-theme-300/20 dark:bg-white/5 dark:hover:bg-white/10",
-@@ -54,6 +123,15 @@ export default function Item({ bookmark, iconOnly = false }) {
+           cardStyle,
+@@ -59,6 +128,15 @@ export default function Item({ bookmark, iconOnly = false }) {
            </div>
          )}
        </a>
@@ -489,7 +493,7 @@ index 881da5b7..9ea9f7fd 100644
                          key={subgroup.name}
                          group={subgroup}
 diff --git a/src/components/services/item.jsx b/src/components/services/item.jsx
-index 88c6383a..b8c5b71a 100644
+index 05757fdd..cfcff6eb 100644
 --- a/src/components/services/item.jsx
 +++ b/src/components/services/item.jsx
 @@ -9,13 +9,24 @@ import Status from "./status";
@@ -518,7 +522,7 @@ index 88c6383a..b8c5b71a 100644
    const { settings } = useContext(SettingsContext);
    const showStats = service.showStats === false ? false : settings.showStats;
    const statusStyle = service.statusStyle !== undefined ? service.statusStyle : settings.statusStyle;
-@@ -34,7 +45,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -38,7 +49,13 @@ export default function Item({ service, groupName, useEqualHeights }) {
    };
  
    return (
@@ -533,7 +537,7 @@ index 88c6383a..b8c5b71a 100644
        <div
          className={classNames(
            settings.cardBlur !== undefined && `backdrop-blur${settings.cardBlur.length ? "-" : ""}${settings.cardBlur}`,
-@@ -189,6 +206,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
+@@ -194,6 +211,16 @@ export default function Item({ service, groupName, useEqualHeights }) {
          {service.widgets.map((widget) => (
            <Widget widget={widget} service={service} key={widget.index} />
          ))}
@@ -1073,7 +1077,7 @@ index b69ddff5..c74277d5 100644
    } catch (error) {
      if (error) logger.error(error);
 diff --git a/src/pages/index.jsx b/src/pages/index.jsx
-index 31b095bf..6049aae8 100644
+index 304e2ffa..e8a1587b 100644
 --- a/src/pages/index.jsx
 +++ b/src/pages/index.jsx
 @@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
