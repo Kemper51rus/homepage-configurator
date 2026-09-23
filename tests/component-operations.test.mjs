@@ -190,6 +190,36 @@ test("successful operation uses fixed no-shell commands and requires restart", (
   }
 });
 
+test("healthcheck failure restores component source and build output", () => {
+  const data = fixture();
+  const manifestFile = join(data.target, ".homepage-configurator-manifest.json");
+  const oldManifest = readFileSync(manifestFile, "utf8");
+  write(join(data.target, ".next/BUILD_ID"), "previous-build\n");
+
+  assert.throws(
+    () => executeComponentOperation(data.target, validInput, {
+      env: data.env,
+      healthcheckUrl: "http://127.0.0.1:3000/api/healthcheck",
+      healthcheck() {
+        write(join(data.target, ".next/BUILD_ID"), "unhealthy-build\n");
+        throw new Error("injected healthcheck failure");
+      },
+      runner(executable) {
+        if (executable === process.execPath) {
+          write(join(data.target, "src/current.js"), "mutated\n");
+          write(manifestFile, "{\"mutated\":true}\n");
+        }
+        return "";
+      },
+      lockPath: join(data.root, "healthcheck-maintenance.lock"),
+    }),
+    /injected healthcheck failure/,
+  );
+  assert.equal(readFileSync(join(data.target, "src/current.js"), "utf8"), "before\n");
+  assert.equal(readFileSync(manifestFile, "utf8"), oldManifest);
+  assert.equal(readFileSync(join(data.target, ".next/BUILD_ID"), "utf8"), "previous-build\n");
+});
+
 test("build failure restores manifest, owned files, and deletes incoming files", () => {
   const data = fixture();
   const manifestFile = join(data.target, ".homepage-configurator-manifest.json");
