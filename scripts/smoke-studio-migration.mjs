@@ -70,8 +70,8 @@ try {
     componentDir,
   ], { stdio: "inherit" });
   const componentManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
-  if (componentManifest.components?.["homepage-studio"]?.version !== "0.1.0-beta.1") {
-    throw new Error(`Expected Studio component 0.1.0-beta.1, got ${componentManifest.components?.["homepage-studio"]?.version ?? "unknown"}`);
+  if (componentManifest.components?.["homepage-studio"]?.version !== "0.1.0-beta.2") {
+    throw new Error(`Expected Studio component 0.1.0-beta.2, got ${componentManifest.components?.["homepage-studio"]?.version ?? "unknown"}`);
   }
   for (const file of removedStudioFiles) {
     if (!existsSync(join(target, file))) throw new Error(`Studio component did not restore ${file}`);
