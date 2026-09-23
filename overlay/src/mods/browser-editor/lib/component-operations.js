@@ -306,7 +306,7 @@ function incomingPaths(studioManifest) {
 }
 
 function collectSnapshotPaths(context) {
-  const paths = new Set([MANIFEST_NAME, ".homepage-configurator-backups", "package.json", ...LOCKFILES]);
+  const paths = new Set([MANIFEST_NAME, ".homepage-configurator-backups", ".next", "package.json", ...LOCKFILES]);
   addRecordPaths(paths, context.manifest.core);
   for (const component of Object.values(context.manifest.components)) addRecordPaths(paths, component);
   for (const path of incomingPaths(context.studioManifest)) paths.add(path);

@@ -194,6 +194,7 @@ test("build failure restores manifest, owned files, and deletes incoming files",
   const data = fixture();
   const manifestFile = join(data.target, ".homepage-configurator-manifest.json");
   const oldManifest = readFileSync(manifestFile, "utf8");
+  write(join(data.target, ".next/BUILD_ID"), "previous-build\n");
   const calls = [];
   const runner = (executable, args, options) => {
     calls.push({ executable, args, options });
@@ -205,7 +206,10 @@ test("build failure restores manifest, owned files, and deletes incoming files",
       write(manifestFile, "{\"mutated\":true}\n");
       return "";
     }
-    if (executable === "npm") throw new Error("injected build failure");
+    if (executable === "npm") {
+      write(join(data.target, ".next/BUILD_ID"), "failed-build\n");
+      throw new Error("injected build failure");
+    }
     throw new Error(`unexpected command ${executable}`);
   };
 
@@ -219,6 +223,7 @@ test("build failure restores manifest, owned files, and deletes incoming files",
   );
   assert.equal(readFileSync(join(data.target, "src/current.js"), "utf8"), "before\n");
   assert.equal(readFileSync(manifestFile, "utf8"), oldManifest);
+  assert.equal(readFileSync(join(data.target, ".next/BUILD_ID"), "utf8"), "previous-build\n");
   assert.throws(() => readFileSync(join(data.target, "src/new.js")), /ENOENT/);
   assert.equal(calls.length, 2, "dependency install must be skipped when dependency declarations and locks did not change");
   assert.equal(calls[0].executable, process.execPath);
