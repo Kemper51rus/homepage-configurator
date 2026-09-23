@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import {
+  createLoopbackHealthcheckCommand,
   executeComponentOperation,
   getComponentStatusCatalog,
   listComponentOperationCatalog,
@@ -153,6 +154,11 @@ test("global maintenance lock rejects a concurrent operation and releases", () =
 test("healthcheck URL permits loopback only", () => {
   assert.equal(validateLoopbackHealthcheckUrl("http://127.0.0.1:3000/api/health"), "http://127.0.0.1:3000/api/health");
   assert.equal(validateLoopbackHealthcheckUrl("http://[::1]:3000/"), "http://[::1]:3000/");
+  const command = createLoopbackHealthcheckCommand("http://127.0.0.1:3000/api/healthcheck");
+  assert.equal(command.executable, process.execPath);
+  assert.deepEqual(command.args.slice(0, 2), ["--input-type=module", "--eval"]);
+  assert.equal(command.args.at(-1), "http://127.0.0.1:3000/api/healthcheck");
+
   for (const url of [
     "https://example.com/health",
     "http://127.0.0.2/health",

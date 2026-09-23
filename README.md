@@ -60,6 +60,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 Если в окружении есть только standalone runtime без полного checkout Homepage, браузерный updater не будет пытаться патчить неполную сборку и покажет причину. В таком случае обновление выполняется внешним deploy-процессом.
 
+Preview-управление компонентом `Homepage Studio` использует только серверные локальные источники. Для карточки установки в окне `Обновления` сервису задаются `HOMEPAGE_CONFIGURATOR_SOURCE_DIR` и `HOMEPAGE_STUDIO_COMPONENT_DIR`. Браузер передаёт только allowlisted идентификаторы `homepage-studio` и `github-stable`; URL, пути и команды от клиента не принимаются. После транзакционной установки/удаления выполняется production build, а UI сообщает о необходимости ручного перезапуска. Опциональный healthcheck задаётся только серверной переменной `HOMEPAGE_COMPONENT_HEALTHCHECK_URL` и допускает адреса `localhost`, `127.0.0.1` или `[::1]`.
+
 ## Использование
 
 После включения мода кнопка `Edit` появляется только при наведении курсора на левый нижний угол страницы.

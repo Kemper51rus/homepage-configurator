@@ -262,6 +262,18 @@ export function validateLoopbackHealthcheckUrl(value) {
   return url.toString();
 }
 
+export function createLoopbackHealthcheckCommand(value) {
+  const url = validateLoopbackHealthcheckUrl(value);
+  const script = [
+    "const response = await fetch(process.argv[1], { signal: AbortSignal.timeout(10000), redirect: 'error' });",
+    "if (!response.ok) throw new Error(`Healthcheck failed with HTTP ${response.status}`);",
+  ].join("\n");
+  return {
+    executable: process.execPath,
+    args: ["--input-type=module", "--eval", script, url],
+  };
+}
+
 function ownedPath(entry) {
   if (typeof entry === "string") return entry;
   if (isObject(entry)) return entry.path ?? entry.target;
@@ -429,7 +441,17 @@ export function executeComponentOperation(targetDir, rawInput, options = {}) {
         cwd: context.target,
         env: { ...(options.env ?? process.env), NODE_ENV: "production" },
       });
-      if (healthcheckUrl && options.healthcheck) options.healthcheck(healthcheckUrl);
+      if (healthcheckUrl) {
+        if (options.healthcheck) {
+          options.healthcheck(healthcheckUrl);
+        } else {
+          const healthcheck = createLoopbackHealthcheckCommand(healthcheckUrl);
+          run(healthcheck.executable, healthcheck.args, {
+            cwd: context.target,
+            env: options.env ?? process.env,
+          });
+        }
+      }
       return {
         componentId: input.componentId,
         sourceId: input.sourceId,
