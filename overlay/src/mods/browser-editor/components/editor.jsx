@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { SettingsContext } from "utils/contexts/settings";

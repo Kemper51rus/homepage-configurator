@@ -6,7 +6,7 @@ import net from "net";
 import os from "os";
 import path from "path";
 
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 
 import checkAndCopyConfig, { CONF_DIR } from "utils/config/config";
 import createLogger from "utils/logger";

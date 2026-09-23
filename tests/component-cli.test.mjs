@@ -33,7 +33,12 @@ function targetFixture() {
   return { base, target };
 }
 
-function componentFixture(base, { id = "demo-card", version = "1.0.0", files = ["src/demo-card.js"] } = {}) {
+function componentFixture(base, {
+  id = "demo-card",
+  version = "1.0.0",
+  files = ["src/demo-card.js"],
+  requires = { configurator: ">=0.7.0" },
+} = {}) {
   const component = join(base, `component-${version.replaceAll(".", "-")}-${Math.random().toString(16).slice(2)}`);
   mkdirSync(join(component, "overlay"), { recursive: true });
   for (const file of files) write(join(component, "overlay", ...file.split("/")), `export default ${JSON.stringify(version)};\n`);
@@ -41,7 +46,7 @@ function componentFixture(base, { id = "demo-card", version = "1.0.0", files = [
     schema: 1,
     id,
     version,
-    requires: { configurator: ">=0.7.0" },
+    requires,
     overlay: { root: "overlay", files },
     configFiles: [],
     dataDirs: [],
@@ -125,6 +130,21 @@ test("component CLI rejects id mismatch, traversal, missing install and unknown 
   const update = await cli(updateFixture.target, "--component", "update", "--component-dir", updateComponent);
   assert.notEqual(update.status, 0);
   assert.match(output(update), /not installed/);
+
+  const incompatibleFixture = targetFixture();
+  const incompatibleComponent = componentFixture(incompatibleFixture.base, {
+    requires: { homepageConfigurator: ">=0.8.0", homepage: ">=3.0.0" },
+  });
+  const incompatible = await cli(
+    incompatibleFixture.target,
+    "--component",
+    "install",
+    "--component-dir",
+    incompatibleComponent,
+  );
+  assert.notEqual(incompatible.status, 0);
+  assert.match(output(incompatible), /requires Homepage Configurator/);
+  assert.deepEqual(JSON.parse(readFileSync(join(incompatibleFixture.target, manifestName))).components, {});
 
   const unknown = await cli(updateFixture.target, "--wat");
   assert.notEqual(unknown.status, 0);

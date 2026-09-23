@@ -610,6 +610,50 @@ function readTrustedComponent(componentDir) {
   return { directory, manifest: JSON.parse(readFileSync(file, "utf8")) };
 }
 
+function versionSatisfiesRange(version, range) {
+  const comparisons = String(range ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!comparisons.length) return false;
+
+  return comparisons.every((comparison) => {
+    const match = comparison.match(/^(>=|<=|>|<|=|\^|~)?(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/);
+    if (!match) throw new Error(`Unsupported component version requirement: ${comparison}`);
+    const [, operator = "=", requiredVersion] = match;
+    const result = compareVersions(version, requiredVersion);
+    if (operator === ">=") return result >= 0;
+    if (operator === "<=") return result <= 0;
+    if (operator === ">") return result > 0;
+    if (operator === "<") return result < 0;
+    if (operator === "^") {
+      const current = parseVersionParts(version);
+      const required = parseVersionParts(requiredVersion);
+      return result >= 0 && current?.parts[0] === required?.parts[0];
+    }
+    if (operator === "~") {
+      const current = parseVersionParts(version);
+      const required = parseVersionParts(requiredVersion);
+      return result >= 0 && current?.parts[0] === required?.parts[0] && current?.parts[1] === required?.parts[1];
+    }
+    return result === 0;
+  });
+}
+
+function ensureComponentCompatibility(target, componentManifest, configuratorManifest) {
+  const core = coreRecord(configuratorManifest);
+  const configuratorVersion = core?.configurator?.version ?? core?.version;
+  const configuratorRange = componentManifest.requires?.homepageConfigurator ?? componentManifest.requires?.configurator;
+  const homepageRange = componentManifest.requires?.homepage;
+
+  if (configuratorRange && (!configuratorVersion || !versionSatisfiesRange(configuratorVersion, configuratorRange))) {
+    throw new Error(
+      `Component ${componentManifest.id} requires Homepage Configurator ${configuratorRange}; installed: ${configuratorVersion ?? "unknown"}`,
+    );
+  }
+  const homepageVersion = targetVersion(target);
+  if (homepageRange && !versionSatisfiesRange(homepageVersion, homepageRange)) {
+    throw new Error(`Component ${componentManifest.id} requires Homepage ${homepageRange}; installed: ${homepageVersion}`);
+  }
+}
+
 function componentOperation(target, command, options = {}) {
   ensureTarget(target);
   const currentManifest = readManifest(target);
@@ -659,6 +703,7 @@ function componentOperation(target, command, options = {}) {
   const installed = Object.hasOwn(currentManifest.components, componentId);
   if (command === "install" && installed) throw new Error(`Component is already installed: ${componentId}; use update`);
   if (command === "update" && !installed) throw new Error(`Component is not installed: ${componentId}; use install`);
+  ensureComponentCompatibility(target, manifest, currentManifest);
 
   const plan = planComponentInstall(target, directory, manifest, currentManifest);
   printPlan(`Component ${command} plan:`, [
