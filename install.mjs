@@ -1,11 +1,12 @@
 import { execFileSync } from "child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { dirname, join, relative } from "path";
+import { dirname, isAbsolute, join, relative, sep } from "path";
 import { fileURLToPath } from "url";
 import {
   applyComponentInstall,
   isSafeComponentId,
+  isSafePosixRelativePath,
   planComponentInstall,
   removeComponent,
 } from "./lib/component-installer.mjs";
@@ -125,8 +126,13 @@ function parseArgs() {
     if (parsed.componentId !== null && !isSafeComponentId(parsed.componentId)) {
       throw new Error(`Unsafe component id: ${JSON.stringify(parsed.componentId)}`);
     }
-  } else if (parsed.componentId !== null || parsed.componentDir !== null) {
-    throw new Error("--component-id and --component-dir require --component install|update|remove|status");
+  } else {
+    if (parsed.componentId !== null) {
+      throw new Error("--component-id requires --component install|update|remove|status");
+    }
+    if (parsed.componentDir !== null && parsed.command !== "install") {
+      throw new Error("--component-dir without --component is only supported for core install/update");
+    }
   }
 
   return parsed;
@@ -720,13 +726,206 @@ function componentOperation(target, command, options = {}) {
   console.log(`Component ${command === "install" ? "installed" : "updated"}: ${componentId}@${plan.manifest.version}`);
 }
 
+function assertManagedTransactionPath(targetReal, relativePath, label) {
+  if (!isSafePosixRelativePath(relativePath)) {
+    throw new Error(`Unsafe ${label} path in manifest: ${JSON.stringify(relativePath)}`);
+  }
+
+  const candidate = join(targetReal, ...relativePath.split("/"));
+  let cursor = existsSync(candidate) ? candidate : dirname(candidate);
+  while (!existsSync(cursor)) {
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  const resolved = realpathSync(cursor);
+  const rel = relative(targetReal, resolved);
+  if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) {
+    throw new Error(`${label} path escapes target through a symlink: ${relativePath}`);
+  }
+  if (existsSync(candidate) && lstatSync(candidate).isSymbolicLink()) {
+    throw new Error(`${label} path must not be a symbolic link: ${relativePath}`);
+  }
+  return candidate;
+}
+
+function recordPathList(record, key, label) {
+  const value = record?.[key] ?? [];
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((entry) => {
+    const path = typeof entry === "string" ? entry : entry?.path ?? entry?.target;
+    if (!isSafePosixRelativePath(path)) throw new Error(`Unsafe ${label} entry: ${JSON.stringify(path)}`);
+    return path;
+  });
+}
+
+function recordBackupRoot(record, label) {
+  const path = record?.backupRoot ?? record?.backup?.backupRoot;
+  if (path == null) return null;
+  if (!isSafePosixRelativePath(path) || !(path === backupDirName || path.startsWith(`${backupDirName}/`))) {
+    throw new Error(`Unsafe ${label}: ${JSON.stringify(path)}`);
+  }
+  return path;
+}
+
+function studioReinstallManagedPaths(currentManifest, componentPlan) {
+  const core = coreRecord(currentManifest);
+  const studio = currentManifest.components["homepage-studio"];
+  const paths = new Set([
+    manifestName,
+    "package.json",
+    backupDirName,
+    ...overlayFiles().map((file) => file.relativePath),
+    ...corePatches.flatMap((patch) => patchFiles(patch)),
+    ...recordPathList(core, "overlayFiles", "core overlayFiles"),
+    ...recordPathList(core, "patchFiles", "core patchFiles"),
+    ...recordPathList(studio, "ownedFiles", "homepage-studio ownedFiles"),
+    ...recordPathList(studio, "configFiles", "homepage-studio configFiles"),
+    ...componentPlan.files.map((file) => file.relativePath),
+  ]);
+
+  recordBackupRoot(core, "core backup root");
+  recordBackupRoot(studio, "homepage-studio backup root");
+  return [...paths];
+}
+
+function createTransactionSnapshot(target, relativePaths) {
+  const targetReal = realpathSync(target);
+  const snapshotRoot = mkdtempSync(join(tmpdir(), "homepage-configurator-reinstall-"));
+  const entries = relativePaths.map((relativePath, index) => {
+    const source = assertManagedTransactionPath(targetReal, relativePath, "transaction");
+    const existed = existsSync(source);
+    const snapshotPath = join(snapshotRoot, String(index));
+    if (existed) cpSync(source, snapshotPath, { recursive: true, preserveTimestamps: true });
+    return { relativePath, snapshotPath, existed };
+  });
+  return { target: targetReal, root: snapshotRoot, entries };
+}
+
+function atomicRestoreManifest(target, entry) {
+  const destination = join(target, manifestName);
+  if (!entry?.existed) {
+    rmSync(destination, { force: true, recursive: true });
+    return;
+  }
+  const temporary = `${destination}.tmp-restore-${process.pid}-${Date.now()}`;
+  try {
+    cpSync(entry.snapshotPath, temporary);
+    renameSync(temporary, destination);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+}
+
+function restoreTransactionSnapshot(snapshot) {
+  const manifestEntry = snapshot.entries.find((entry) => entry.relativePath === manifestName);
+  const otherEntries = snapshot.entries
+    .filter((entry) => entry !== manifestEntry)
+    .sort((left, right) => right.relativePath.split("/").length - left.relativePath.split("/").length);
+
+  for (const entry of otherEntries) {
+    const destination = assertManagedTransactionPath(snapshot.target, entry.relativePath, "rollback");
+    rmSync(destination, { force: true, recursive: true });
+    if (entry.existed) {
+      mkdirSync(dirname(destination), { recursive: true });
+      cpSync(entry.snapshotPath, destination, { recursive: true, preserveTimestamps: true });
+    }
+  }
+  atomicRestoreManifest(snapshot.target, manifestEntry);
+}
+
+function injectStudioReinstallFailure(stage) {
+  if (
+    process.env.NODE_ENV === "test"
+    && process.env.HOMEPAGE_CONFIGURATOR_TEST_FAIL_REINSTALL_STAGE === stage
+  ) {
+    throw new Error(`Injected Studio core reinstall failure at ${stage}`);
+  }
+}
+
+function reinstallCoreWithStudio(target, currentManifest, options = {}) {
+  const components = installedComponents(currentManifest);
+  if (components.length !== 1 || components[0] !== "homepage-studio") {
+    assertCoreOperationAllowed(currentManifest, "install or update");
+  }
+
+  const componentDir = options.componentDir || process.env.HOMEPAGE_STUDIO_COMPONENT_DIR;
+  if (!componentDir) {
+    throw new Error(
+      "Cannot install or update core while homepage-studio is installed: set trusted server env HOMEPAGE_STUDIO_COMPONENT_DIR or pass local CLI --component-dir.",
+    );
+  }
+
+  const trusted = readTrustedComponent(componentDir);
+  if (trusted.manifest?.id !== "homepage-studio") {
+    throw new Error(`Trusted Studio source must declare component id homepage-studio; got ${JSON.stringify(trusted.manifest?.id)}`);
+  }
+  ensureComponentCompatibility(target, trusted.manifest, currentManifest);
+  const preflightComponentPlan = planComponentInstall(target, trusted.directory, trusted.manifest, currentManifest);
+  preflightInstallPatchState(target, currentManifest);
+  const managedPaths = studioReinstallManagedPaths(currentManifest, preflightComponentPlan);
+
+  printPlan("Transactional core reinstall plan:", [
+    "validate schema 2 manifest and allowlisted component: homepage-studio",
+    `validate trusted component source: ${trusted.directory}`,
+    `snapshot managed paths in temporary storage: ${managedPaths.length}`,
+    "remove homepage-studio and restore Classic files",
+    "run existing core reinstall/update",
+    `install homepage-studio from trusted source: ${trusted.manifest.version}`,
+    "rollback all tracked paths and manifest atomically on failure",
+  ]);
+  if (options.dryRun) {
+    installCore(target, { ...options, allowInstalledComponents: true, dryRun: true });
+    printPlan("Component reinstall plan:", [
+      `component: homepage-studio@${preflightComponentPlan.manifest.version}`,
+      ...preflightComponentPlan.files.map((file) => `${file.kind}: ${file.relativePath}`),
+      ...preflightComponentPlan.dataDirs.map((path) => `persistent data directory (preserved): ${path}`),
+    ]);
+    console.log("Transactional dry-run only. No files changed.");
+    return;
+  }
+
+  const snapshot = createTransactionSnapshot(target, managedPaths);
+  try {
+    removeComponent(target, "homepage-studio", currentManifest, { force: true });
+    injectStudioReinstallFailure("after-component-remove");
+    installCore(target, options);
+    injectStudioReinstallFailure("after-core-install");
+
+    const nextManifest = readManifest(target);
+    ensureComponentCompatibility(target, trusted.manifest, nextManifest);
+    const componentPlan = planComponentInstall(target, trusted.directory, trusted.manifest, nextManifest);
+    applyComponentInstall(componentPlan, { force: true });
+    console.log(`Core reinstalled and homepage-studio retained at ${componentPlan.manifest.version}`);
+  } catch (error) {
+    try {
+      restoreTransactionSnapshot(snapshot);
+    } catch (rollbackError) {
+      throw new Error(`Core reinstall failed (${error.message}) and rollback failed: ${rollbackError.message}`);
+    }
+    throw new Error(`Core reinstall failed; transaction rolled back: ${error.message}`);
+  } finally {
+    rmSync(snapshot.root, { force: true, recursive: true });
+  }
+}
+
 function install(target, options = {}) {
+  ensureTarget(target);
+  ensureSupportedTargetVersion(target);
+  const existingManifest = readManifest(target);
+  if (installedComponents(existingManifest).length) {
+    return reinstallCoreWithStudio(target, existingManifest, options);
+  }
+  return installCore(target, options);
+}
+
+function installCore(target, options = {}) {
   ensureTarget(target);
   ensureSupportedTargetVersion(target);
 
   const files = overlayFiles().map((file) => file.relativePath);
   const existingManifest = readManifest(target);
-  assertCoreOperationAllowed(existingManifest, "install or update");
+  if (!options.allowInstalledComponents) assertCoreOperationAllowed(existingManifest, "install or update");
   const selection = preflightInstallPatchState(target, existingManifest);
   const { patch } = selection;
   const patchTouchedFiles = patchFiles(patch);
@@ -1130,7 +1329,7 @@ try {
   ensureConfiguratorMetadata();
   if (componentCommand) {
     componentOperation(target, componentCommand, { componentId, componentDir, dryRun, force });
-  } else if (command === "install") install(target, { dryRun, force });
+  } else if (command === "install") install(target, { componentDir, dryRun, force });
   else if (command === "uninstall") uninstall(target, { dryRun, force });
   else if (command === "enable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "true");
   else if (command === "disable") setEnv(target, "HOMEPAGE_BROWSER_EDITOR", "false");

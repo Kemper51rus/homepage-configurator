@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -175,6 +175,49 @@ try {
   assertComponentInstalled(componentManifest, coreOverlaySnapshot, routeFiles, "Component install");
   assertSentinels(sentinels, "Component install");
   productionBuild("Studio");
+
+  const installedBeforeFailure = readInstallManifest();
+  const rollbackPaths = [...new Set([
+    manifestName,
+    "package.json",
+    ...installedBeforeFailure.core.overlayFiles,
+    ...installedBeforeFailure.core.patchFiles,
+    ...installedBeforeFailure.components[componentManifest.id].ownedFiles,
+  ])];
+  const rollbackSnapshot = snapshotFiles(rollbackPaths, "Rollback-managed file");
+  const failedReinstall = spawnSync(process.execPath, [
+    installer,
+    "--target",
+    target,
+    "--install",
+    "--component-dir",
+    studio,
+  ], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      HOMEPAGE_CONFIGURATOR_TEST_FAIL_REINSTALL_STAGE: "after-core-install",
+    },
+  });
+  assert.notEqual(failedReinstall.status, 0, "Injected core reinstall failure unexpectedly succeeded");
+  assert.match(`${failedReinstall.stdout}${failedReinstall.stderr}`, /transaction rolled back/);
+  for (const [relativePath, expected] of rollbackSnapshot) {
+    assert.deepEqual(readFileSync(targetPath(relativePath)), expected, `Rollback changed ${relativePath}`);
+  }
+  assertSentinels(sentinels, "Failed core reinstall rollback");
+
+  run("node", [
+    installer,
+    "--target",
+    target,
+    "--install",
+    "--component-dir",
+    studio,
+  ], { stdio: "inherit" });
+  assertComponentInstalled(componentManifest, coreOverlaySnapshot, routeFiles, "Core reinstall with Studio");
+  assertSentinels(sentinels, "Core reinstall with Studio");
 
   run("node", componentArgs("remove", componentManifest.id), { stdio: "inherit" });
   const removedManifest = readInstallManifest();
