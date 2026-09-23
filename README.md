@@ -132,6 +132,13 @@ npm run check:browser
 npm run smoke:install
 ```
 
+Профильный smoke для компонента Homepage Studio использует `/projects/homepage-studio` (или `STUDIO_COMPONENT_DIR`), а `HOMEPAGE_TEST_REF` позволяет выбрать ref Homepage:
+
+```bash
+npm run smoke:component-profile
+COMPONENT_SMOKE_BUILD=1 npm run smoke:component-profile # также три production-сборки
+```
+
 ## Сборка Standalone
 
 Staging checkout для проверки production-сборки можно держать внутри проекта в `.runtime-build/`. Это служебная копия upstream [gethomepage/homepage](https://github.com/gethomepage/homepage), она исключена из git и может быть удалена/пересоздана.
