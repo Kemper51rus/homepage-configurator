@@ -55,6 +55,8 @@ pnpm run start
 
 Локальный `.runtime-build/config` нужен только как scratch-папка для `custom.css/custom.js` во время проверки мода. Пользовательские YAML-конфиги не хранятся в этом репозитории.
 
+> **Важно:** сборку со scratch/пустым config нельзя публиковать в production. Homepage статически генерирует `/` и встраивает `initialSettings`, страницы и fallback-группы во время `next build`. Для deploy используйте отдельную read-only копию фактического runtime config и задавайте `HOMEPAGE_BROWSER_EDITOR=true` и `HOMEPAGE_CONFIG_DIR=<копия-config>` во время build. После сборки проверьте title, наличие всех вкладок и переключение между ними в изолированном runtime slot.
+
 ## Когда Обновлять Patch
 
 `browser-editor.patch` обновляется только если изменились точки встраивания в core:

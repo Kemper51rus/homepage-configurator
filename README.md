@@ -152,7 +152,7 @@ Staging checkout для проверки production-сборки можно де
 git clone --depth 1 -b dev https://github.com/gethomepage/homepage.git .runtime-build
 ```
 
-Для локальной проверки можно использовать scratch config внутри `.runtime-build`; это не шаблон пользовательских конфигов и не предназначено для публикации:
+Для локальной проверки можно использовать scratch config внутри `.runtime-build`; это не шаблон пользовательских конфигов и не предназначено для публикации. **Не разворачивайте production build, собранный со scratch/пустым config:** Homepage статически встраивает `initialSettings`, страницы и fallback-группы во время `next build`, поэтому такая сборка теряет вкладки и расположение разделов. Production build необходимо выполнять с read-only копией фактического runtime config и с `HOMEPAGE_BROWSER_EDITOR=true`:
 
 ```bash
 mkdir -p .runtime-build/config
@@ -162,4 +162,15 @@ mkdir -p .runtime-build/config
   --config-dir .runtime-build/config \
   --custom all \
   --no-restart
+```
+
+Перед production deploy создайте отдельную копию фактического config и собирайте с ней:
+
+```bash
+rm -rf /tmp/homepage-build-config
+cp -a /path/to/runtime-config /tmp/homepage-build-config
+HOMEPAGE_BROWSER_EDITOR=true \
+HOMEPAGE_CONFIG_DIR=/tmp/homepage-build-config \
+NODE_ENV=production \
+pnpm --dir .runtime-build build
 ```
