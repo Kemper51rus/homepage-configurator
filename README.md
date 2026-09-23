@@ -116,6 +116,7 @@ Preview-управление компонентом `Homepage Studio` испол
 
 - [Установка и удаление](doc/install.md)
 - [Структура мода](doc/mod-structure.md)
+- [Компоненты и профили Classic/Studio](doc/components.md)
 - [Разработка](doc/development.md)
 
 ## Проверки
