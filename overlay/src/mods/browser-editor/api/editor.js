@@ -11,6 +11,8 @@ import * as yaml from "js-yaml";
 import checkAndCopyConfig, { CONF_DIR } from "utils/config/config";
 import createLogger from "utils/logger";
 
+import { executeComponentOperation, getComponentStatusCatalog } from "../lib/component-operations";
+
 const logger = createLogger("configEditorService");
 
 const editableFiles = {
@@ -1623,6 +1625,33 @@ async function getEditorConfig() {
   return { services, bookmarks, settings, settingsTabs };
 }
 
+const componentOperationBodyKeys = new Set(["action", "componentId", "sourceId", "operation", "autoRestart"]);
+
+function getExactComponentOperationInput(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Component operation body must be an object");
+  }
+
+  const unexpectedKey = Object.keys(body).find((key) => !componentOperationBodyKeys.has(key));
+  if (unexpectedKey) {
+    throw new Error("Component operation body contains unsupported fields");
+  }
+
+  return {
+    componentId: body.componentId,
+    sourceId: body.sourceId,
+    operation: body.operation,
+  };
+}
+
+async function requireHomepageTargetDir() {
+  const targetDir = await getHomepageTargetDir();
+  if (!targetDir) {
+    throw new Error("Не найден target Homepage");
+  }
+  return targetDir;
+}
+
 export default async function handler(req, res) {
   try {
     if (!verifyEditorAccess(req, res)) {
@@ -1673,6 +1702,28 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const { action, background, backgroundPath, provider, q, apiKey, stationUrl, force, autoRestart } = req.body ?? {};
+
+      if (action === "get-component-catalog") {
+        const targetDir = await requireHomepageTargetDir();
+        return res.status(200).json({ catalog: getComponentStatusCatalog(targetDir, { env: process.env }) });
+      }
+
+      if (action === "run-component-operation") {
+        const targetDir = await requireHomepageTargetDir();
+        const input = getExactComponentOperationInput(req.body);
+        const result = executeComponentOperation(targetDir, input, {
+          env: process.env,
+          healthcheckUrl: process.env.HOMEPAGE_COMPONENT_HEALTHCHECK_URL,
+        });
+        const catalog = getComponentStatusCatalog(targetDir, { env: process.env });
+        return res.status(200).json({
+          componentId: result.componentId,
+          sourceId: result.sourceId,
+          operation: result.operation,
+          restartRequired: result.restartRequired,
+          catalog,
+        });
+      }
 
       if (action === "localize-icons") {
         const iconLocalization = await localizeRemoteIcons();
