@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -7,6 +7,7 @@ import { test } from "node:test";
 import {
   createLoopbackHealthcheckCommand,
   executeComponentOperation,
+  finalizeStandaloneBuild,
   getComponentStatusCatalog,
   listComponentOperationCatalog,
   resolveComponentOperationContext,
@@ -140,6 +141,23 @@ test("build commands are fixed arrays selected from lockfiles", () => {
   }
 });
 
+test("standalone build receives static files, public assets, config and image links", () => {
+  const root = mkdtempSync(join(tmpdir(), "component-standalone-finalize-"));
+  write(join(root, ".next/standalone/server.js"));
+  write(join(root, ".next/static/chunks/app.js"), "chunk\n");
+  write(join(root, "public/favicon.ico"), "icon\n");
+  write(join(root, "public/images/background.jpg"), "image\n");
+  write(join(root, "config/settings.yaml"), "title: Test\n");
+
+  assert.equal(finalizeStandaloneBuild(root), true);
+  assert.equal(readFileSync(join(root, ".next/standalone/.next/static/chunks/app.js"), "utf8"), "chunk\n");
+  assert.equal(readFileSync(join(root, ".next/standalone/public/favicon.ico"), "utf8"), "icon\n");
+  assert.equal(lstatSync(join(root, ".next/standalone/public/images")).isSymbolicLink(), true);
+  assert.equal(readlinkSync(join(root, ".next/standalone/public/images")), join(root, "public/images"));
+  assert.equal(lstatSync(join(root, ".next/standalone/config")).isSymbolicLink(), true);
+  assert.equal(readlinkSync(join(root, ".next/standalone/config")), join(root, "config"));
+});
+
 test("global maintenance lock rejects a concurrent operation and releases", () => {
   const lockPath = join(mkdtempSync(join(tmpdir(), "component-lock-test-")), "maintenance.lock");
   withGlobalMaintenanceLock(() => {
@@ -172,7 +190,12 @@ test("successful operation uses fixed no-shell commands and requires restart", (
   const data = fixture();
   const calls = [];
   const result = executeComponentOperation(data.target, validInput, {
-    env: data.env,
+    env: {
+      ...data.env,
+      __NEXT_PRIVATE_STANDALONE_CONFIG: "must-not-reach-build",
+      NEXT_RUNTIME: "nodejs",
+      NEXT_MINIMAL: "true",
+    },
     lockPath: join(data.root, "maintenance.lock"),
     runner(executable, args, options) {
       calls.push({ executable, args, options });
@@ -184,9 +207,44 @@ test("successful operation uses fixed no-shell commands and requires restart", (
   assert.equal(calls.length, 2);
   assert.equal(calls[0].executable, process.execPath);
   assert.deepEqual(calls[1].args, ["run", "build"]);
+  assert.equal(calls[1].options.env.NODE_ENV, "production");
+  assert.equal(calls[1].options.env.__NEXT_PRIVATE_STANDALONE_CONFIG, undefined);
+  assert.equal(calls[1].options.env.NEXT_RUNTIME, undefined);
+  assert.equal(calls[1].options.env.NEXT_MINIMAL, undefined);
   for (const call of calls) {
     assert.ok(Array.isArray(call.args));
     assert.equal(call.options.shell, false);
+  }
+});
+
+test("successful build preserves the output used by the running server until restart", () => {
+  const data = fixture();
+  const originalWorkingDirectory = process.cwd();
+  write(join(data.target, ".next/standalone/server.js"), "old-server\n");
+  process.chdir(join(data.target, ".next/standalone"));
+  try {
+    executeComponentOperation(data.target, validInput, {
+      env: data.env,
+      runner(executable) {
+        if (executable === "npm") write(join(data.target, ".next/BUILD_ID"), "new-build\n");
+        return "";
+      },
+      lockPath: join(data.root, "running-build-maintenance.lock"),
+    });
+
+    assert.match(process.cwd(), /\.homepage-configurator-running-next[\\/]standalone$/);
+    assert.equal(readFileSync(join(data.target, ".homepage-configurator-running-next/standalone/server.js"), "utf8"), "old-server\n");
+    assert.equal(readFileSync(join(data.target, ".next/BUILD_ID"), "utf8"), "new-build\n");
+    assert.throws(
+      () => executeComponentOperation(data.target, validInput, {
+        env: data.env,
+        runner() { return ""; },
+        lockPath: join(data.root, "second-running-build-maintenance.lock"),
+      }),
+      /restart is required/,
+    );
+  } finally {
+    process.chdir(originalWorkingDirectory);
   }
 });
 

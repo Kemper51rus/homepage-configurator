@@ -13,6 +13,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -24,6 +25,7 @@ const COMPONENT_MANIFEST_NAME = "homepage-component.json";
 const LOCK_NAME = "homepage-configurator-component-maintenance.lock";
 export const COMPONENT_OPERATIONS = Object.freeze(["install", "update", "remove"]);
 const LOCKFILES = Object.freeze(["pnpm-lock.yaml", "package-lock.json", "yarn.lock"]);
+const RUNNING_BUILD_NAME = ".homepage-configurator-running-next";
 
 export const HOMEPAGE_STUDIO_COMPONENT_ID = "homepage-studio";
 export const GITHUB_STABLE_SOURCE_ID = "github-stable";
@@ -306,7 +308,7 @@ function incomingPaths(studioManifest) {
 }
 
 function collectSnapshotPaths(context) {
-  const paths = new Set([MANIFEST_NAME, ".homepage-configurator-backups", ".next", "package.json", ...LOCKFILES]);
+  const paths = new Set([MANIFEST_NAME, ".homepage-configurator-backups", "package.json", ...LOCKFILES]);
   addRecordPaths(paths, context.manifest.core);
   for (const component of Object.values(context.manifest.components)) addRecordPaths(paths, component);
   for (const path of incomingPaths(context.studioManifest)) paths.add(path);
@@ -389,8 +391,75 @@ function dependenciesChanged(before, after) {
   return before.declarations !== after.declarations || before.locks !== after.locks;
 }
 
+function buildEnvironment(env) {
+  const result = { ...env, NODE_ENV: "production" };
+  delete result.__NEXT_PRIVATE_STANDALONE_CONFIG;
+  delete result.NEXT_RUNTIME;
+  delete result.NEXT_MINIMAL;
+  return result;
+}
+
 function defaultRunner(executable, args, options) {
   return execFileSync(executable, args, options);
+}
+
+function prepareBuildOutput(target) {
+  const active = join(target, ".next");
+  const running = join(target, RUNNING_BUILD_NAME);
+  if (existsSync(running)) {
+    const currentWorkingDirectory = process.cwd();
+    if (isInside(running, currentWorkingDirectory)) {
+      throw new Error("Homepage restart is required before another component operation");
+    }
+    rmSync(running, { recursive: true, force: true });
+  }
+  if (!existsSync(active)) return { active, running, preserved: false };
+  const info = lstatSync(active);
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new Error("Homepage build output must be a real directory");
+  }
+  renameSync(active, running);
+  return { active, running, preserved: true };
+}
+
+function rollbackBuildOutput(state) {
+  if (!state) return;
+  rmSync(state.active, { recursive: true, force: true });
+  if (state.preserved && existsSync(state.running)) renameSync(state.running, state.active);
+}
+
+export function finalizeStandaloneBuild(target) {
+  const buildRoot = join(target, ".next");
+  const standalone = join(buildRoot, "standalone");
+  if (!existsSync(join(standalone, "server.js"))) return false;
+
+  const staticSource = join(buildRoot, "static");
+  const staticTarget = join(standalone, ".next", "static");
+  rmSync(staticTarget, { recursive: true, force: true });
+  if (existsSync(staticSource)) cpSync(staticSource, staticTarget, { recursive: true, dereference: false });
+
+  const publicSource = join(target, "public");
+  const publicTarget = join(standalone, "public");
+  const imagesSource = join(publicSource, "images");
+  rmSync(publicTarget, { recursive: true, force: true });
+  if (existsSync(publicSource)) {
+    cpSync(publicSource, publicTarget, {
+      recursive: true,
+      dereference: false,
+      filter(source) {
+        return source === publicSource || !isInside(imagesSource, source);
+      },
+    });
+  } else {
+    mkdirSync(publicTarget, { recursive: true });
+  }
+  if (existsSync(imagesSource)) symlinkSync(imagesSource, join(publicTarget, "images"), "dir");
+
+  const configSource = join(target, "config");
+  const configTarget = join(standalone, "config");
+  rmSync(configTarget, { recursive: true, force: true });
+  if (existsSync(configSource)) symlinkSync(configSource, configTarget, "dir");
+  return true;
 }
 
 export function executeComponentOperation(targetDir, rawInput, options = {}) {
@@ -419,6 +488,7 @@ export function executeComponentOperation(targetDir, rawInput, options = {}) {
       return result;
     };
 
+    let buildOutput = null;
     try {
       const cliArgs = [
         join(context.configuratorSource, "install.mjs"),
@@ -436,11 +506,13 @@ export function executeComponentOperation(targetDir, rawInput, options = {}) {
         const install = selectInstallCommand(context.target);
         run(install.executable, install.args, { cwd: context.target, env: options.env ?? process.env });
       }
+      buildOutput = prepareBuildOutput(context.target);
       const build = selectBuildCommand(context.target);
       run(build.executable, build.args, {
         cwd: context.target,
-        env: { ...(options.env ?? process.env), NODE_ENV: "production" },
+        env: buildEnvironment(options.env ?? process.env),
       });
+      finalizeStandaloneBuild(context.target);
       if (healthcheckUrl) {
         if (options.healthcheck) {
           options.healthcheck(healthcheckUrl);
@@ -461,6 +533,7 @@ export function executeComponentOperation(targetDir, rawInput, options = {}) {
       };
     } catch (error) {
       try {
+        rollbackBuildOutput(buildOutput);
         restoreSnapshot(snapshot);
       } catch (restoreError) {
         throw new AggregateError([error, restoreError], "Component operation failed and rollback was incomplete");

@@ -10,6 +10,7 @@ const studio = join(tempRoot, "homepage-studio");
 const homepageRef = process.env.HOMEPAGE_MIGRATION_TEST_REF || "v2.0.0";
 const studioRef = process.env.HOMEPAGE_STUDIO_TEST_REF || "studio-integrated-v0.6.82";
 const componentDir = process.env.STUDIO_COMPONENT_DIR || "/projects/homepage-studio";
+const configuratorVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -38,8 +39,8 @@ try {
   if (classicManifest.schema !== 2) {
     throw new Error(`Expected schema 2 Classic manifest, got ${classicManifest.schema ?? "legacy"}`);
   }
-  if (classicManifest.core?.configurator?.version !== "0.8.0-beta.2") {
-    throw new Error(`Expected Classic 0.8.0-beta.2, got ${classicManifest.core?.configurator?.version ?? "unknown"}`);
+  if (classicManifest.core?.configurator?.version !== configuratorVersion) {
+    throw new Error(`Expected Classic ${configuratorVersion}, got ${classicManifest.core?.configurator?.version ?? "unknown"}`);
   }
   if (classicManifest.core?.patch?.id !== "homepage-2.0") {
     throw new Error(`Expected homepage-2.0 compatibility patch, got ${classicManifest.core?.patch?.id ?? "unknown"}`);
