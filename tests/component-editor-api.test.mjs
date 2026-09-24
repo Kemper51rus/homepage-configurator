@@ -22,7 +22,7 @@ test("editor POST routes expose the component catalog from the server target", (
   );
 
   assert.match(route, /await requireHomepageTargetDir\(\)/);
-  assert.match(route, /getComponentStatusCatalog\(targetDir, \{ env: process\.env \}\)/);
+  assert.match(route, /await getGithubComponentCatalog\(targetDir\)/);
   assert.doesNotMatch(route, /req\.body\.(?:path|target|targetDir|url)|healthcheckUrl/);
 });
 
@@ -33,8 +33,10 @@ test("component operation route passes exact input and server-only context", () 
   );
 
   assert.match(route, /const input = getExactComponentOperationInput\(req\.body\)/);
-  assert.match(route, /executeComponentOperation\(targetDir, input, \{[\s\S]*?env: process\.env,[\s\S]*?healthcheckUrl: process\.env\.HOMEPAGE_COMPONENT_HEALTHCHECK_URL/);
-  assert.match(route, /getComponentStatusCatalog\(targetDir, \{ env: process\.env \}\)/);
+  assert.match(route, /await prepareGithubComponentSources\(targetDir, input, \{ env: process\.env \}\)/);
+  assert.match(route, /executeComponentOperation\(targetDir, input, \{[\s\S]*?env: sources\.env,[\s\S]*?healthcheckUrl: process\.env\.HOMEPAGE_COMPONENT_HEALTHCHECK_URL/);
+  assert.match(route, /getComponentStatusCatalog\(targetDir, \{ githubRelease: sources\.release \}\)/);
+  assert.match(route, /sources\.cleanup\(\)/);
   assert.doesNotMatch(route, /autoRestart|req\.body\.(?:path|target|targetDir|url)|commands\s*:/);
   assert.match(route, /scheduleHomepageRestart\(\)/);
   assert.match(route, /restartScheduled: true/);

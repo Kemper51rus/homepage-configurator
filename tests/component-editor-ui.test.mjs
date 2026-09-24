@@ -33,7 +33,7 @@ test("update panel loads and selects the exact Homepage Studio catalog entry", (
   );
 });
 
-test("Homepage Studio card exposes install, update, remove and local-source status", () => {
+test("Homepage Studio card exposes install, update, remove and GitHub source status", () => {
   const panel = blockBetween(
     "function ConfiguratorUpdatePanel({ onSaved })",
     "function ConfiguratorUpdateModal({ onClose, onSaved })",
@@ -46,7 +46,7 @@ test("Homepage Studio card exposes install, update, remove and local-source stat
   assert.match(panel, /availabilityReason/);
   assert.match(panel, /installed:/);
   assert.match(panel, /available:/);
-  assert.match(panel, /Локальный источник Homepage Studio недоступен/);
+  assert.match(panel, /Релиз Homepage Studio доступен на GitHub/);
   assert.match(panel, /"Install"/);
   assert.match(panel, /"Update"/);
   assert.match(panel, /"Remove"/);

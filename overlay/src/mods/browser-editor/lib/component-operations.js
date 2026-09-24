@@ -546,6 +546,19 @@ export function executeComponentOperation(targetDir, rawInput, options = {}) {
 }
 
 export function getComponentStatusCatalog(targetDir, options = {}) {
+  if (options.githubRelease || options.githubError) {
+    const target = readTarget(targetDir);
+    const manifest = readSchema2Manifest(target);
+    const installed = manifest.components[HOMEPAGE_STUDIO_COMPONENT_ID];
+    return listComponentOperationCatalog().map((entry) => ({
+      ...entry,
+      installed: Boolean(installed),
+      installedVersion: typeof installed?.version === "string" ? installed.version : null,
+      available: Boolean(options.githubRelease),
+      availabilityReason: options.githubRelease ? null : options.githubError,
+      availableVersion: options.githubRelease?.version ?? null,
+    }));
+  }
   let context;
   let configuratorReason = "ready";
   try {

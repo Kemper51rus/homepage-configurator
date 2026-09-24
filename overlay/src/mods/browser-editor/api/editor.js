@@ -12,6 +12,7 @@ import checkAndCopyConfig, { CONF_DIR } from "utils/config/config";
 import createLogger from "utils/logger";
 
 import { executeComponentOperation, getComponentStatusCatalog } from "../lib/component-operations";
+import { getGithubComponentCatalog, prepareGithubComponentSources } from "../lib/component-github";
 
 const logger = createLogger("configEditorService");
 
@@ -74,7 +75,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.8.0-beta.6";
+const configuratorVersion = "0.8.0-beta.7";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "feature/component-host-v1";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
@@ -1716,27 +1717,34 @@ export default async function handler(req, res) {
 
       if (action === "get-component-catalog") {
         const targetDir = await requireHomepageTargetDir();
-        return res.status(200).json({ catalog: getComponentStatusCatalog(targetDir, { env: process.env }) });
+        return res.status(200).json({ catalog: await getGithubComponentCatalog(targetDir) });
       }
 
       if (action === "run-component-operation") {
         const targetDir = await requireHomepageTargetDir();
         const input = getExactComponentOperationInput(req.body);
-        const result = executeComponentOperation(targetDir, input, {
-          env: process.env,
-          healthcheckUrl: process.env.HOMEPAGE_COMPONENT_HEALTHCHECK_URL,
-        });
-        const catalog = getComponentStatusCatalog(targetDir, { env: process.env });
-        res.status(200).json({
-          componentId: result.componentId,
-          sourceId: result.sourceId,
-          operation: result.operation,
-          restartRequired: false,
-          restartScheduled: true,
-          catalog,
-        });
-        scheduleHomepageRestart();
-        return;
+        const sources = await prepareGithubComponentSources(targetDir, input, { env: process.env });
+        try {
+          const result = executeComponentOperation(targetDir, input, {
+            env: sources.env,
+            healthcheckUrl: process.env.HOMEPAGE_COMPONENT_HEALTHCHECK_URL,
+          });
+          const catalog = sources.release
+            ? getComponentStatusCatalog(targetDir, { githubRelease: sources.release })
+            : await getGithubComponentCatalog(targetDir);
+          res.status(200).json({
+            componentId: result.componentId,
+            sourceId: result.sourceId,
+            operation: result.operation,
+            restartRequired: false,
+            restartScheduled: true,
+            catalog,
+          });
+          scheduleHomepageRestart();
+          return;
+        } finally {
+          sources.cleanup();
+        }
       }
 
       if (action === "localize-icons") {

@@ -7250,12 +7250,8 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const activeUpdateFile =
     serviceDataFiles.find((file) => file.fileName === activeUpdateFileName) ?? serviceDataFiles[0] ?? null;
   const componentAvailabilityMessage = studioComponent?.available
-    ? "Локальный источник доступен."
-    : studioComponent?.availabilityReason?.startsWith("studio-source")
-      ? "Локальный источник Homepage Studio недоступен или не настроен."
-      : studioComponent?.availabilityReason?.startsWith("configurator-source")
-        ? "Локальный источник конфигуратора недоступен или настроен неверно."
-        : "Локальный источник Homepage Studio недоступен.";
+    ? "Релиз Homepage Studio доступен на GitHub. Файлы и контрольная сумма проверяются перед установкой."
+    : "Не удалось проверить релиз Homepage Studio на GitHub. Повторите проверку позднее.";
 
   async function waitForHomepageRestart(nextOperation) {
     let sawUnavailable = false;
@@ -7456,7 +7452,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
           <div>
             <h3 className="text-base font-semibold text-theme-900 dark:text-theme-50">Homepage Studio</h3>
             <p className="mt-1 text-xs text-theme-600 dark:text-theme-400">
-              Дополнительный компонент из стабильного локального источника.
+              Дополнительный компонент из проверенного релиза GitHub.
             </p>
           </div>
           <span
