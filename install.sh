@@ -18,6 +18,7 @@ TMP_DIR=""
 TRANSACTION_DIR=""
 TRANSACTION_ACTIVE=0
 BUILD_OUTPUT_PRESERVED=0
+IMAGE_ROLLBACK_DIR=""
 MOD_DIR="${HOMEPAGE_EDITOR_MOD_DIR:-}"
 MOD_SOURCE_MODE="auto"
 RADIO_ASSETS_INSTALLED=0
@@ -106,6 +107,12 @@ rollback_update() {
       cp -a -- "$TRANSACTION_DIR/config/$path" "$CONFIG_DIR/$path"
     fi
   done
+  if [[ -n "$IMAGE_ROLLBACK_DIR" ]]; then
+    rm -rf -- "${IMAGE_ROLLBACK_DIR:?}/radio"
+    if [[ -e "$TRANSACTION_DIR/images/radio" ]]; then
+      cp -a -- "$TRANSACTION_DIR/images/radio" "$IMAGE_ROLLBACK_DIR/radio"
+    fi
+  fi
   TRANSACTION_ACTIVE=0
 }
 
@@ -1462,6 +1469,11 @@ snapshot_update_target() {
       cp -a -- "$CONFIG_DIR/$path" "$TRANSACTION_DIR/config/$path"
     fi
   done
+  IMAGE_ROLLBACK_DIR="$(find_images_dir)" || IMAGE_ROLLBACK_DIR=""
+  if [[ -n "$IMAGE_ROLLBACK_DIR" && -e "$IMAGE_ROLLBACK_DIR/radio" ]]; then
+    mkdir -p "$TRANSACTION_DIR/images"
+    cp -a -- "$IMAGE_ROLLBACK_DIR/radio" "$TRANSACTION_DIR/images/radio"
+  fi
   TRANSACTION_ACTIVE=1
   log "Rollback snapshot ready"
 }
