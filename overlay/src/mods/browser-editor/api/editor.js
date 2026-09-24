@@ -867,7 +867,7 @@ function getServiceName() {
   return /^[A-Za-z0-9_.@-]+$/.test(serviceName) ? serviceName : "homepage.service";
 }
 
-function scheduleHomepageRestart(status) {
+function scheduleHomepageRestart(status = null) {
   const restartCommand = process.env.HOMEPAGE_CONFIGURATOR_RESTART_COMMAND;
   const child = restartCommand
     ? spawn("sh", ["-lc", `sleep 1; ${restartCommand}`], { detached: true, stdio: "ignore" })
@@ -877,6 +877,10 @@ function scheduleHomepageRestart(status) {
       });
 
   child.on("error", async (error) => {
+    if (!status) {
+      logger.error(`Не удалось запланировать перезапуск ${getServiceName()}: ${error.message}`);
+      return;
+    }
     const nextStatus = {
       ...status,
       state: "completed",
@@ -1716,13 +1720,16 @@ export default async function handler(req, res) {
           healthcheckUrl: process.env.HOMEPAGE_COMPONENT_HEALTHCHECK_URL,
         });
         const catalog = getComponentStatusCatalog(targetDir, { env: process.env });
-        return res.status(200).json({
+        res.status(200).json({
           componentId: result.componentId,
           sourceId: result.sourceId,
           operation: result.operation,
-          restartRequired: result.restartRequired,
+          restartRequired: false,
+          restartScheduled: true,
           catalog,
         });
+        scheduleHomepageRestart();
+        return;
       }
 
       if (action === "localize-icons") {

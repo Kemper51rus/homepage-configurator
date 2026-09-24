@@ -24,6 +24,7 @@ test("update panel loads and selects the exact Homepage Studio catalog entry", (
   assert.match(panel, /const \[componentCatalog, setComponentCatalog\] = useState\(\[\]\)/);
   assert.match(panel, /const \[loading, setLoading\] = useState\(true\)/);
   assert.match(panel, /const \[operation, setOperation\] = useState\(null\)/);
+  assert.match(panel, /const \[componentProgress, setComponentProgress\] = useState\(null\)/);
   assert.match(panel, /const \[restartRequired, setRestartRequired\] = useState\(false\)/);
   assert.match(panel, /postEditorAction\(\{ action: "get-component-catalog" \}\)/);
   assert.match(
@@ -49,10 +50,13 @@ test("Homepage Studio card exposes install, update, remove and local-source stat
   assert.match(panel, /"Install"/);
   assert.match(panel, /"Update"/);
   assert.match(panel, /"Remove"/);
-  assert.match(panel, /"Сборка…"/);
+  assert.match(panel, /"Удаление…"/);
   assert.match(panel, /window\.confirm\(/);
   assert.match(panel, /componentBusy \|\| running \|\| updating/);
-  assert.match(panel, /Для их применения перезапустите Homepage вручную/);
+  assert.match(panel, /data-component-operation-progress/);
+  assert.match(panel, /Автоматически перезапускаю Homepage/);
+  assert.match(panel, /waitForHomepageRestart\(nextOperation\)/);
+  assert.match(panel, /window\.location\.reload\(\)/);
 });
 
 test("component operation sends only the fixed browser payload", () => {

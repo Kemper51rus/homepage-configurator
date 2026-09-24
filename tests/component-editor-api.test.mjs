@@ -36,10 +36,12 @@ test("component operation route passes exact input and server-only context", () 
   assert.match(route, /executeComponentOperation\(targetDir, input, \{[\s\S]*?env: process\.env,[\s\S]*?healthcheckUrl: process\.env\.HOMEPAGE_COMPONENT_HEALTHCHECK_URL/);
   assert.match(route, /getComponentStatusCatalog\(targetDir, \{ env: process\.env \}\)/);
   assert.doesNotMatch(route, /autoRestart|req\.body\.(?:path|target|targetDir|url)|commands\s*:/);
+  assert.match(route, /scheduleHomepageRestart\(\)/);
+  assert.match(route, /restartScheduled: true/);
   assert.match(route, /componentId: result\.componentId/);
   assert.match(route, /sourceId: result\.sourceId/);
   assert.match(route, /operation: result\.operation/);
-  assert.match(route, /restartRequired: result\.restartRequired/);
+  assert.match(route, /restartRequired: false/);
 });
 
 test("component operation body allowlist cannot reach the core validator", () => {

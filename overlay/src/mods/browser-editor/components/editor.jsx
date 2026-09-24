@@ -7134,6 +7134,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
   const [componentCatalog, setComponentCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [operation, setOperation] = useState(null);
+  const [componentProgress, setComponentProgress] = useState(null);
   const [error, setError] = useState("");
   const [restartRequired, setRestartRequired] = useState(false);
 
@@ -7256,14 +7257,61 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         ? "Локальный источник конфигуратора недоступен или настроен неверно."
         : "Локальный источник Homepage Studio недоступен.";
 
+  async function waitForHomepageRestart(nextOperation) {
+    let sawUnavailable = false;
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      try {
+        const response = await fetch(`/api/healthcheck?component-restart=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (sawUnavailable || attempt >= 4) {
+          setComponentProgress({
+            progress: 100,
+            message: nextOperation === "remove"
+              ? "Homepage перезапущен. Открываю Classic…"
+              : "Homepage перезапущен. Открываю Studio…",
+          });
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        sawUnavailable = true;
+        setComponentProgress({ progress: 98, message: "Homepage перезапускается. Ожидаю готовность сервиса…" });
+      }
+    }
+    throw new Error("Homepage не стал доступен после автоматического перезапуска");
+  }
+
   async function runComponentOperation(nextOperation) {
-    if (nextOperation === "remove" && !window.confirm("Удалить Homepage Studio? После сборки потребуется перезапуск Homepage.")) {
+    if (
+      nextOperation === "remove" &&
+      !window.confirm("Удалить Homepage Studio? После сборки Homepage автоматически перезапустится и откроется профиль Classic.")
+    ) {
       return;
     }
 
+    const timers = [];
+    const scheduleProgress = (delay, progress, message) => {
+      timers.push(window.setTimeout(() => setComponentProgress({ progress, message }), delay));
+    };
     setOperation(nextOperation);
     setError("");
     setRestartRequired(false);
+    setComponentProgress({
+      progress: 8,
+      message: nextOperation === "remove"
+        ? "Подготавливаю удаление Homepage Studio…"
+        : nextOperation === "update"
+          ? "Подготавливаю обновление Homepage Studio…"
+          : "Подготавливаю установку Homepage Studio…",
+    });
+    scheduleProgress(1200, 24, "Проверяю файлы и создаю rollback snapshot…");
+    scheduleProgress(4000, 48, nextOperation === "remove"
+      ? "Восстанавливаю компоненты профиля Classic…"
+      : "Устанавливаю файлы Homepage Studio…");
+    scheduleProgress(9000, 72, "Выполняю production build Homepage…");
+    scheduleProgress(18000, 88, "Подготавливаю standalone runtime…");
 
     try {
       const result = await postEditorAction({
@@ -7272,8 +7320,16 @@ function ConfiguratorUpdatePanel({ onSaved }) {
         sourceId: "github-stable",
         operation: nextOperation,
       });
+      timers.forEach((timer) => window.clearTimeout(timer));
       setComponentCatalog(result?.catalog ?? []);
       setRestartRequired(Boolean(result?.restartRequired));
+      if (result?.restartScheduled) {
+        setComponentProgress({ progress: 96, message: "Сборка готова. Автоматически перезапускаю Homepage…" });
+        await waitForHomepageRestart(nextOperation);
+        return;
+      }
+      setComponentProgress({ progress: 100, message: "Операция завершена" });
+      setOperation(null);
       onSaved(
         nextOperation === "remove"
           ? "Homepage Studio удалён"
@@ -7282,8 +7338,9 @@ function ConfiguratorUpdatePanel({ onSaved }) {
             : "Homepage Studio установлен",
       );
     } catch (operationError) {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      setComponentProgress(null);
       setError(`Операция Homepage Studio не выполнена: ${operationError.message}`);
-    } finally {
       setOperation(null);
     }
   }
@@ -7449,6 +7506,26 @@ function ConfiguratorUpdatePanel({ onSaved }) {
               )}
             </div>
 
+            {componentProgress && (
+              <div
+                className="mt-4 rounded-md border border-sky-500/30 bg-sky-500/10 p-3"
+                role="status"
+                aria-live="polite"
+                data-component-operation-progress={operation || "complete"}
+              >
+                <div className="flex items-center justify-between gap-3 text-xs font-semibold text-sky-800 dark:text-sky-200">
+                  <span>{componentProgress.message}</span>
+                  <span>{componentProgress.progress}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-950/10 dark:bg-black/30">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-[width] duration-500"
+                    style={{ width: `${componentProgress.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2">
               {!studioComponent.installed ? (
                 <button
@@ -7457,7 +7534,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
                   disabled={componentControlsDisabled || !studioComponent.available}
                   className="rounded-md bg-theme-800 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-theme-100 dark:text-theme-900 dark:hover:bg-white"
                 >
-                  {operation === "install" ? "Сборка…" : "Install"}
+                  {operation === "install" ? "Установка…" : "Install"}
                 </button>
               ) : (
                 <>
@@ -7467,7 +7544,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
                     disabled={componentControlsDisabled || !studioComponent.available}
                     className="rounded-md bg-theme-800 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-theme-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-theme-100 dark:text-theme-900 dark:hover:bg-white"
                   >
-                    {operation === "update" ? "Сборка…" : "Update"}
+                    {operation === "update" ? "Обновление…" : "Update"}
                   </button>
                   <button
                     type="button"
@@ -7475,7 +7552,7 @@ function ConfiguratorUpdatePanel({ onSaved }) {
                     disabled={componentControlsDisabled}
                     className="rounded-md border border-rose-500/40 px-3 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300"
                   >
-                    {operation === "remove" ? "Сборка…" : "Remove"}
+                    {operation === "remove" ? "Удаление…" : "Remove"}
                   </button>
                 </>
               )}
