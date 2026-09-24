@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 REPO_URL="${HOMEPAGE_EDITOR_REPO:-https://github.com/Kemper51rus/homepage-configurator.git}"
-BRANCH="${HOMEPAGE_EDITOR_BRANCH:-main}"
+BRANCH="${HOMEPAGE_EDITOR_BRANCH:-feature/component-host-v1}"
 SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 
 ACTION=""
@@ -15,6 +15,9 @@ CUSTOM_CLEAN="${HOMEPAGE_EDITOR_CLEAN_CUSTOM:-prompt}"
 DO_BUILD=1
 DO_RESTART=1
 TMP_DIR=""
+TRANSACTION_DIR=""
+TRANSACTION_ACTIVE=0
+BUILD_OUTPUT_PRESERVED=0
 MOD_DIR="${HOMEPAGE_EDITOR_MOD_DIR:-}"
 MOD_SOURCE_MODE="auto"
 RADIO_ASSETS_INSTALLED=0
@@ -83,10 +86,42 @@ die() {
   exit 1
 }
 
-cleanup() {
-  if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
-    rm -rf "$TMP_DIR"
+rollback_update() {
+  [[ "$TRANSACTION_ACTIVE" -eq 1 ]] || return 0
+  log "Update failed; restoring previous Homepage source and production build"
+  if [[ "$BUILD_OUTPUT_PRESERVED" -eq 1 ]]; then
+    rm -rf -- "$TARGET/.next"
+    mv -- "$TARGET/.homepage-configurator-running-next" "$TARGET/.next"
   fi
+  local path
+  for path in src package.json pnpm-lock.yaml package-lock.json yarn.lock next.config.js .homepage-configurator-manifest.json .homepage-configurator-backups .env; do
+    rm -rf -- "${TARGET:?}/$path"
+    if [[ -e "$TRANSACTION_DIR/target/$path" ]]; then
+      cp -a -- "$TRANSACTION_DIR/target/$path" "$TARGET/$path"
+    fi
+  done
+  for path in custom.css custom.js; do
+    rm -rf -- "${CONFIG_DIR:?}/$path"
+    if [[ -e "$TRANSACTION_DIR/config/$path" ]]; then
+      cp -a -- "$TRANSACTION_DIR/config/$path" "$CONFIG_DIR/$path"
+    fi
+  done
+  TRANSACTION_ACTIVE=0
+}
+
+cleanup() {
+  local result=$?
+  trap - EXIT
+  if [[ "$result" -ne 0 && "$TRANSACTION_ACTIVE" -eq 1 ]]; then
+    rollback_update || printf '[homepage-configurator] ERROR: rollback incomplete\n' >&2
+  fi
+  if [[ -n "$TRANSACTION_DIR" && -d "$TRANSACTION_DIR" ]]; then
+    rm -rf -- "$TRANSACTION_DIR"
+  fi
+  if [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]]; then
+    rm -rf -- "$TMP_DIR"
+  fi
+  exit "$result"
 }
 trap cleanup EXIT
 
@@ -1313,6 +1348,7 @@ build_target() {
   [[ "$ACTION" == "install" || "$ACTION" == "update-mod" || "$ACTION" == "update-target" || "$ACTION" == "uninstall" ]] || return 0
 
   log "Building homepage in $TARGET"
+  prepare_live_build_output
 
   if [[ -f "$TARGET/pnpm-lock.yaml" && "$(command -v pnpm || true)" ]]; then
     run_target_build_command pnpm run build
@@ -1359,10 +1395,21 @@ sync_standalone_assets() {
     chown_paths+=("$standalone/.next/static")
   fi
 
+  if [[ -d "$standalone/public/images" && ! -L "$standalone/public/images" && ! -d "$TARGET/public/images" ]]; then
+    die "Refusing to delete standalone images without an external target images directory"
+  fi
   if [[ -d "$TARGET/public" ]]; then
     rm -rf -- "$standalone/public"
     cp -a "$TARGET/public" "$standalone/public"
     chown_paths+=("$standalone/public")
+  fi
+  if [[ -d "$TARGET/public/images" ]]; then
+    rm -rf -- "$standalone/public/images"
+    ln -s -- "$(readlink -f "$TARGET/public/images")" "$standalone/public/images"
+  fi
+  if [[ -d "$CONFIG_DIR" ]]; then
+    rm -rf -- "$standalone/config"
+    ln -s -- "$(readlink -f "$CONFIG_DIR")" "$standalone/config"
   fi
 
   if [[ "$(id -u)" -eq 0 && "${#chown_paths[@]}" -gt 0 ]]; then
@@ -1393,6 +1440,49 @@ restart_target() {
     log "Restarting $SERVICE_NAME"
     systemctl restart "$SERVICE_NAME"
     wait_for_homepage
+  fi
+}
+
+snapshot_update_target() {
+  [[ "$ACTION" == "update-mod" || "$ACTION" == "update-target" ]] || return 0
+  [[ -f "$TARGET/.homepage-configurator-manifest.json" ]] || return 0
+  if [[ -z "$CONFIG_DIR" ]]; then
+    CONFIG_DIR="$(find_config_dir)" || CONFIG_DIR="$TARGET/config"
+  fi
+  TRANSACTION_DIR="$(mktemp -d)"
+  mkdir -p "$TRANSACTION_DIR/target" "$TRANSACTION_DIR/config"
+  local path
+  for path in src package.json pnpm-lock.yaml package-lock.json yarn.lock next.config.js .homepage-configurator-manifest.json .homepage-configurator-backups .env; do
+    if [[ -e "$TARGET/$path" ]]; then
+      cp -a -- "$TARGET/$path" "$TRANSACTION_DIR/target/$path"
+    fi
+  done
+  for path in custom.css custom.js; do
+    if [[ -e "$CONFIG_DIR/$path" ]]; then
+      cp -a -- "$CONFIG_DIR/$path" "$TRANSACTION_DIR/config/$path"
+    fi
+  done
+  TRANSACTION_ACTIVE=1
+  log "Rollback snapshot ready"
+}
+
+prepare_live_build_output() {
+  local running="$TARGET/.homepage-configurator-running-next"
+  if [[ -e "$running" ]]; then
+    local pid cwd
+    pid="$(systemctl show "$SERVICE_NAME" -p MainPID --value 2>/dev/null || true)"
+    if [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 0 ]]; then
+      cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+      [[ "$cwd" != "$running" && "$cwd" != "$running/"* ]] \
+        || die "Homepage restart is required before another update"
+    else
+      die "Previous build still exists and the service process could not be verified; restart Homepage before another update"
+    fi
+    rm -rf -- "$running"
+  fi
+  if [[ -d "$TARGET/.next" ]]; then
+    mv -- "$TARGET/.next" "$running"
+    BUILD_OUTPUT_PRESERVED=1
   fi
 }
 
@@ -1449,6 +1539,8 @@ main() {
     die "Homepage checkout was not found. Pass --target /path/to/homepage or set HOMEPAGE_TARGET_DIR."
   fi
 
+  snapshot_update_target
+
   case "$ACTION" in
     install)
       run_mod_installer install
@@ -1481,6 +1573,7 @@ main() {
   fi
 
   restart_target
+  TRANSACTION_ACTIVE=0
   log "Done"
 }
 

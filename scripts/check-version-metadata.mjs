@@ -7,7 +7,7 @@ const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 const metadata = JSON.parse(readFileSync(join(root, "version.json"), "utf8"));
 
 const expectedRepo = "Kemper51rus/homepage-configurator";
-const expectedBranch = "main";
+const expectedBranch = "feature/component-host-v1";
 const expectedMetadataUrl = `https://api.github.com/repos/${expectedRepo}/contents/version.json?ref=${expectedBranch}`;
 const expectedInstallUrl = `https://raw.githubusercontent.com/${expectedRepo}/${expectedBranch}/install.sh`;
 
