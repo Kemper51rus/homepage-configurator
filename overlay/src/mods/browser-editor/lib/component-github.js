@@ -74,31 +74,44 @@ async function fetchGithubBytes(url, limit, fetchImpl = fetch) {
     if (current.protocol !== "https:" || current.username || current.password || !allowedHosts.has(current.hostname) || current.port) {
       throw new Error("GitHub release redirected to an unsafe URL");
     }
-    const response = await fetchImpl(current.href, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(45000),
-      headers: { "User-Agent": "homepage-configurator-component/1.0", "Accept": "application/octet-stream, application/json" },
-    });
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get("location");
-      if (!location) throw new Error("GitHub release redirect is missing a destination");
-      await response.body?.cancel();
-      current = new URL(location, current);
+    let redirected = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetchImpl(current.href, {
+          redirect: "manual",
+          signal: AbortSignal.timeout(45000),
+          headers: { "User-Agent": "homepage-configurator-component/1.0", "Accept": "application/octet-stream, application/json" },
+        });
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          const location = response.headers.get("location");
+          if (!location) throw new Error("GitHub release redirect is missing a destination");
+          await response.body?.cancel();
+          redirected = new URL(location, current);
+          break;
+        }
+        if (!response.ok) throw new Error(`GitHub release HTTP ${response.status}`);
+        if (Number(response.headers.get("content-length") || 0) > limit) throw new Error("GitHub release exceeds size limit");
+        const chunks = [];
+        let bytes = 0;
+        for await (const chunk of response.body) {
+          bytes += chunk.byteLength;
+          if (bytes > limit) {
+            await response.body.cancel().catch(() => {});
+            throw new Error("GitHub release exceeds size limit");
+          }
+          chunks.push(Buffer.from(chunk));
+        }
+        return Buffer.concat(chunks, bytes);
+      } catch (error) {
+        if (attempt > 0 || !["AbortError", "TimeoutError", "TypeError"].includes(error?.name)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+    if (redirected) {
+      current = redirected;
       continue;
     }
-    if (!response.ok) throw new Error(`GitHub release HTTP ${response.status}`);
-    if (Number(response.headers.get("content-length") || 0) > limit) throw new Error("GitHub release exceeds size limit");
-    const chunks = [];
-    let bytes = 0;
-    for await (const chunk of response.body) {
-      bytes += chunk.byteLength;
-      if (bytes > limit) {
-        await response.body.cancel().catch(() => {});
-        throw new Error("GitHub release exceeds size limit");
-      }
-      chunks.push(Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks, bytes);
+    throw new Error("Unable to download GitHub release");
   }
   throw new Error("Too many GitHub release redirects");
 }

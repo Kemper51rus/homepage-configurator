@@ -71,6 +71,27 @@ test("GitHub Studio install downloads fixed releases and verifies both archives 
   assert.equal(existsSync(temporary), false);
 });
 
+test("transient GitHub timeouts are retried once", async (t) => {
+  const data = fixture(t);
+  let failed = false;
+  const sources = await prepareGithubComponentSources(data.target, { operation: "install" }, {
+    fetchImpl: async (url, options) => {
+      if (!failed && url.endsWith("homepage-component-release.json")) {
+        failed = true;
+        assert.ok(options.signal instanceof AbortSignal);
+        throw new DOMException("transient timeout", "TimeoutError");
+      }
+      return data.fetchImpl(url);
+    },
+  });
+  try {
+    assert.equal(failed, true);
+    assert.equal(sources.release.version, studioVersion);
+  } finally {
+    sources.cleanup();
+  }
+});
+
 test("remove downloads only the matching installed Configurator release", async (t) => {
   const data = fixture(t);
   const urls = [];
