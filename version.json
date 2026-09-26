@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "name": "homepage-configurator",
-  "version": "0.8.0-beta.8",
+  "version": "0.8.0-beta.9",
   "repo": "Kemper51rus/homepage-configurator",
-  "branch": "feature/component-host-v1",
+  "branch": "main",
   "target": {
     "name": "homepage",
     "minimumVersion": "1.13.2",
     "updateCommand": "update"
   },
-  "metadataUrl": "https://api.github.com/repos/Kemper51rus/homepage-configurator/contents/version.json?ref=feature/component-host-v1",
-  "installUrl": "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/feature/component-host-v1/install.sh",
-  "commitUrl": "https://github.com/Kemper51rus/homepage-configurator/commits/feature/component-host-v1",
-  "updatedAt": "2026-09-23"
+  "metadataUrl": "https://api.github.com/repos/Kemper51rus/homepage-configurator/contents/version.json?ref=main",
+  "installUrl": "https://raw.githubusercontent.com/Kemper51rus/homepage-configurator/main/install.sh",
+  "commitUrl": "https://github.com/Kemper51rus/homepage-configurator/commits/main",
+  "updatedAt": "2026-09-24"
 }

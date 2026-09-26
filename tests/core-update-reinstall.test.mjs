@@ -23,13 +23,13 @@ test("schema 2 core version is used instead of the embedded legacy fallback", as
   assert.equal((await installedVersion({ configurator: { version: "0.7.0" } })).version, "0.7.0");
 });
 
-test("GitHub browser update uses the maintained component-host release branch", () => {
-  assert.equal(metadata.branch, "feature/component-host-v1");
-  assert.ok(metadata.metadataUrl.endsWith("ref=feature/component-host-v1"));
-  assert.ok(metadata.installUrl.endsWith("/feature/component-host-v1/install.sh"));
-  assert.match(api, /const defaultConfiguratorBranch = "feature\/component-host-v1"/);
+test("GitHub browser update uses the maintained main branch", () => {
+  assert.equal(metadata.branch, "main");
+  assert.ok(metadata.metadataUrl.endsWith("ref=main"));
+  assert.ok(metadata.installUrl.endsWith("/main/install.sh"));
+  assert.match(api, /const defaultConfiguratorBranch = "main"/);
   assert.match(api, /versionComparison <= 0/);
-  assert.match(installer, /BRANCH="\$\{HOMEPAGE_EDITOR_BRANCH:-feature\/component-host-v1\}"/);
+  assert.match(installer, /BRANCH="\$\{HOMEPAGE_EDITOR_BRANCH:-main\}"/);
 });
 
 test("failed live Classic update restores the build, source, manifest, and custom files", (t) => {

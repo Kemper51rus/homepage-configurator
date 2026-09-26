@@ -11,6 +11,7 @@ const homepageRef = process.env.HOMEPAGE_MIGRATION_TEST_REF || "v2.0.0";
 const studioRef = process.env.HOMEPAGE_STUDIO_TEST_REF || "studio-integrated-v0.6.82";
 const componentDir = process.env.STUDIO_COMPONENT_DIR || "/projects/homepage-studio";
 const configuratorVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+const componentVersion = JSON.parse(readFileSync(join(componentDir, "homepage-component.json"), "utf8")).version;
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -71,8 +72,8 @@ try {
     componentDir,
   ], { stdio: "inherit" });
   const componentManifest = JSON.parse(readFileSync(join(target, ".homepage-configurator-manifest.json"), "utf8"));
-  if (componentManifest.components?.["homepage-studio"]?.version !== "0.1.0-beta.2") {
-    throw new Error(`Expected Studio component 0.1.0-beta.2, got ${componentManifest.components?.["homepage-studio"]?.version ?? "unknown"}`);
+  if (componentManifest.components?.["homepage-studio"]?.version !== componentVersion) {
+    throw new Error(`Expected Studio component ${componentVersion}, got ${componentManifest.components?.["homepage-studio"]?.version ?? "unknown"}`);
   }
   for (const file of removedStudioFiles) {
     if (!existsSync(join(target, file))) throw new Error(`Studio component did not restore ${file}`);

@@ -54,13 +54,17 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 
 ## Обновление Из Браузера
 
+Актуальный beta-release Configurator публикуется в [GitHub Releases](https://github.com/Kemper51rus/homepage-configurator/releases/latest), а Studio component канала `github-stable/latest` — в [релизах Homepage Studio](https://github.com/Kemper51rus/homepage-studio/releases/latest).
+
 Версия мода публикуется в [`version.json`](version.json). Установленный редактор проверяет этот файл на GitHub не чаще одного раза в сутки для каждого браузера. Ручная проверка и запуск обновления доступны в режиме редактирования по кнопке `Обновления`.
 
 Кнопка `Обновить с GitHub` запускает на сервере тот же установщик из `main`, ставит полный managed-набор `custom.js/custom.css`, собирает Homepage и после успешной установки перезапускает `homepage.service`. Для нестандартных layout можно задать env-переменные сервиса: `HOMEPAGE_CONFIGURATOR_TARGET_DIR`, `HOMEPAGE_CONFIGURATOR_VERSION_URL`, `HOMEPAGE_CONFIGURATOR_REPO`, `HOMEPAGE_CONFIGURATOR_BRANCH`, `HOMEPAGE_CONFIGURATOR_INSTALL_URL`.
 
 Если в окружении есть только standalone runtime без полного checkout Homepage, браузерный updater не будет пытаться патчить неполную сборку и покажет причину. В таком случае обновление выполняется внешним deploy-процессом.
 
-Preview-управление компонентом `Homepage Studio` использует только серверные локальные источники. Для карточки установки в окне `Обновления` сервису задаются `HOMEPAGE_CONFIGURATOR_SOURCE_DIR` и `HOMEPAGE_STUDIO_COMPONENT_DIR`. Браузер передаёт только allowlisted идентификаторы `homepage-studio` и `github-stable`; URL, пути и команды от клиента не принимаются. После транзакционной установки/удаления выполняется production build, а UI сообщает о необходимости ручного перезапуска. Опциональный healthcheck задаётся только серверной переменной `HOMEPAGE_COMPONENT_HEALTHCHECK_URL` и допускает адреса `localhost`, `127.0.0.1` или `[::1]`.
+> Editor API и операции установки/обновления компонентов не имеют отдельного token-gate: Homepage должен публиковаться только за Authentik или другим внешним authentication proxy.
+
+Карточка `Homepage Studio` в окне `Обновления` устанавливает, обновляет и удаляет компонент через серверный источник `github-stable`. Configurator получает release metadata и архив Studio только с фиксированных HTTPS-адресов GitHub, проверяет версию, размер, SHA-256 и безопасно распаковывает архив; соответствующий архив Configurator привязывается к версии core из schema-2 manifest. Браузер передаёт только allowlisted идентификаторы `homepage-studio`, `github-stable` и операцию — URL, пути и команды от клиента не принимаются. Локальные `HOMEPAGE_CONFIGURATOR_SOURCE_DIR` и `HOMEPAGE_STUDIO_COMPONENT_DIR` для штатной browser-установки не нужны. После транзакционной операции выполняются production build и rollback при ошибке, затем API планирует автоматический перезапуск Homepage. Опциональный pre-restart endpoint check задаётся только серверной переменной `HOMEPAGE_COMPONENT_HEALTHCHECK_URL` и допускает адреса `localhost`, `127.0.0.1` или `[::1]`; он проверяет доступность текущего процесса до переключения, а не новый build после рестарта.
 
 ## Использование
 

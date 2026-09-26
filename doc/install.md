@@ -10,6 +10,8 @@
 - `curl`;
 - `git` для применения core-patch; `install.sh` автоматически установит его через `apt-get`, если запущен от `root` в Debian/Ubuntu LXC;
 - `node`;
+- `python3` для полной предварительной проверки и безопасной распаковки GitHub release archives;
+- исходящий HTTPS-доступ к `github.com`, `api.github.com`, `release-assets.githubusercontent.com` и `objects.githubusercontent.com`;
 - пакетный менеджер для сборки Homepage: обычно `pnpm`, реже `npm` или `yarn`;
 - права на запись в директорию Homepage;
 - для автоматического перезапуска - доступ к `systemctl restart homepage.service`.
@@ -31,6 +33,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Kemper51rus/homepage-configura
 ```
 
 Если target был создан через Proxmox VE Community Scripts, запускайте установку мода уже внутри созданного LXC. Такой target лежит в `/opt/homepage`, config находится в `/opt/homepage/config`, а переменные окружения хранятся в `/opt/homepage/.env`; `install.sh` учитывает этот layout автоматически.
+
+> **Доступ:** editor API и component mutation API намеренно не имеют собственного token-gate. Публикуйте Homepage только за Authentik или другим внешним authentication proxy и не открывайте эти endpoint напрямую в недоверенную сеть.
 
 `install.sh` поддерживает действия:
 
@@ -163,6 +167,16 @@ HOMEPAGE_EDITOR_MOD_DIR=/opt/homepage-configurator bash ./install.sh --action up
 - `HOMEPAGE_CONFIGURATOR_RESTART_COMMAND` - команда перезапуска, если `systemctl restart homepage.service` не подходит.
 
 Если updater не находит полный checkout Homepage, он не пытается обновлять standalone-only runtime. Для такого окружения используйте внешний deploy.
+
+### Homepage Studio из GitHub
+
+В том же окне `Обновления` карточка Homepage Studio поддерживает `Install`, `Update` и `Remove`. Для штатного сценария не настраивайте локальные `HOMEPAGE_CONFIGURATOR_SOURCE_DIR` и `HOMEPAGE_STUDIO_COMPONENT_DIR`: сервер использует фиксированный allowlisted источник `Kemper51rus/homepage-studio` и release channel `github-stable`.
+
+Перед мутацией Configurator проверяет release metadata, размер и SHA-256 Studio artifact, скачивает закреплённый релиз Configurator для установленной версии core и требует единственную точную запись архива в `SHA256SUMS.txt`, затем безопасно распаковывает архивы во временный каталог. Архив соответствующего core release требуется и для `Remove`, поскольку из него восстанавливается Classic. Затем применяется существующая транзакционная схема component host: maintenance lock, snapshot manifest/source/build, production build, rollback при ошибке и планирование автоматического перезапуска сервиса после успеха. Опциональный loopback endpoint check выполняется до рестарта и проверяет старый текущий процесс, а не новый build.
+
+Из браузера принимаются только `componentId=homepage-studio`, `sourceId=github-stable` и `operation=install|update|remove`. Клиентские URL, файловые пути, команды и параметры перезапуска не принимаются.
+
+При обновлении самого Configurator установленный Studio сначала следует удалить кнопкой `Remove`, затем обновить Classic core и снова установить Studio. Это сохраняет явную границу между core update и compile-time компонентом.
 
 ## Custom-Дополнения
 

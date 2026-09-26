@@ -49,7 +49,7 @@ test("component operation route passes exact input and server-only context", () 
 test("component operation body allowlist cannot reach the core validator", () => {
   assert.match(
     editorApiSource,
-    /new Set\(\["action", "componentId", "sourceId", "operation", "autoRestart"\]\)/,
+    /new Set\(\["action", "componentId", "sourceId", "operation"\]\)/,
   );
   const exactInput = blockBetween(
     "function getExactComponentOperationInput(body)",

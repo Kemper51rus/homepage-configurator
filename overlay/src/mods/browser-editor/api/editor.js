@@ -75,9 +75,9 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.8.0-beta.8";
+const configuratorVersion = "0.8.0-beta.9";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
-const defaultConfiguratorBranch = "feature/component-host-v1";
+const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
 const defaultConfiguratorInstallUrl = `https://raw.githubusercontent.com/${defaultConfiguratorRepo}/${defaultConfiguratorBranch}/install.sh`;
 const defaultMinimumHomepageVersion = "1.13.2";
@@ -1637,7 +1637,7 @@ async function getEditorConfig() {
   return { services, bookmarks, settings, settingsTabs };
 }
 
-const componentOperationBodyKeys = new Set(["action", "componentId", "sourceId", "operation", "autoRestart"]);
+const componentOperationBodyKeys = new Set(["action", "componentId", "sourceId", "operation"]);
 
 function getExactComponentOperationInput(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {

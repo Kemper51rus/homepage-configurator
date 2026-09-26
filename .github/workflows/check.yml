@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      - feature/component-host-v1
+    tags:
+      - component-host-v*
   pull_request:
 
 jobs:

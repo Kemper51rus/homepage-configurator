@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 REPO_URL="${HOMEPAGE_EDITOR_REPO:-https://github.com/Kemper51rus/homepage-configurator.git}"
-BRANCH="${HOMEPAGE_EDITOR_BRANCH:-feature/component-host-v1}"
+BRANCH="${HOMEPAGE_EDITOR_BRANCH:-main}"
 SERVICE_NAME="${HOMEPAGE_SERVICE_NAME:-homepage.service}"
 
 ACTION=""
