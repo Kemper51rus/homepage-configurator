@@ -280,7 +280,12 @@
       ? '<img class="homepage-fps-icon" src="/images/radio/pause.png" alt="">'
       : "";
 
-    state.fpsButton.innerHTML = `${pauseMarkup}<span class="homepage-fps-label">${state.currentFps} FPS</span>`;
+    const nextMarkup = `${pauseMarkup}<span class="homepage-fps-label">${state.currentFps} FPS</span>`;
+    // Placement observers also call this renderer: preserve unchanged child nodes
+    // so rendering cannot feed a childList -> placement -> rendering loop.
+    if (state.fpsButton.innerHTML !== nextMarkup) {
+      state.fpsButton.innerHTML = nextMarkup;
+    }
     state.fpsButton.classList.toggle("is-paused", state.paused);
     state.fpsButton.setAttribute("aria-pressed", state.paused ? "true" : "false");
   }
