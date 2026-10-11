@@ -7,6 +7,7 @@ import { TabContext } from "utils/contexts/tab";
 import { ThemeContext } from "utils/contexts/theme";
 import ResolvedIcon from "components/resolvedicon";
 import { editorWriteFetch } from "mods/browser-editor/client/editor-fetch";
+import { discoverNewItemIcon } from "mods/browser-editor/client/icon-discovery";
 import {
   createEditorComponentHost,
   validateInstalledEditorComponents,
@@ -4092,8 +4093,9 @@ function ItemModal({ modal, data, onClose, onSaved }) {
         throw new Error("Имя обязательно");
       }
 
-      const config = formToConfig(form);
+      let config = formToConfig(form);
       validateItemConfig(modal.type, config);
+      config = await discoverNewItemIcon(modal, config);
       const latestData = await loadLatestEditorData();
       const nextData =
         modal.mode === "edit"

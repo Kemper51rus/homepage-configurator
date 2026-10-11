@@ -1,8 +1,9 @@
 import { existsSync, promises as fs } from "fs";
 import path from "path";
+import { createHash } from "crypto";
 
 import createLogger from "utils/logger";
-import { fetchRemoteIcon, getSafeRemoteUrl, maxIconBytes } from "../lib/favicon-resolver";
+import { fetchRemoteIcon, getIconDiscoveryApprovedOrigins, getSafeRemoteUrl, imageExtensionFromContentType, maxIconBytes } from "../lib/favicon-resolver";
 
 const logger = createLogger("iconConfigService");
 
@@ -122,11 +123,35 @@ export default async function handler(req, res) {
       }
 
       res.setHeader("Content-Type", contentTypes[extension] ?? "application/octet-stream");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'");
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       return res.status(200).send(image);
     }
 
     if (req.method === "POST") {
+      if (fileName === "discover") {
+        if (!req.body || typeof req.body !== "object" || Array.isArray(req.body) ||
+          Object.keys(req.body).some((key) => key !== "url")) return res.status(400).end("Invalid discovery body");
+        const { url } = req.body;
+        const approvedOrigins = getIconDiscoveryApprovedOrigins(process.env.HOMEPAGE_ICON_DISCOVERY_ALLOWED_ORIGINS);
+        const safeUrl = typeof url === "string" && /^https?:\/\//i.test(url.trim()) ? getSafeRemoteUrl(url, { approvedOrigins }) : null;
+        if (!safeUrl) return res.status(400).end("Invalid discovery URL");
+
+        const { buffer, contentType, error } = await fetchRemoteIcon(safeUrl, { requireSamePageHost: true, approvedOrigins, totalTimeoutMs: 7000, discoveryTransport: true });
+        const extension = imageExtensionFromContentType(contentType);
+        if (!buffer || buffer.length === 0 || buffer.length > maxIconBytes || !extension) {
+          return res.status(400).end(error || "Unsupported icon content type");
+        }
+
+        // Neither remote URL paths nor client filenames determine the storage path.
+        const iconName = `discovered-${createHash("sha256").update(buffer).digest("hex")}${extension}`;
+        const iconsDir = path.join(getImagesDirs()[0], "icons");
+        await fs.mkdir(iconsDir, { recursive: true });
+        await fs.writeFile(path.join(iconsDir, iconName), buffer);
+        return res.status(200).json({ success: true, localIcon: `/api/config/icon/${iconName}` });
+      }
+
       if (fileName === "upload") {
         const { name, dataUrl } = req.body ?? {};
         const safeName = getSafeIconName(name);
@@ -182,7 +207,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
-      if (fileName === "list" || fileName === "upload" || fileName === "download") {
+      if (fileName === "list" || fileName === "upload" || fileName === "download" || fileName === "discover") {
         return res.status(400).end("Invalid operation");
       }
 
