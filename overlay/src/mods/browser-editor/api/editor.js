@@ -13,7 +13,8 @@ import createLogger from "utils/logger";
 
 import { executeComponentOperation, getComponentStatusCatalog } from "../lib/component-operations";
 import { getGithubComponentCatalog, prepareGithubComponentSources } from "../lib/component-github";
-import { ensureConfigFile, updateConfigFile, writeConfigFile } from "../lib/config-writer";
+import { ensureConfigFile, updateConfigFile, updateConfigFiles, writeConfigFile } from "../lib/config-writer";
+import { moveCardBetweenTypes, validateCardTransfer } from "../lib/card-transfer";
 
 const logger = createLogger("configEditorService");
 
@@ -76,7 +77,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.8.0-beta.12";
+const configuratorVersion = "0.8.0-beta.13";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
@@ -1559,26 +1560,18 @@ async function regenerateAllStylesCss() {
     let css = generateCssForLayouts(groupLayouts);
 
     const items = [];
-    // Extract services items
-    if (Array.isArray(services)) {
-      for (const groupObj of services) {
-        if (groupObj && typeof groupObj === "object") {
-          for (const [groupName, itemsList] of Object.entries(groupObj)) {
-            if (Array.isArray(itemsList)) {
-              for (const itemObj of itemsList) {
-                if (itemObj && typeof itemObj === "object") {
-                  for (const [itemName, itemConfig] of Object.entries(itemObj)) {
-                    if (itemConfig && typeof itemConfig === "object" && !Array.isArray(itemConfig)) {
-                      items.push({ name: itemName, config: itemConfig, type: "services" });
-                    }
-                  }
-                }
-              }
-            }
-          }
+    // Nested service groups need title styles too (including transferred cards).
+    const collectServiceStyles = (nodes) => {
+      if (!Array.isArray(nodes)) return;
+      for (const node of nodes) {
+        if (!node || typeof node !== "object") continue;
+        for (const [name, value] of Object.entries(node)) {
+          if (Array.isArray(value)) collectServiceStyles(value);
+          else if (value && typeof value === "object") items.push({ name, config: value, type: "services" });
         }
       }
-    }
+    };
+    collectServiceStyles(services);
 
     // Extract bookmarks items
     if (Array.isArray(bookmarks)) {
@@ -1704,6 +1697,20 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const { action, background, backgroundPath, provider, q, apiKey, stationUrl, force, autoRestart } = req.body ?? {};
 
+      if (action === "move-item-between-types") {
+        const input = validateCardTransfer(req.body);
+        // Destination first: a process crash between renames can duplicate a
+        // card, but cannot remove it from both files. Runtime failures roll back.
+        const order = [input.target.type, input.source.type];
+        await updateConfigFiles(order.map(getConfigPath), (contents) => {
+          const configs = Object.fromEntries(order.map((type, index) => [type, yaml.load(contents[index]) ?? []]));
+          const next = moveCardBetweenTypes(configs, input);
+          return order.map((type) => yaml.dump(next[type], { lineWidth: -1, noRefs: true, sortKeys: false }));
+        });
+        await regenerateAllStylesCss();
+        return res.status(200).json(await getEditorConfig());
+      }
+
       if (action === "get-component-catalog") {
         const targetDir = await requireHomepageTargetDir();
         return res.status(200).json({ catalog: await getGithubComponentCatalog(targetDir) });
@@ -1826,6 +1833,6 @@ export default async function handler(req, res) {
     return res.status(405).end("Method Not Allowed");
   } catch (error) {
     if (error) logger.error(error);
-    return res.status(500).end(error.message || "Internal Server Error");
+    return res.status(error.statusCode || 500).end(error.message || "Internal Server Error");
   }
 }

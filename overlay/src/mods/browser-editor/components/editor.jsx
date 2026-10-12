@@ -8503,11 +8503,17 @@ function readItemDragPayload(event, fallbackPayload = null) {
   const genericPayload = typedPayload ?? readDragPayload(event);
   const fallback = fallbackPayload ?? activeDragPayload;
 
-  if (genericPayload?.type === "services" || genericPayload?.type === "bookmarks") {
+  const isItemPayload = (payload) =>
+    (payload?.scope == null || payload.scope === "item") &&
+    (payload?.type === "services" || payload?.type === "bookmarks") &&
+    typeof payload.groupName === "string" && payload.groupName.trim() &&
+    typeof payload.itemName === "string" && payload.itemName.trim();
+
+  if (isItemPayload(genericPayload)) {
     return genericPayload;
   }
 
-  if (fallback?.type === "services" || fallback?.type === "bookmarks") {
+  if (!genericPayload && isItemPayload(fallback)) {
     return fallback;
   }
 
@@ -9002,7 +9008,7 @@ export function useEditableGroupHeader(type, groupName, layout) {
 }
 
 export function useGroupInsideDropTarget(type, groupName, enabled = true) {
-  const { draggedGroup, editMode, moveGroup } = useConfigEditor();
+  const { draggedGroup, editMode, moveGroup, moveItem } = useConfigEditor();
 
   if (!enabled || !editMode) {
     return {};
@@ -9010,7 +9016,7 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
 
   return {
     onDragOver: (event) => {
-      if (!isGroupDragOver(event, draggedGroup)) {
+      if (!readItemDragPayload(event) && !isGroupDragOver(event, draggedGroup)) {
         return;
       }
 
@@ -9018,9 +9024,27 @@ export function useGroupInsideDropTarget(type, groupName, enabled = true) {
       event.dataTransfer.dropEffect = "move";
     },
     onDrop: (event) => {
+      const draggedItem = readItemDragPayload(event);
+      if (draggedItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        moveItem(
+          draggedItem.type,
+          draggedItem.groupName,
+          draggedItem.itemName,
+          groupName,
+          null,
+          draggedItem.itemMatcher,
+          null,
+          draggedItem.itemIndex,
+          null,
+          type,
+        );
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
-
       const dragged = readGroupDragPayload(event, draggedGroup);
       if (dragged?.scope === "group" && dragged.type === type) {
         moveGroup(type, dragged.groupName, groupName, "inside");
@@ -9187,31 +9211,37 @@ export function useEditableItem(type, groupName, itemName, item, itemIndex = nul
           draggable: true,
           onDragStart: (event) => {
             event.dataTransfer.effectAllowed = "move";
-            writeDragPayload(event, { type, groupName, itemName, itemMatcher, itemIndex }, ITEM_DRAG_TYPE);
+            writeDragPayload(event, { scope: "item", type, groupName, itemName, itemMatcher, itemIndex }, ITEM_DRAG_TYPE);
           },
           onDragEnd: () => {
             window.setTimeout(clearDragPayload, 0);
           },
           onDragOver: (event) => {
+            if (!readItemDragPayload(event)) {
+              return;
+            }
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
           },
           onDrop: (event) => {
-            event.preventDefault();
-            const dragged = readDragPayload(event);
-            if (dragged?.type === type) {
-              moveItem(
-                type,
-                dragged.groupName,
-                dragged.itemName,
-                groupName,
-                itemName,
-                dragged.itemMatcher,
-                itemMatcher,
-                dragged.itemIndex,
-                itemIndex,
-              );
+            const dragged = readItemDragPayload(event);
+            if (!dragged) {
+              return;
             }
+            event.preventDefault();
+            event.stopPropagation();
+            moveItem(
+              dragged.type,
+              dragged.groupName,
+              dragged.itemName,
+              groupName,
+              itemName,
+              dragged.itemMatcher,
+              itemMatcher,
+              dragged.itemIndex,
+              itemIndex,
+              type,
+            );
           },
           onClick: (event) => {
             event.preventDefault();
@@ -9276,24 +9306,31 @@ export function EditorAddTile({ type, groupName, label, className, wrapperClassN
       <button
         type="button"
         onDragOver={(event) => {
+          if (!readItemDragPayload(event)) {
+            return;
+          }
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
         }}
         onDrop={(event) => {
-          event.preventDefault();
-          const dragged = readDragPayload(event);
-          if (dragged?.type === type) {
-            moveItem(
-              type,
-              dragged.groupName,
-              dragged.itemName,
-              groupName,
-              null,
-              dragged.itemMatcher,
-              null,
-              dragged.itemIndex,
-            );
+          const dragged = readItemDragPayload(event);
+          if (!dragged) {
+            return;
           }
+          event.preventDefault();
+          event.stopPropagation();
+          moveItem(
+            dragged.type,
+            dragged.groupName,
+            dragged.itemName,
+            groupName,
+            null,
+            dragged.itemMatcher,
+            null,
+            dragged.itemIndex,
+            null,
+            type,
+          );
         }}
         onClick={() => openNewItem(type, groupName)}
         className={className}
@@ -9578,8 +9615,36 @@ export function ConfigEditorProvider({ children }) {
         targetMatcher = null,
         sourceIndex = null,
         targetIndex = null,
+        targetType = type,
       ) => {
         if (!data || !sourceGroupName || !targetGroupName) {
+          return;
+        }
+
+        if (targetType !== type) {
+          try {
+            await postEditorAction({
+              action: "move-item-between-types",
+              source: {
+                type,
+                group: sourceGroupName,
+                name: sourceName,
+                matcher: sourceMatcher,
+                index: sourceIndex,
+              },
+              target: {
+                type: targetType,
+                group: targetGroupName,
+                name: targetName,
+                matcher: targetMatcher,
+                index: targetIndex,
+              },
+            });
+            await refreshConfigData(mutate);
+            handleSaved("Элемент перемещён");
+          } catch (error) {
+            handleSaved(error?.message || "Не удалось переместить элемент");
+          }
           return;
         }
 

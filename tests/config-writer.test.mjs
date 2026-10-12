@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { ensureConfigFile, updateConfigFile, writeConfigFile } from "../overlay/src/mods/browser-editor/lib/config-writer.js";
+import { ensureConfigFile, updateConfigFile, updateConfigFiles, writeConfigFile } from "../overlay/src/mods/browser-editor/lib/config-writer.js";
 
 const source = await fs.readFile(new URL("../overlay/src/mods/browser-editor/api/editor.js", import.meta.url), "utf8");
 const START = "/* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- */";
@@ -125,6 +125,199 @@ test("ensure cannot overwrite a file created externally after its missing-file c
   });
   await ensureConfigFile(file);
   assert.equal(await fs.readFile(file, "utf8"), managed);
+});
+
+test("compound updates read both current snapshots after earlier writes and block normal operations", async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "settings.yaml");
+  await Promise.all([fs.writeFile(file, "old css"), fs.writeFile(second, "old yaml")]);
+  const entered = deferred(); const release = deferred();
+  const prior = updateConfigFile(second, async () => {
+    entered.resolve();
+    await release.promise;
+    return "current yaml";
+  });
+  await entered.promise;
+  await writeConfigFile(file, "current css");
+  const compoundEntered = deferred(); const compoundRelease = deferred();
+  const compound = updateConfigFiles([second, file], async (contents) => {
+    assert.deepEqual(contents, ["current yaml", "current css"]);
+    compoundEntered.resolve();
+    await compoundRelease.promise;
+    return contents.map((content) => content + " compound");
+  });
+  release.resolve();
+  await compoundEntered.promise;
+  const originalRename = fs.rename;
+  const events = [];
+  t.mock.method(fs, "rename", async (...args) => {
+    events.push(path.basename(args[1]));
+    return originalRename(...args);
+  });
+  const raw = writeConfigFile(second, "normal yaml");
+  const normalUpdate = updateConfigFile(file, (content) => {
+    assert.equal(content, "current css compound");
+    return content + " normal";
+  });
+  const ensure = ensureConfigFile(second);
+  try {
+    assert.equal(await fs.readFile(file, "utf8"), "current css");
+    assert.equal(await fs.readFile(second, "utf8"), "current yaml");
+    assert.deepEqual(events, []);
+  } finally { compoundRelease.resolve(); }
+  await Promise.all([prior, compound, raw, normalUpdate, ensure]);
+  assert.deepEqual(events.slice(0, 2), ["settings.yaml", "custom.css"]);
+  assert.equal(await fs.readFile(second, "utf8"), "normal yaml");
+  assert.equal(await fs.readFile(file, "utf8"), "current css compound normal");
+});
+
+test("overlapping compound updates in opposite order do not deadlock or lose increments", { timeout: 5000 }, async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "second.css");
+  await Promise.all([fs.writeFile(file, "0"), fs.writeFile(second, "0")]);
+  await Promise.all(Array.from({ length: 20 }, (_, index) => updateConfigFiles(
+    index % 2 ? [file, second] : [second, file],
+    async (contents) => contents.map((content) => String(Number(content) + 1)),
+  )));
+  assert.equal(await fs.readFile(file, "utf8"), "20");
+  assert.equal(await fs.readFile(second, "utf8"), "20");
+});
+
+test("compound destination failure rolls back exact snapshots before releasing normal writes", async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "second.css");
+  const initial = "\ufeffinitial\r\n\u0000last\n";
+  await Promise.all([fs.writeFile(file, initial, { mode: 0o640 }), fs.writeFile(second, "second", { mode: 0o600 })]);
+  const originalRename = fs.rename;
+  const entered = deferred(); const release = deferred();
+  t.mock.method(fs, "rename", async (...args) => {
+    if (args[1] === second) {
+      entered.resolve();
+      await release.promise;
+      throw new Error("second destination denied");
+    }
+    return originalRename(...args);
+  });
+  const compound = updateConfigFiles([file, second], (contents) => {
+    contents[0] = "mutated input";
+    return ["new first", "new second"];
+  });
+  const rejected = assert.rejects(compound, /second destination denied/);
+  await entered.promise;
+  assert.equal(await fs.readFile(file, "utf8"), "new first");
+  const normal = updateConfigFile(file, (content) => {
+    assert.equal(content, initial);
+    return content + "recovered";
+  });
+  release.resolve();
+  await Promise.all([rejected, normal]);
+  assert.equal(await fs.readFile(file, "utf8"), initial + "recovered");
+  assert.equal(await fs.readFile(second, "utf8"), "second");
+  assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
+  assert.equal((await fs.stat(second)).mode & 0o777, 0o600);
+  assert.deepEqual((await fs.readdir(dir)).sort(), ["custom.css", "second.css"]);
+});
+
+test("cleanup rejection after a successful replacement still rolls that file back", async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "second.css");
+  await Promise.all([fs.writeFile(file, "first"), fs.writeFile(second, "second")]);
+  const originalRm = fs.rm;
+  let first = true;
+  const rm = t.mock.method(fs, "rm", async (...args) => {
+    if (first && args[0].endsWith(".tmp")) {
+      first = false;
+      throw new Error("temporary cleanup denied");
+    }
+    return originalRm(...args);
+  });
+  await assert.rejects(updateConfigFiles([file, second], () => ["a", "b"]), /temporary cleanup denied/);
+  assert.equal(await fs.readFile(file, "utf8"), "first");
+  assert.equal(await fs.readFile(second, "utf8"), "second");
+  rm.mock.restore();
+  await writeConfigFile(file, "recovered");
+  assert.equal(await fs.readFile(file, "utf8"), "recovered");
+});
+
+test("rollback failures report paths and original cause, attempt remaining rollbacks, and release all queues", async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "second.css");
+  const third = path.join(dir, "third.css");
+  await Promise.all([fs.writeFile(file, "first"), fs.writeFile(second, "second"), fs.writeFile(third, "third")]);
+  const originalRename = fs.rename;
+  let failed = false;
+  const destinationError = new Error("third denied");
+  const rollbackError = new Error("second rollback denied");
+  const rename = t.mock.method(fs, "rename", async (...args) => {
+    if (args[1] === third) { failed = true; throw destinationError; }
+    if (failed && args[1] === second) throw rollbackError;
+    return originalRename(...args);
+  });
+  await assert.rejects(updateConfigFiles([file, second, third], () => ["a", "b", "c"]), (error) => {
+    assert.ok(error instanceof AggregateError);
+    assert.equal(error.cause, destinationError);
+    assert.deepEqual(error.errors, [destinationError, rollbackError]);
+    assert.deepEqual(error.rollbackFailures, [{ filePath: second, error: rollbackError }]);
+    assert.ok(error.message.includes(second));
+    return true;
+  });
+  assert.equal(await fs.readFile(file, "utf8"), "first");
+  assert.equal(await fs.readFile(second, "utf8"), "b");
+  assert.equal(await fs.readFile(third, "utf8"), "third");
+  rename.mock.restore();
+  await updateConfigFiles([third, second, file], () => ["recovered", "recovered", "recovered"]);
+  assert.deepEqual(await Promise.all([file, second, third].map((target) => fs.readFile(target, "utf8"))), ["recovered", "recovered", "recovered"]);
+});
+
+test("compound updates preserve modes and symlink aliases share unique locks", { timeout: 5000 }, async (t) => {
+  const { dir, file } = await fixture(t);
+  const second = path.join(dir, "second.css");
+  const alias = path.join(dir, "alias.css");
+  await Promise.all([fs.writeFile(file, "first", { mode: 0o640 }), fs.writeFile(second, "second", { mode: 0o600 })]);
+  await fs.symlink(file, alias);
+  const entered = deferred(); const release = deferred();
+  const compound = updateConfigFiles([alias, second, file], async (contents) => {
+    assert.deepEqual(contents, ["first", "second", "first"]);
+    entered.resolve();
+    await release.promise;
+    return ["alias next", "second next", "last wins"];
+  });
+  await entered.promise;
+  const normal = updateConfigFile(alias, (content) => {
+    assert.equal(content, "last wins");
+    return content + " normal";
+  });
+  release.resolve();
+  await Promise.all([compound, normal]);
+  assert.ok((await fs.lstat(alias)).isSymbolicLink());
+  assert.equal((await fs.stat(file)).mode & 0o777, 0o640);
+  assert.equal((await fs.stat(second)).mode & 0o777, 0o600);
+  assert.equal(await fs.readFile(alias, "utf8"), "last wins normal");
+  assert.equal(await fs.readFile(second, "utf8"), "second next");
+});
+
+test("missing snapshots, transform rejection and invalid results do not write or poison compound queues", async (t) => {
+  const { dir, file } = await fixture(t);
+  const missing = path.join(dir, "missing.css");
+  await fs.writeFile(file, "initial");
+  let called = false;
+  await assert.rejects(updateConfigFiles([file, missing], () => { called = true; return ["a", "b"]; }), { code: "ENOENT" });
+  assert.equal(called, false);
+  await assert.rejects(updateConfigFiles([file], async () => { throw new Error("transform denied"); }), /transform denied/);
+  for (const result of [undefined, [], ["a", "b"], [42], Array(1)]) {
+    await assert.rejects(updateConfigFiles([file], () => result), TypeError);
+    assert.equal(await fs.readFile(file, "utf8"), "initial");
+  }
+  await assert.rejects(updateConfigFiles("not an array", () => []), TypeError);
+  await assert.rejects(updateConfigFiles([file], null), TypeError);
+  await ensureConfigFile(missing);
+  await updateConfigFiles([missing, file], (contents) => {
+    assert.deepEqual(contents, ["", "initial"]);
+    return ["created", "recovered"];
+  });
+  assert.equal(await fs.readFile(file, "utf8"), "recovered");
+  assert.equal(await fs.readFile(missing, "utf8"), "created");
+  await updateConfigFiles([], (contents) => { assert.deepEqual(contents, []); return []; });
 });
 
 test("rename failure leaves original intact, cleans temporary file, and does not poison queue", async (t) => {
