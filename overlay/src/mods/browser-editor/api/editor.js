@@ -77,7 +77,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.8.0-beta.13";
+const configuratorVersion = "0.8.0-beta.14";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;

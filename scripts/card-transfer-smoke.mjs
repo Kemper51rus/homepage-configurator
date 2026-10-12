@@ -23,8 +23,8 @@ const put = async (file, data) => {
   assert.ok(response.ok(), await response.text());
 };
 const entry = (data, type, group, name) => data[type].find((g) => g[group])?.[group].find((item) => Object.prototype.hasOwnProperty.call(item, name))?.[name];
-const groupSelector = (name, type) => `[data-editor-group-name="${name}"][data-editor-group-type="${type}"]`;
-const cardSelector = (name, type) => `li.${type === "services" ? "service" : "bookmark"}[data-name="${name}"]`;
+const groupSelector = (name, type) => `div[data-editor-group-name="${name}"][data-editor-group-type="${type}"]`;
+const cardSelector = (name, type) => `li.${type === "services" ? "service" : "bookmark"}[data-name="${name}"] button[draggable="true"]`;
 const outsideTitleCss = (css) => css.replace(/\/\* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- \*\/[\s\S]*?\/\* --- HOMEPAGE-CONFIGURATOR TITLE STYLES END --- \*\//g, "").trim();
 let initialCss;
 let discoveryRequests = 0;
@@ -32,6 +32,8 @@ page.on("request", (request) => { if (request.url().endsWith("/api/config/icon/d
 async function drop(source, target) {
   await source.waitFor({ state: "attached" });
   await target.waitFor({ state: "attached" });
+  const movingName = await source.evaluate((element) => element.closest("li[data-name]").dataset.name);
+  const destinationType = await target.evaluate((element) => element.closest("[data-editor-group-type]").dataset.editorGroupType);
   const transfer = await page.evaluateHandle(() => new DataTransfer());
   const responsePromise = page.waitForResponse((response) => {
     if (!response.url().endsWith("/api/config/editor") || response.request().method() !== "POST") return false;
@@ -41,9 +43,13 @@ async function drop(source, target) {
   await source.dispatchEvent("dragstart", { dataTransfer: transfer });
   await target.dispatchEvent("dragover", { dataTransfer: transfer });
   await target.dispatchEvent("drop", { dataTransfer: transfer });
-  await source.dispatchEvent("dragend", { dataTransfer: transfer }).catch(() => {});
+  await source.dispatchEvent("dragend", { dataTransfer: transfer, timeout: 1000 }).catch(() => {});
   const response = await responsePromise;
   assert.equal(response.status(), 200, await response.text());
+  // Wait for both SWR lists, not just persistence: the next drag must use
+  // freshly rendered indexes after insertion/removal.
+  await source.waitFor({ state: "detached", timeout: 15000 });
+  await page.locator(cardSelector(movingName, destinationType)).waitFor({ state: "attached", timeout: 15000 });
   await transfer.dispose();
 }
 try {
@@ -53,7 +59,7 @@ try {
   let data = await config();
   await put("services", [...data.services, { [serviceGroup]: [{ [serviceName]: {
     href: "https://example.com/service", icon: "mdi-test-tube", id: `${tag}_service_id`, description: "kept description", weight: 100, ping: false, showStats: false, internalOnly: { test: "discard" },
-  } }] }]);
+  } }, { [`${tag}_SERVICE_ANCHOR`]: { href: "https://example.com/service-anchor", icon: "mdi-anchor", weight: 200 } }] }]);
   data = await config();
   await put("bookmarks", [...data.bookmarks, { [bookmarkGroup]: [
     { [bookmarkName]: [{ href: "https://example.com/bookmark", icon: "mdi-book-open-page-variant", id: `${tag}_bookmark_id`, abbr: "BM", showLink: false }] },
@@ -80,19 +86,19 @@ try {
   console.log("Service -> bookmark card: common fields retained, service-only data discarded");
 
   await bookmarkCard().waitFor({ state: "attached" });
-  await services().getByRole("button", { name: "Add service", exact: true }).waitFor({ state: "attached" });
-  await drop(bookmarkCard(), services().getByRole("button", { name: "Add service", exact: true }));
+  await services().waitFor({ state: "attached" });
+  await drop(bookmarkCard(), services());
   data = await config();
   assert.equal(entry(data, "bookmarks", bookmarkGroup, bookmarkName), undefined);
   assert.equal(entry(data, "services", serviceGroup, bookmarkName)?.href, "https://example.com/bookmark");
   assert.equal(entry(data, "services", serviceGroup, bookmarkName)?.abbr, "BM");
   assert.equal(entry(data, "services", serviceGroup, bookmarkName)?.showLink, undefined);
-  console.log("Bookmark -> empty service group passed");
+  console.log("Bookmark -> service group body passed");
 
   await page.locator(cardSelector(bookmarkName, "services")).waitFor({ state: "attached" });
   await drop(page.locator(cardSelector(serviceName, "bookmarks")), page.locator(cardSelector(bookmarkName, "services")));
   data = await config();
-  const serviceEntries = data.services.find((g) => g[serviceGroup])[serviceGroup];
+  const serviceEntries = data.services.find((g) => g[serviceGroup])[serviceGroup].filter((item) => Object.keys(item).some((name) => [serviceName, bookmarkName].includes(name)));
   assert.deepEqual(serviceEntries.map((item) => Object.keys(item)[0]), [serviceName, bookmarkName]);
   assert.ok(serviceEntries[0][serviceName].weight < serviceEntries[1][bookmarkName].weight);
   assert.equal(serviceEntries[0][serviceName].internalOnly, undefined);
