@@ -9,6 +9,11 @@ const testNames = new Set([testName, `${testName}_SERVICE`, `${testName}_FAILURE
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const endpoint = new URL("/api/config/editor", url).href;
+const customCssUrl = new URL("/api/config/custom.css", url).href;
+const outsideTitleStyles = (css) => css.replace(/\/\* --- HOMEPAGE-CONFIGURATOR TITLE STYLES START --- \*\/[\s\S]*?\/\* --- HOMEPAGE-CONFIGURATOR TITLE STYLES END --- \*\//g, "").trim();
+const originalCssResponse = await page.request.get(customCssUrl);
+assert.ok(originalCssResponse.ok());
+const originalCustomCss = outsideTitleStyles(await originalCssResponse.text());
 const requestConfig = async () => {
   const response = await page.request.get(endpoint);
   assert.ok(response.ok());
@@ -89,6 +94,10 @@ try {
         assert.ok(response.ok(), `Failed to remove test ${file} entries`);
       }
     }
+    const cssResponse = await page.request.get(customCssUrl);
+    assert.ok(cssResponse.ok());
+    assert.equal(outsideTitleStyles(await cssResponse.text()), originalCustomCss, "Card saves lost custom CSS outside generated title styles");
+    console.log("User and managed custom CSS preserved across all card saves");
   } finally {
     await browser.close();
   }

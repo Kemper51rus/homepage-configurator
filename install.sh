@@ -819,7 +819,29 @@ backup_file_once() {
   log "Backup created: ${target}.bak"
 }
 
-remove_legacy_color_cards_css() {
+# Replace managed custom files without exposing a truncated live file to readers.
+# Resolve symlinks so their referents, rather than the links, are replaced.
+atomic_replace_custom_file() (
+  local source="$1"
+  local target="$2"
+  local tmp=""
+  local mask=""
+
+  target="$(readlink -f -- "$target")" || return 1
+  tmp="$(mktemp "$(dirname "$target")/.homepage-custom.XXXXXXXX")" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
+
+  cat -- "$source" > "$tmp" || return 1
+  if [[ -f "$target" ]]; then
+    chmod --reference="$target" "$tmp" || return 1
+  else
+    mask="$(umask)"
+    chmod "$(printf '%03o' "$((0666 & ~mask))")" "$tmp" || return 1
+  fi
+  mv -fT -- "$tmp" "$target" || return 1
+)
+
+remove_legacy_color_cards_css() (
   local target="$1"
   local tmp=""
 
@@ -828,7 +850,8 @@ remove_legacy_color_cards_css() {
   grep -q '^\[id\^="color-' "$target" || return 0
   grep -q '^\.service-card,[[:space:]]*$' "$target" || return 0
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp)" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
 
   if awk '
     BEGIN {
@@ -854,15 +877,15 @@ remove_legacy_color_cards_css() {
       }
     }
   ' "$target" > "$tmp"; then
-    backup_file_once "$target"
-    cp -f "$tmp" "$target"
+    backup_file_once "$target" || return 1
+    atomic_replace_custom_file "$tmp" "$target" || return 1
     log "Legacy unmarked color-card CSS block migrated in $target"
   fi
 
   rm -f "$tmp"
-}
+)
 
-remove_legacy_custom_extras_css() {
+remove_legacy_custom_extras_css() (
   local target="$1"
   local tmp=""
 
@@ -870,7 +893,8 @@ remove_legacy_custom_extras_css() {
   grep -Fq "HOMEPAGE-EDITOR CUSTOM EXTRAS CSS START" "$target" && return 0
   grep -q '^/\* --- TAB NAVIGATION --- \*/' "$target" || return 0
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp)" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
 
   if awk '
     BEGIN {
@@ -896,15 +920,15 @@ remove_legacy_custom_extras_css() {
       }
     }
   ' "$target" > "$tmp"; then
-    backup_file_once "$target"
-    cp -f "$tmp" "$target"
+    backup_file_once "$target" || return 1
+    atomic_replace_custom_file "$tmp" "$target" || return 1
     log "Legacy unmarked custom extras CSS block migrated in $target"
   fi
 
   rm -f "$tmp"
-}
+)
 
-remove_legacy_particles_fragment() {
+remove_legacy_particles_fragment() (
   local target="$1"
   local tmp=""
 
@@ -912,7 +936,8 @@ remove_legacy_particles_fragment() {
   grep -Fq "HOMEPAGE-EDITOR PARTICLES" "$target" && return 0
   grep -Fq "START OF OLD /srv/start TRANSFER: INTERACTIVE BACKGROUND + FPS BUTTON" "$target" || return 0
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp)" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
 
   if awk '
     BEGIN {
@@ -937,22 +962,23 @@ remove_legacy_particles_fragment() {
       }
     }
   ' "$target" > "$tmp"; then
-    backup_file_once "$target"
-    cp -f "$tmp" "$target"
+    backup_file_once "$target" || return 1
+    atomic_replace_custom_file "$tmp" "$target" || return 1
     log "Legacy unmarked particles/FPS block migrated in $target"
   fi
 
   rm -f "$tmp"
-}
+)
 
-remove_legacy_radio_js() {
+remove_legacy_radio_js() (
   local target="$1"
   local tmp=""
 
   [[ -f "$target" ]] || return 0
   head -n 1 "$target" | grep -Fq "(function homepageRadioWidget() {" || return 0
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp)" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
 
   if awk '
     BEGIN {
@@ -977,15 +1003,15 @@ remove_legacy_radio_js() {
       }
     }
   ' "$target" > "$tmp"; then
-    backup_file_once "$target"
-    cp -f "$tmp" "$target"
+    backup_file_once "$target" || return 1
+    atomic_replace_custom_file "$tmp" "$target" || return 1
     log "Legacy unmarked radio JS block migrated in $target"
   fi
 
   rm -f "$tmp"
-}
+)
 
-upsert_fragment() {
+upsert_fragment() (
   local source="$1"
   local target="$2"
   local tmp=""
@@ -999,11 +1025,11 @@ upsert_fragment() {
 
   mkdir -p "$(dirname "$target")"
   [[ -f "$target" ]] && target_existed=1
-  [[ -f "$target" ]] || : > "$target"
 
-  tmp="$(mktemp)"
+  tmp="$(mktemp)" || return 1
+  trap 'rm -f -- "$tmp"' EXIT
 
-  if grep -Fqx "$start_marker" "$target" && grep -Fqx "$end_marker" "$target"; then
+  if [[ -f "$target" ]] && grep -Fqx "$start_marker" "$target" && grep -Fqx "$end_marker" "$target"; then
     awk -v start="$start_marker" -v end="$end_marker" -v replacement="$source" '
       BEGIN {
         skip = 0
@@ -1027,23 +1053,23 @@ upsert_fragment() {
       !skip {
         print
       }
-    ' "$target" > "$tmp"
+    ' "$target" > "$tmp" || return 1
   else
     if [[ -s "$target" ]]; then
-      cp -f "$target" "$tmp"
-      printf '\n\n' >> "$tmp"
+      cp -f "$target" "$tmp" || return 1
+      printf '\n\n' >> "$tmp" || return 1
     fi
-    cat "$source" >> "$tmp"
-    printf '\n' >> "$tmp"
+    cat "$source" >> "$tmp" || return 1
+    printf '\n' >> "$tmp" || return 1
   fi
 
   if [[ "$target_existed" -eq 1 ]] && ! cmp -s "$tmp" "$target"; then
-    backup_file_once "$target"
+    backup_file_once "$target" || return 1
   fi
 
-  cp -f "$tmp" "$target"
+  atomic_replace_custom_file "$tmp" "$target" || return 1
   rm -f "$tmp"
-}
+)
 
 merge_radio_custom_js_source() {
   local source="$1"
