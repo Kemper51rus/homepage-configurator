@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { updateConfigFiles, updateConfigFile } from "../overlay/src/mods/browser-editor/lib/config-writer.js";
+import { normalizeLocalIconFields } from "../overlay/src/mods/browser-editor/lib/local-icon-path.js";
 
 // The installer supplies js-yaml in Homepage; load the pure field/validation
 // portion directly so source tests do not require an installed Homepage tree.
@@ -128,11 +129,11 @@ async function apiFixture(t) {
   await fs.writeFile(path.join(dir, "custom.css"), css);
   const api = await readFile(new URL("../overlay/src/mods/browser-editor/api/editor.js", import.meta.url), "utf8");
   const block = api.slice(api.indexOf('if (action === "move-item-between-types")'), api.indexOf('if (action === "get-component-catalog")'));
-  const execute = new Function("req", "res", "validateCardTransfer", "moveCardBetweenTypes", "updateConfigFiles", "getConfigPath", "yaml", "regenerateAllStylesCss", "getEditorConfig", `const action = req.body.action; return (async () => { ${block} })();`);
+  const execute = new Function("req", "res", "validateCardTransfer", "moveCardBetweenTypes", "updateConfigFiles", "getConfigPath", "yaml", "regenerateAllStylesCss", "getEditorConfig", "normalizeLocalIconFields", `const action = req.body.action; return (async () => { ${block} })();`);
   let regenerations = 0;
   const getConfigPath = (type) => path.join(dir, `${type}.yaml`);
   const getEditorConfig = async () => Object.fromEntries(await Promise.all(Object.keys(configs).map(async (type) => [type, JSON.parse(await fs.readFile(getConfigPath(type), "utf8"))])));
-  const run = (body) => execute({ body }, { status(code) { assert.equal(code, 200); return this; }, json(value) { return value; } }, validateCardTransfer, moveCardBetweenTypes, updateConfigFiles, getConfigPath, { load: JSON.parse, dump: JSON.stringify }, async () => { regenerations += 1; }, getEditorConfig);
+  const run = (body) => execute({ body }, { status(code) { assert.equal(code, 200); return this; }, json(value) { return value; } }, validateCardTransfer, moveCardBetweenTypes, updateConfigFiles, getConfigPath, { load: JSON.parse, dump: JSON.stringify }, async () => { regenerations += 1; }, getEditorConfig, normalizeLocalIconFields);
   return { dir, config, configs, css, run, getConfigPath, getEditorConfig, regenerations: () => regenerations };
 }
 

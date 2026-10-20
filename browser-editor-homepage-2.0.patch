@@ -264,8 +264,9 @@ diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
 index 77ba911..79489a0 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
-@@ -4,8 +4,8 @@ import { SettingsContext } from "utils/contexts/settings";
+@@ -4,12 +4,15 @@ import { SettingsContext } from "utils/contexts/settings";
  import { ThemeContext } from "utils/contexts/theme";
++import { normalizeLocalIconPath } from "mods/browser-editor/lib/local-icon-path";
  
  const iconSetURLs = {
 -  mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
@@ -275,7 +276,14 @@ index 77ba911..79489a0 100644
  };
  
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
-@@ -31,9 +31,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+   const { settings } = useContext(SettingsContext);
+   const { theme } = useContext(ThemeContext);
+-
++
++  icon = normalizeLocalIconPath(icon);
++
+   // direct or relative URLs
+@@ -31,9 +34,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -286,7 +294,7 @@ index 77ba911..79489a0 100644
    if (prefix === "sh") {
      const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
  
-@@ -46,9 +46,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -46,9 +49,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
        extension = "png";
      }
  
@@ -299,7 +307,7 @@ index 77ba911..79489a0 100644
          width={width}
          height={height}
          style={{
-@@ -59,19 +61,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -59,19 +64,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
            maxWidth: "100%",
          }}
          alt={alt}
@@ -322,7 +330,7 @@ index 77ba911..79489a0 100644
      const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
      if (colorMatches?.length) {
        iconName = icon.replace(`${prefix}-`, "").replace(".svg", "").replace(`-${colorMatches[0]}`, "");
-@@ -95,49 +97,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -95,49 +100,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -379,7 +387,7 @@ index 77ba911..79489a0 100644
        width={width}
        height={height}
        style={{
-@@ -148,6 +118,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -148,6 +121,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
          maxWidth: "100%",
        }}
        alt={alt}

@@ -15,6 +15,7 @@ import { executeComponentOperation, getComponentStatusCatalog } from "../lib/com
 import { getGithubComponentCatalog, prepareGithubComponentSources } from "../lib/component-github";
 import { ensureConfigFile, updateConfigFile, updateConfigFiles, writeConfigFile } from "../lib/config-writer";
 import { moveCardBetweenTypes, validateCardTransfer } from "../lib/card-transfer";
+import { normalizeLocalIconFields } from "../lib/local-icon-path";
 
 const logger = createLogger("configEditorService");
 
@@ -77,7 +78,7 @@ const maxIconBytes = 5 * 1024 * 1024;
 const trackInfoProbeTimeoutMs = 5000;
 const maxTrackInfoProbeBytes = 256 * 1024;
 const configuratorName = "homepage-configurator";
-const configuratorVersion = "0.8.0-beta.14";
+const configuratorVersion = "0.8.0-beta.15";
 const defaultConfiguratorRepo = "Kemper51rus/homepage-configurator";
 const defaultConfiguratorBranch = "main";
 const defaultConfiguratorMetadataUrl = `https://api.github.com/repos/${defaultConfiguratorRepo}/contents/version.json?ref=${defaultConfiguratorBranch}`;
@@ -1088,7 +1089,8 @@ async function readYamlFile(file, fallback) {
 
 async function writeYamlFile(file, data) {
   const filePath = getConfigPath(file);
-  const dumped = yaml.dump(data, {
+  const normalized = file === "services" || file === "bookmarks" ? normalizeLocalIconFields(data) : data;
+  const dumped = yaml.dump(normalized, {
     lineWidth: -1,
     noRefs: true,
     sortKeys: false,
@@ -1122,12 +1124,18 @@ async function readRawConfigFile(fileName, format) {
 }
 
 async function writeRawConfigFile(fileName, format, content) {
-  const nextContent = typeof content === "string" ? content : "";
+  let nextContent = typeof content === "string" ? content : "";
   const filePath =
     format === "yaml" ? (checkAndCopyConfig(fileName), path.join(CONF_DIR, fileName)) : await ensureTextFile(fileName);
 
   if (format === "yaml") {
-    yaml.load(nextContent || "");
+    const parsed = yaml.load(nextContent || "");
+    if (fileName === "services.yaml" || fileName === "bookmarks.yaml") {
+      const normalized = normalizeLocalIconFields(parsed);
+      if (normalized !== parsed) {
+        nextContent = yaml.dump(normalized, { lineWidth: -1, noRefs: true, sortKeys: false });
+      }
+    }
   }
 
   await writeConfigFile(filePath, nextContent);
@@ -1705,7 +1713,7 @@ export default async function handler(req, res) {
         await updateConfigFiles(order.map(getConfigPath), (contents) => {
           const configs = Object.fromEntries(order.map((type, index) => [type, yaml.load(contents[index]) ?? []]));
           const next = moveCardBetweenTypes(configs, input);
-          return order.map((type) => yaml.dump(next[type], { lineWidth: -1, noRefs: true, sortKeys: false }));
+          return order.map((type) => yaml.dump(normalizeLocalIconFields(next[type]), { lineWidth: -1, noRefs: true, sortKeys: false }));
         });
         await regenerateAllStylesCss();
         return res.status(200).json(await getEditorConfig());

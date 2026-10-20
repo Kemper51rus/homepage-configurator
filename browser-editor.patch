@@ -268,8 +268,9 @@ diff --git a/src/components/resolvedicon.jsx b/src/components/resolvedicon.jsx
 index cf5fde0..367b8b9 100644
 --- a/src/components/resolvedicon.jsx
 +++ b/src/components/resolvedicon.jsx
-@@ -5,8 +5,8 @@ import { SettingsContext } from "utils/contexts/settings";
+@@ -5,12 +5,15 @@ import { SettingsContext } from "utils/contexts/settings";
  import { ThemeContext } from "utils/contexts/theme";
++import { normalizeLocalIconPath } from "mods/browser-editor/lib/local-icon-path";
  
  const iconSetURLs = {
 -  mdi: "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/",
@@ -279,7 +280,14 @@ index cf5fde0..367b8b9 100644
  };
  
  export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "logo" }) {
-@@ -32,9 +32,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+   const { settings } = useContext(SettingsContext);
+   const { theme } = useContext(ThemeContext);
+-
++
++  icon = normalizeLocalIconPath(icon);
++
+   // direct or relative URLs
+@@ -32,9 +35,9 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -290,7 +298,7 @@ index cf5fde0..367b8b9 100644
    if (prefix === "sh") {
      const iconName = icon.replace("sh-", "").replace(".svg", "").replace(".png", "").replace(".webp", "");
  
-@@ -47,9 +47,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -47,9 +50,11 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
        extension = "png";
      }
  
@@ -303,7 +311,7 @@ index cf5fde0..367b8b9 100644
          width={width}
          height={height}
          style={{
-@@ -60,19 +62,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -60,19 +65,19 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
            maxWidth: "100%",
          }}
          alt={alt}
@@ -326,7 +334,7 @@ index cf5fde0..367b8b9 100644
      const colorMatches = icon.match(/[#][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]$/i);
      if (colorMatches?.length) {
        iconName = icon.replace(`${prefix}-`, "").replace(".svg", "").replace(`-${colorMatches[0]}`, "");
-@@ -96,49 +98,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -96,49 +101,17 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
      );
    }
  
@@ -383,7 +391,7 @@ index cf5fde0..367b8b9 100644
        width={width}
        height={height}
        style={{
-@@ -149,6 +119,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
+@@ -149,6 +122,7 @@ export default function ResolvedIcon({ icon, width = 32, height = 32, alt = "log
          maxWidth: "100%",
        }}
        alt={alt}
@@ -1105,14 +1113,9 @@ index 304e2ff..e8a1587 100644
  import { BiError } from "react-icons/bi";
  import useSWR, { SWRConfig } from "swr";
  
-@@ -13,9 +13,18 @@ import BookmarksGroup from "components/bookmarks/group";
+@@ -13,6 +13,15 @@ import BookmarksGroup from "components/bookmarks/group";
  import ErrorBoundary from "components/errorboundry";
  import QuickLaunch from "components/quicklaunch";
- import ServicesGroup from "components/services/group";
--import Tab, { slugifyAndEncode } from "components/tab";
-+import { slugifyAndEncode } from "components/tab";
- import Revalidate from "components/toggles/revalidate";
- import Widget from "components/widgets/widget";
 +import {
 +  ConfigEditorProvider,
 +  EditorPageTab,
@@ -1122,9 +1125,11 @@ index 304e2ff..e8a1587 100644
 +  getOrderedTabsForLayout,
 +  useEditableTopWidget,
 +} from "mods/browser-editor/components/editor";
- import { bookmarksResponse, servicesResponse, widgetsResponse } from "utils/config/api-response";
- import { getSettings } from "utils/config/config";
- import { ColorContext } from "utils/contexts/color";
+ import ServicesGroup from "components/services/group";
+-import Tab, { slugifyAndEncode } from "components/tab";
++import { slugifyAndEncode } from "components/tab";
+ import Revalidate from "components/toggles/revalidate";
+ import Widget from "components/widgets/widget";
 @@ -34,16 +43,72 @@ const ColorToggle = dynamic(() => import("components/toggles/color"), {
    ssr: false,
  });
