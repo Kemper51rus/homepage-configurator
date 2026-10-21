@@ -19,6 +19,8 @@
 
 <img src="preview.png" width="100%">
 
+Рабочий runtime и порядок проверки публичного dashboard: [doc/runtime.md](doc/runtime.md).
+
 ## Quick install
 
 Установка target-проекта Homepage через Proxmox VE Community Scripts из Proxmox VE Shell:
